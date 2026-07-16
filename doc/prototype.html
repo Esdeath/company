@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>企业快照库 · 交互原型</title>
   <style>
     :root {
@@ -346,9 +347,6 @@
     .workspace-context__identity strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .workspace-context__identity span { color: var(--muted); font-family: var(--font-data); font-size: 11px; }
     .workspace-context__category { color: var(--accent); font-size: 12px; font-weight: 750; }
-    .workspace-document { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 0 0 64px; }
-    .workspace-document .snapshot-head { padding-top: 28px; }
-    .workspace-document.value-page { width: min(1320px, calc(100% - 48px)); }
     .workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
     .workspace-empty .empty-state { width: min(560px, 100%); }
     .snapshot-frame-shell { position: relative; flex: 1; min-width: 0; min-height: 0; background: #fff; }
@@ -361,26 +359,6 @@
     .snapshot-frame-loading.is-error { color: var(--negative); background: var(--negative-soft); }
     .html-snapshot-main { display: flex; min-height: calc(100dvh - 116px); flex-direction: column; padding: 18px 24px 24px; }
     .company-drawer-button { display: none; }
-    @container workspace-detail (max-width: 720px) {
-      .workspace-document .value-layout { grid-template-columns: 1fr; }
-      .workspace-document .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .workspace-document .value-metrics > :last-child { grid-column: 1 / -1; }
-      .workspace-document .value-metric:nth-child(even) { border-right: 0; }
-      .workspace-document .value-metric { border-bottom: 1px solid var(--line); }
-      .workspace-document .value-metric:last-child { border-bottom: 0; }
-      .workspace-document .desktop-toc { display: none; }
-      .workspace-document .mobile-toc-toggle { display: inline-flex; }
-      .workspace-document .value-scan-grid { grid-template-columns: 1fr; }
-      .workspace-document .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .workspace-document .value-scan__label,
-      .workspace-document .value-scan__result { margin: 0; }
-      .workspace-document .value-duo { grid-template-columns: 1fr; }
-      .workspace-document .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .workspace-document .metric:nth-child(2) { border-right: 0; }
-      .workspace-document .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-      .workspace-document .scan-rail { grid-template-columns: 1fr; }
-      .workspace-document .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
-    }
     body.company-drawer-open { overflow: hidden; }
     .company-drawer-layer { position: fixed; inset: 52px 0 0; z-index: 45; display: none; }
     .company-drawer-backdrop { position: absolute; inset: 0; width: 100%; padding: 0; background: rgba(9, 18, 23, 0.52); border: 0; }
@@ -410,111 +388,6 @@
     .snapshot-kicker { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; color: var(--muted); font-family: var(--font-data); font-size: 12px; }
     .snapshot-title { font-size: clamp(38px, 5vw, 62px); }
     .snapshot-summary { max-width: 760px; margin: 16px 0 0; color: var(--muted); font-size: 17px; }
-    .metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 22px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-    .metric { padding: 16px 18px; border-right: 1px solid var(--line); }
-    .metric:last-child { border-right: 0; }
-    .metric-label { display: block; color: var(--muted); font-size: 11px; }
-    .metric-value { display: block; margin-top: 4px; font-family: var(--font-data); font-size: 18px; font-weight: 700; }
-    .verdict-banner { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 16px 18px; color: var(--positive); background: var(--positive-soft); border: 1px solid #bfd5c7; border-radius: var(--radius-card); }
-    .verdict-banner.is-skip { color: var(--caution); background: var(--caution-soft); border-color: #e6c89e; }
-    .verdict-banner strong { display: block; }
-    .verdict-banner small { color: var(--muted); }
-    .scan-rail { display: grid; grid-template-columns: repeat(5, 1fr); margin: 28px 0; background: #192630; border-radius: var(--radius-card); overflow: hidden; }
-    .scan-step { position: relative; padding: 16px; color: #dce7ea; border-right: 1px solid #3d4c57; }
-    .scan-step:last-child { border-right: 0; }
-    .scan-number { display: block; color: #7fb5c4; font-family: var(--font-data); font-size: 10px; letter-spacing: 0.12em; }
-    .scan-label { display: block; margin-top: 5px; font-size: 13px; }
-    .snapshot-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 44px; align-items: start; }
-    .snapshot-body { min-width: 0; }
-    .research-section { scroll-margin-top: 80px; padding: 30px 0; border-bottom: 1px solid var(--line); }
-    .research-section h2 { margin: 0 0 14px; font-family: var(--font-display); font-size: 30px; font-weight: 600; }
-    .evidence-block { padding: 17px 18px; background: var(--surface); border: 1px solid var(--line); border-left-width: 4px; border-radius: 0 var(--radius-card) var(--radius-card) 0; }
-    .evidence-block--fact { border-left-color: var(--accent); }
-    .evidence-block--judgement { border-left-color: var(--positive); }
-    .evidence-block--todo { border-left-color: var(--caution); }
-    .evidence-label { display: block; margin-bottom: 6px; color: var(--muted); font-family: var(--font-data); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; }
-    .evidence-block p { margin: 0; }
-    .source-list { margin: 0; padding-left: 20px; color: var(--muted); }
-    .snapshot-toc { position: sticky; top: 72px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-    .snapshot-toc h2 { margin: 0 0 10px; font-size: 13px; }
-    .snapshot-toc a { display: block; padding: 6px 0; color: var(--muted); text-decoration: none; font-size: 13px; }
-    .snapshot-toc a:hover { color: var(--accent); }
-    .version-list { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
-    .version-list button { display: block; width: 100%; padding: 7px 0; text-align: left; color: var(--muted); background: transparent; border: 0; cursor: pointer; }
-    .version-list button.is-active { color: var(--accent); font-weight: 700; }
-    .mobile-toc-toggle { display: none; margin: 18px 0 0; }
-    .disclaimer { margin-top: 32px; padding: 16px 18px; color: var(--muted); background: #e9edef; border-radius: var(--radius-card); font-size: 13px; }
-    .value-page { width: min(1320px, calc(100% - 48px)); }
-    .value-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 22px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-    .value-metric { min-width: 0; padding: 16px; border-right: 1px solid var(--line); }
-    .value-metric:last-child { border-right: 0; }
-    .value-metric__label { display: block; color: var(--muted); font-size: 11px; }
-    .value-metric__value { display: block; margin: 5px 0 2px; font-family: var(--font-data); font-size: clamp(15px, 1.55vw, 21px); font-weight: 750; white-space: nowrap; }
-    .value-metric__note { display: block; color: var(--muted); font-size: 10px; line-height: 1.35; }
-    .value-conclusion { padding: 22px; color: #e8f0f2; background: #17242d; border-radius: var(--radius-card); }
-    .value-conclusion__head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
-    .value-conclusion h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; }
-    .value-stamp { padding: 5px 11px; color: #dff0e5; background: #2f6b4f; border: 1px solid #5c8d72; border-radius: 999px; font-size: 12px; font-weight: 750; }
-    .value-evidence { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 14px; padding: 13px 0; border-top: 1px solid #33434d; }
-    .value-evidence:first-of-type { border-top: 0; }
-    .value-evidence__label { color: #85b9c6; font-family: var(--font-data); font-size: 11px; font-weight: 750; letter-spacing: 0.08em; }
-    .value-evidence p { margin: 0; color: #dbe5e8; }
-    .value-evidence--question .value-evidence__label { color: #e1b77e; }
-    .value-scan-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 16px 0 30px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
-    .value-scan { display: block; min-width: 0; padding: 14px; color: var(--ink); background: transparent; border: 0; border-right: 1px solid var(--line); text-decoration: none; }
-    .value-scan:last-child { border-right: 0; }
-    .value-scan:hover { background: #f7f9f9; }
-    .value-scan__number { display: block; color: var(--accent); font-family: var(--font-data); font-size: 10px; }
-    .value-scan__label { display: block; margin: 5px 0 7px; font-weight: 750; }
-    .value-scan__result { display: block; color: var(--positive); font-size: 11px; line-height: 1.35; }
-    .value-scan--watch .value-scan__result { color: var(--caution); }
-    .value-layout { display: grid; grid-template-columns: minmax(0, 1fr) 235px; gap: 28px; align-items: start; }
-    .value-body { min-width: 0; }
-    .value-section { min-width: 0; scroll-margin-top: 74px; margin-bottom: 18px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-    .value-section__head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
-    .value-section h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.2; }
-    .value-section__hint { color: var(--muted); font-size: 11px; text-align: right; }
-    .value-thesis { margin-top: 16px; padding: 15px 17px; color: var(--ink); background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; }
-    .value-table-shell { min-width: 0; }
-    .value-table-tools { display: flex; justify-content: flex-end; gap: 7px; margin-bottom: 9px; }
-    .value-table-tools button { padding: 5px 9px; color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control); font-size: 11px; cursor: pointer; }
-    .value-table-scroll { max-width: 100%; max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-control); scrollbar-color: #9fb0b7 #eef2f3; }
-    .value-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-family: var(--font-data); font-size: 11px; }
-    .value-table th, .value-table td { min-width: 82px; padding: 9px 10px; color: var(--ink); background: var(--surface); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-    .value-table thead th { position: sticky; top: 0; z-index: 2; color: #dce7ea; background: #263640; font-weight: 650; }
-    .value-table th:first-child, .value-table td:first-child { position: sticky; left: 0; z-index: 1; min-width: 174px; text-align: left; background: #f6f8f8; font-family: var(--font-body); font-weight: 650; }
-    .value-table thead th:first-child { z-index: 3; color: #dce7ea; background: #263640; }
-    .value-table tr:last-child th, .value-table tr:last-child td { border-bottom: 0; }
-    .value-table th:last-child, .value-table td:last-child { border-right: 0; }
-    .value-table .is-negative { color: var(--negative); background: var(--negative-soft); font-weight: 750; }
-    .value-notes { display: grid; gap: 9px; margin-top: 13px; }
-    .value-note { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; padding: 13px; background: #f6f8f8; border-radius: var(--radius-control); }
-    .value-note__number { display: grid; place-items: center; width: 26px; height: 26px; color: #fff; background: var(--accent); border-radius: 50%; font-family: var(--font-data); font-size: 11px; }
-    .value-note p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
-    .value-note__result { display: inline-block; margin-top: 7px; color: var(--positive); font-size: 11px; font-weight: 750; }
-    .value-note--watch .value-note__result { color: var(--caution); }
-    .value-small-table { width: 100%; border-collapse: collapse; }
-    .value-small-table th, .value-small-table td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-    .value-small-table th { color: var(--muted); background: #f6f8f8; font-size: 11px; }
-    .value-small-table td { font-size: 13px; }
-    .value-small-table td:last-child { font-family: var(--font-data); }
-    .value-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-    .value-duo > * { min-width: 0; }
-    .value-capital-list { margin: 0 0 14px; padding-left: 20px; color: var(--muted); font-size: 13px; }
-    .value-capital-list li + li { margin-top: 5px; }
-    .question-scroll { overflow-x: auto; }
-    .question-table { width: 100%; min-width: 780px; border-collapse: collapse; }
-    .question-table th, .question-table td { padding: 11px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 12px; }
-    .question-table th { color: var(--muted); background: #f6f8f8; }
-    .question-answerable { color: var(--positive); font-weight: 750; white-space: nowrap; }
-    .question-external { color: var(--caution); font-weight: 750; white-space: nowrap; }
-    .value-handoff { margin-top: 14px; padding: 15px; color: var(--ink); background: var(--caution-soft); border-left: 4px solid var(--caution); }
-    .value-methodology { color: var(--muted); font-size: 12px; }
-    .value-toc { position: sticky; top: 70px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
-    .value-toc h2 { margin: 0 0 9px; font-size: 12px; }
-    .value-toc a { display: block; padding: 5px 0; color: var(--muted); text-decoration: none; font-size: 12px; }
-    .value-toc a:hover { color: var(--accent); }
-    .value-compact .value-metrics, .value-compact .value-conclusion, .value-compact .value-scan-grid { margin-top: 0; }
     .site-footer { padding: 26px 24px; color: var(--muted); background: #e6ebed; border-top: 1px solid var(--line); font-size: 12px; }
     .site-footer__inner { display: flex; justify-content: space-between; gap: 24px; width: min(1180px, 100%); margin: 0 auto; }
     .is-hidden { display: none !important; }
@@ -597,7 +470,6 @@
     .validation-group ul { margin: 0; padding-left: 18px; font-size: 12px; }
     .validation-group li + li { margin-top: 5px; }
     .preview-paper { max-height: 720px; overflow: auto; }
-    .preview-paper .research-section { padding: 18px 0; }
     .audit-list { margin: 0; padding: 0; list-style: none; }
     .audit-list li { position: relative; padding: 0 0 18px 18px; color: var(--muted); font-size: 13px; border-left: 1px solid var(--line); }
     .audit-list li::before { content: ""; position: absolute; left: -5px; top: 3px; width: 9px; height: 9px; background: var(--accent); border-radius: 50%; }
@@ -613,9 +485,7 @@
     @media (max-width: 980px) {
       .hero { grid-template-columns: 1fr; gap: 24px; }
       .snapshot-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .snapshot-grid { grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; }
       .admin-review-grid { grid-template-columns: 310px minmax(0, 1fr); }
-      .value-layout { grid-template-columns: minmax(0, 1fr) 205px; gap: 20px; }
     }
     @media (max-width: 767px) {
       .site-header { min-height: 56px; padding: 0 16px; }
@@ -626,15 +496,7 @@
       .search-form { grid-template-columns: 1fr auto; }
       .filter-row, .result-header, .admin-heading, .admin-toolbar, .review-summary { align-items: stretch; flex-direction: column; }
       .snapshot-cards { grid-template-columns: 1fr; }
-      .metric-strip { grid-template-columns: repeat(2, 1fr); }
-      .metric:nth-child(2) { border-right: 0; }
-      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-      .scan-rail { grid-template-columns: 1fr; }
-      .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
-      .snapshot-grid, .admin-review-grid { grid-template-columns: 1fr; }
-      .desktop-toc { display: none; }
-      .snapshot-page.toc-open .snapshot-toc { display: block; position: static; order: -1; }
-      .mobile-toc-toggle { display: inline-flex; }
+      .admin-review-grid { grid-template-columns: 1fr; }
       .site-footer__inner { flex-direction: column; gap: 6px; }
       .login-page { grid-template-columns: 1fr; }
       .login-context { min-height: 260px; padding: 28px 22px; }
@@ -659,25 +521,6 @@
       .review-tabs { overflow-x: auto; }
       .review-panel { padding: 15px; }
       .preview-paper { max-height: none; }
-      .value-page { width: calc(100% - 32px); }
-      .value-layout { grid-template-columns: 1fr; }
-      .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .value-metrics > :last-child { grid-column: 1 / -1; }
-      .value-metric:nth-child(even) { border-right: 0; }
-      .value-metric { border-bottom: 1px solid var(--line); }
-      .value-metric:last-child { border-bottom: 0; }
-      .value-conclusion { padding: 18px; }
-      .value-conclusion__head, .value-section__head { align-items: start; flex-direction: column; }
-      .value-evidence { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; }
-      .value-scan-grid { grid-template-columns: 1fr; }
-      .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .value-scan:last-child { border-bottom: 0; }
-      .value-scan__label, .value-scan__result { margin: 0; }
-      .value-section { padding: 16px; }
-      .value-section__hint { text-align: left; }
-      .value-duo { grid-template-columns: 1fr; }
-      .value-page.toc-open .value-toc { display: block; position: static; order: -1; }
-      .value-table-scroll { max-height: 460px; }
       .toast-region { right: 12px; bottom: 12px; left: 12px; }
       .toast { min-width: 0; }
     }
@@ -693,14 +536,7 @@
     .prototype-stage.is-mobile .admin-toolbar,
     .prototype-stage.is-mobile .review-summary { align-items: stretch; flex-direction: column; }
     .prototype-stage.is-mobile .snapshot-cards,
-    .prototype-stage.is-mobile .snapshot-grid,
     .prototype-stage.is-mobile .admin-review-grid { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .metric-strip { grid-template-columns: repeat(2, 1fr); }
-    .prototype-stage.is-mobile .scan-rail { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
-    .prototype-stage.is-mobile .desktop-toc { display: none; }
-    .prototype-stage.is-mobile .snapshot-page.toc-open .snapshot-toc { display: block; position: static; order: -1; }
-    .prototype-stage.is-mobile .mobile-toc-toggle { display: inline-flex; }
     .prototype-stage.is-mobile .login-page { grid-template-columns: 1fr; }
     .prototype-stage.is-mobile .login-context { min-height: 260px; padding: 28px 22px; }
     .prototype-stage.is-mobile .login-context h1 { margin: 48px 0 12px; font-size: 38px; }
@@ -714,24 +550,6 @@
     .prototype-stage.is-mobile .admin-table { display: none; }
     .prototype-stage.is-mobile .admin-card-list { display: grid; gap: 10px; padding: 10px; }
     .prototype-stage.is-mobile .import-result { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .value-page { width: calc(100% - 32px); }
-    .prototype-stage.is-mobile .value-layout { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .prototype-stage.is-mobile .value-metrics > :last-child { grid-column: 1 / -1; }
-    .prototype-stage.is-mobile .value-metric:nth-child(even) { border-right: 0; }
-    .prototype-stage.is-mobile .value-metric { border-bottom: 1px solid var(--line); }
-    .prototype-stage.is-mobile .value-metric:last-child { border-bottom: 0; }
-    .prototype-stage.is-mobile .value-conclusion { padding: 18px; }
-    .prototype-stage.is-mobile .value-conclusion__head,
-    .prototype-stage.is-mobile .value-section__head { align-items: start; flex-direction: column; }
-    .prototype-stage.is-mobile .value-evidence { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; }
-    .prototype-stage.is-mobile .value-scan-grid { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
-    .prototype-stage.is-mobile .value-scan__label,
-    .prototype-stage.is-mobile .value-scan__result { margin: 0; }
-    .prototype-stage.is-mobile .value-section { padding: 16px; }
-    .prototype-stage.is-mobile .value-duo { grid-template-columns: 1fr; }
-    .prototype-stage.is-mobile .value-page.toc-open .value-toc { display: block; position: static; order: -1; }
     @media (max-width: 767px) {
       .workspace-site-shell { height: calc(100dvh - 52px); min-height: 0; }
       .company-workspace { grid-template-columns: minmax(0, 1fr); }
@@ -741,8 +559,6 @@
       .workspace-context { padding: 8px 16px; }
       .workspace-context__identity { flex: 1; }
       .workspace-context__category { display: none; }
-      .workspace-document,
-      .workspace-document.value-page { width: calc(100% - 32px); }
     }
     .prototype-stage.is-mobile .workspace-site-shell { height: calc(100dvh - 52px); min-height: 0; }
     .prototype-stage.is-mobile .company-workspace { grid-template-columns: minmax(0, 1fr); }
@@ -752,8 +568,6 @@
     .prototype-stage.is-mobile .workspace-context { padding: 8px 16px; }
     .prototype-stage.is-mobile .workspace-context__identity { flex: 1; }
     .prototype-stage.is-mobile .workspace-context__category { display: none; }
-    .prototype-stage.is-mobile .workspace-document,
-    .prototype-stage.is-mobile .workspace-document.value-page { width: calc(100% - 32px); }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
@@ -805,143 +619,6 @@
   }
 ]
 </script>
-  <script type="application/json" id="maotai-snapshot-data">
-{
-  "id": "cn-600519-2025",
-  "format": "value_line",
-  "companyName": "贵州茅台",
-  "ticker": "600519",
-  "market": "CN",
-  "exchange": "SSE",
-  "dataAsOf": "2025-12-31",
-  "quoteAsOf": "2026-07-15 12:05",
-  "publishedAt": "2026-07-16",
-  "generatedAt": "2026-07-16 09:00",
-  "isLatest": true,
-  "summary": "高毛利、低负债、长期每股收益上行；2025年营收和利润转为负增长，现金兑现需要继续核查。",
-  "verdict": "second_round",
-  "metrics": {
-    "price": "¥1,244.97",
-    "pe": "18.82",
-    "pb": "5.76",
-    "dividend": "4.2%",
-    "marketCap": "15,563.14 亿元"
-  },
-  "marketMetrics": [
-    {"label":"近期股价","value":"¥1,244.97","note":"52周区间 1,093.39–1,336.37"},
-    {"label":"市盈率 TTM","value":"18.82×","note":"年末静态 15.52–53.75×"},
-    {"label":"市净率","value":"5.76×","note":"年末静态 4.05–15.56×"},
-    {"label":"股息率","value":"4.2%","note":"2025年度合计 ¥51.98/股"},
-    {"label":"总市值","value":"¥15,563.14亿元","note":"A股人民币口径"}
-  ],
-  "quickConclusion": {
-    "facts": [
-      "现价 ¥1,244.97，高于52周低点 13.9%、低于52周高点 6.8%；PE-TTM 18.82 倍，PB 5.76 倍。按 2014–2025 年年末收盘价和年报每股数据直接计算，静态PE区间为 15.52–53.75 倍、PB区间为 4.05–15.56 倍。",
-      "2025年毛利率 91.2%、ROE 32.5%、资产负债率 16.4%；营收同比 -1.2%、归母净利润同比 -4.5%，经营现金流与归母净利润之比为 0.75 倍。"
-    ],
-    "judgement": "贵州茅台仍呈现高毛利、低负债、长期每股收益上行的品牌酒类生意特征。当前估值有历史低位特征，但利润分母正在承压，进入第二轮研究。",
-    "question": "2025年的下滑属于库存与渠道周期，还是高端白酒需求的长期变化？"
-  },
-  "scanChecks": [
-    {"number":1,"label":"长期记录","result":"记录向上但右端下蹲","tone":"pass","anchor":"per-share-history"},
-    {"number":2,"label":"ROE与杠杆","result":"高回报近年现金流打折","tone":"watch","anchor":"operating-history"},
-    {"number":3,"label":"股本变化","result":"长期稳定且略回购","tone":"pass","anchor":"per-share-history"},
-    {"number":4,"label":"利润率","result":"高毛利平线","tone":"pass","anchor":"operating-history"},
-    {"number":5,"label":"估值锚","result":"低位但分母承压","tone":"watch","anchor":"mental-math"}
-  ],
-  "businessModel": {
-    "description": "贵州茅台是上海证券交易所上市的白酒企业，核心产品为茅台酒及系列酒，收入主要来自酒类销售；公司同时通过直营与经销等渠道销售产品。白酒企业的收入确认、合同负债、库存与渠道价格需要结合年报附注和渠道信息观察，本页只保留公开财务摘要。",
-    "thesis": "品牌与稀缺性支撑高毛利，渠道与真实动销决定现金兑现。上限由长期提价和放量能力决定，下限由品牌、库存和终端需求决定。"
-  },
-  "perShareHistory": {
-    "label": "企业快照上半部：每股数据，人民币元",
-    "years": ["2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","2019","2020","2021","2022","2023","2024","2025"],
-    "rows": [
-      {"label":"每股营收","values":["7.84","6.69","7.94","7.67","8.33","5.21","7.67","8.74","10.25","11.22","17.72","25.49","27.20","25.65","26.62","31.97","48.62","61.45","70.73","78.00","87.14","101.55","119.85","138.62","137.23"]},
-      {"label":"每股收益（基本）","values":["1.59","1.37","1.94","2.09","2.37","1.64","3.00","4.03","4.57","4.87","8.44","12.82","13.25","12.22","12.34","13.31","21.56","28.02","32.80","37.17","41.76","49.93","59.49","68.64","65.66"]},
-      {"label":"每股经营现金流","values":["0.17","1.58","3.11","2.48","3.59","2.23","1.85","5.56","4.48","6.57","9.78","11.48","12.19","11.06","13.88","29.81","17.63","32.94","35.99","41.13","50.97","29.21","53.01","73.61","49.13"]},
-      {"label":"每股股息（元）","values":["0.60","0.20","0.30","0.50","0.30","0.70","0.84","1.16","1.19","2.30","4.00","6.42","4.37","4.37","6.17","6.79","11.00","14.54","17.02","19.29","21.68","25.91","30.88","51.55","51.98"]},
-      {"label":"每股净资产","values":["10.12","10.37","11.37","10.60","10.79","6.25","8.72","11.91","15.33","19.49","24.07","32.89","41.05","46.79","50.89","58.03","72.80","89.83","108.27","128.42","150.88","157.23","171.68","185.56","195.36"]},
-      {"label":"加权平均股本（亿股）","values":["2.06*","2.75","3.02","3.93","4.72","9.42","9.44","9.43","9.44","10.37","10.38","10.38","11.42","12.56","12.56","12.56","12.56","12.56","12.56","12.56","12.56","12.56","12.56","12.56","12.54"]},
-      {"label":"净资产收益率（平均）","values":["26.8%","13.9%","18.6%","21.3%","24.0%","27.7%","39.3%","39.0%","33.5%","30.9%","40.4%","45.0%","39.4%","32.0%","26.2%","24.4%","33.0%","34.5%","33.1%","31.4%","29.9%","30.3%","34.2%","36.0%","32.5%"]}
-    ]
-  },
-  "perShareNotes": [
-    {"number":1,"title":"长期记录","body":"2001–2024年基本每股收益从 1.59 元升至 68.64 元，2025年回落至 65.66 元；负增长年份集中在长期序列的少数拐点，最新一次是2025年（-4.5%）。","result":"记录仍强，最新拐点需解释","tone":"pass"},
-    {"number":3,"title":"股本变化","body":"按归母净利润除以基本EPS推算，加权股本从2001年的 2.06 亿股到2025年的 12.54 亿股；2014–2024年基本稳定，2025年回购后略降。2025年分红率 79.2%。","result":"未见持续稀释","tone":"pass"},
-    {"number":5,"title":"估值锚","body":"当前PE-TTM 18.82 倍，接近自身静态PE区间下沿 15.52 倍；但利润分母包含2025年下滑，不能把低PE直接当作便宜。","result":"便宜与否取决于分母","tone":"watch"}
-  ],
-  "operatingHistory": {
-    "label": "企业快照下半部：年度经营数据，人民币",
-    "years": ["2000","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","2019","2020","2021","2022","2023","2024","2025"],
-    "rows": [
-      {"label":"营业收入（亿元）","values":["11.1","16.2","18.4","24.0","30.1","39.3","49.0","72.4","82.4","96.7","116.3","184.0","264.6","310.7","322.2","334.5","401.6","610.6","772.0","888.5","979.9","1,094.6","1,275.5","1,505.6","1,741.4","1,720.5"]},
-      {"label":"营收同比","values":["25.0%","45.2%","13.6%","30.6%","25.4%","30.6%","24.8%","47.6%","13.9%","17.3%","20.3%","58.2%","43.8%","17.4%","3.7%","3.8%","20.1%","52.1%","26.4%","15.1%","10.3%","11.7%","16.5%","18.0%","15.7%","-1.2%"],"negativeIndexes":[25]},
-      {"label":"归母净利润（亿元）","values":["2.5","3.3","3.8","5.9","8.2","11.2","15.4","28.3","38.0","43.1","50.5","87.6","133.1","151.4","153.5","155.0","167.2","270.8","352.0","412.1","467.0","524.6","627.2","747.3","862.3","823.2"]},
-      {"label":"净利润同比","values":["15.7%","31.5%","14.6%","56.0%","39.8%","36.3%","38.1%","83.2%","34.2%","13.5%","17.1%","73.5%","51.9%","13.7%","1.4%","1.0%","7.8%","62.0%","30.0%","17.1%","13.3%","12.3%","19.6%","19.2%","15.4%","-4.5%"],"negativeIndexes":[25]},
-      {"label":"毛利率","values":["82.3%","82.2%","81.4%","80.1%","82.2%","82.5%","84.0%","88.0%","90.3%","90.2%","90.9%","91.6%","92.3%","92.9%","92.6%","92.2%","91.2%","89.8%","91.1%","91.3%","91.4%","91.5%","91.9%","92.0%","91.9%","91.2%"]},
-      {"label":"净利率","values":["22.9%","21.2%","21.4%","25.4%","28.4%","29.7%","33.0%","41.0%","48.5%","47.1%","45.9%","50.3%","53.0%","51.6%","51.5%","50.4%","46.1%","49.8%","51.4%","51.5%","52.2%","52.5%","52.7%","52.5%","52.3%","50.5%"]},
-      {"label":"净资产收益率（平均）","values":["68.9%","26.8%","13.9%","18.6%","21.3%","24.0%","27.7%","39.3%","39.0%","33.5%","30.9%","40.4%","45.0%","39.4%","32.0%","26.2%","24.4%","33.0%","34.5%","33.1%","31.4%","29.9%","30.3%","34.2%","36.0%","32.5%"]},
-      {"label":"投入资本回报率","values":["50.5%","20.5%","13.3%","18.5%","21.5%","24.1%","28.0%","40.1%","39.2%","33.6%","30.7%","40.2%","44.7%","37.7%","30.4%","24.9%","22.5%","30.0%","32.1%","31.2%","29.4%","27.3%","29.2%","33.3%","35.0%","31.4%"]},
-      {"label":"资产负债率","values":["65.0%","26.7%","26.9%","30.0%","33.8%","35.9%","35.6%","20.2%","27.0%","25.9%","27.5%","27.2%","21.2%","20.4%","16.0%","23.3%","32.8%","28.7%","26.5%","22.5%","21.4%","22.8%","19.5%","18.0%","19.0%","16.4%"]},
-      {"label":"经营现金流（亿元）","values":["4.4","0.4","4.3","9.4","9.8","16.9","21.1","17.4","52.5","42.2","62.0","101.5","119.2","126.6","126.3","174.4","374.5","221.5","413.9","452.1","516.7","640.3","367.0","665.9","924.6","615.2"]},
-      {"label":"存货周转天数","values":["856","813","985","864","979","931","879","885","1,220","1,383","1,670","1,481","1,484","1,764","2,064","2,340","2,039","1,293","1,257","1,182","1,195","1,248","1,288","1,293","1,316","1,399"]}
-    ]
-  },
-  "operatingNotes": [
-    {"number":2,"title":"ROE 与杠杆","body":"2025年ROE 32.5%、披露ROIC 31.4%，资产负债率 16.4%；高回报没有明显依赖杠杆。长期净现比中位数约 1.12 倍，但2025年只有 0.75 倍。","result":"结构优秀，现金兑现需跟踪","tone":"watch"},
-    {"number":4,"title":"利润率","body":"毛利率长期维持在 80.12–92.90% 区间，2025年为 91.2%；净利率2025年为 50.5%，但较2024年下降。","result":"高毛利平线","tone":"pass"}
-  ],
-  "mentalMath": {
-    "rows": [
-      {"step":"市值（所有者视角）","formula":"¥1,244.97 × 12.50亿股","result":"≈ ¥15,563.14亿元"},
-      {"step":"息税前利润","formula":"2025年几乎无有息负债，以税前利润作EBIT近似","result":"≈ ¥1,147.55亿元"},
-      {"step":"你付的价格","formula":"EV = ¥15,563.14亿 − 现金 ¥516.91亿","result":"EV/EBIT ≈ 13.11×"},
-      {"step":"生意本身的回报","formula":"EBIT ÷（归母净资产 − 现金）","result":"≈ 59.5%"},
-      {"step":"回报的历史区间","formula":"披露ROIC，2000–2025年","result":"13.3%–50.5%"}
-    ],
-    "conclusion": "市值约 ¥15,563.14 亿元，扣除2025年末货币资金 ¥516.91 亿元后EV约 ¥15,046.23 亿元；以2025年税前利润 ¥1,147.55 亿元作EBIT近似，EV/EBIT约 13.11 倍。经营占用资本回报约 59.5%。"
-  },
-  "capitalStructure": {
-    "bullets": [
-      "已发行股本：12.50亿股，上海证券交易所普通股。",
-      "2025年资产负债率 16.4%；短期借款、长期借款和应付债券无重大余额。",
-      "2025年度现金股息合计 ¥51.98/股，含中期与年度分配。",
-      "总市值约 ¥15,563.14亿元。"
-    ],
-    "years": ["2023","2024","2025"],
-    "rows": [
-      {"label":"总资产（亿元）","values":["2,727.0","2,989.4","3,038.3"]},
-      {"label":"总负债（亿元）","values":["490.4","569.3","498.8"]},
-      {"label":"资产负债率","values":["18.0%","19.0%","16.4%"]},
-      {"label":"流动比率","values":["4.62","4.45","5.09"]},
-      {"label":"期末现金（亿元）","values":["690.7","593.0","516.9"]},
-      {"label":"归母净资产（亿元）","values":["2,156.7","2,331.1","2,446.4"]}
-    ],
-    "note": "2023–2025年负债率由 18.0% 升至 19.0% 后回落至 16.4%，现金仍高；流动性是安全带，不是护城河。"
-  },
-  "cagr": {
-    "period": "2001→2025（24年复合）",
-    "rows": [
-      {"label":"营收","value":"21.5%"},
-      {"label":"净利润","value":"25.9%"},
-      {"label":"每股营收","value":"12.7%"},
-      {"label":"每股净资产","value":"13.1%"},
-      {"label":"每股股息","value":"20.4%"}
-    ],
-    "note": "公司口径营收复合增长 21.5%、净利润 25.9%，每股营收 12.7%；股本长期扩张后趋稳，公司口径与每股口径差距收窄。"
-  },
-  "fiveQuestions": [
-    {"number":1,"question":"价格是否便宜？","answerable":true,"answer":"当前不是52周新低，但PE-TTM处自身年末静态区间低位，PB处中低位；有历史低位特征，但还要验证利润分母。"},
-    {"number":2,"question":"这是不是一桩好生意？","answerable":true,"answer":"是。长期高毛利、高ROE、低负债是最强证据；2025年净现比0.75倍、营收和净利同比为负是最弱证据。"},
-    {"number":3,"question":"管理层是否值得信任？","answerable":false,"answer":"页面外：对照股东回报承诺、回购与分红执行、渠道政策和公开表述，核对说的与做的是否一致。"},
-    {"number":4,"question":"我还遗漏了什么？","answerable":false,"answer":"页面外：核查真实动销、批价和库存，高端白酒竞争格局，直营与经销渠道，合同负债、存货、销售费用和非经常项。"},
-    {"number":5,"question":"为什么这个机会被我发现？","answerable":false,"answer":"更像全市场分歧而非无人知晓。优势只能来自持续读年报、跟踪渠道，并把现金流兑现与利润表对照。"}
-  ],
-  "handoff": "前两问结论是生意合格、估值需验证、入口未亮。先核查渠道库存、终端动销、合同负债、分部数据和现金流，再判断2025年下滑的性质。",
-  "methodology": "财报数据为人民币，来自东方财富 A 股主要财务指标、资产负债表、利润表和分红明细公开接口，年报覆盖 2000–2025；行情来自腾讯证券行情接口，时间戳为 2026-07-15 12:05。当前PE-TTM使用2025年报、2025Q1与2026Q1归母净利润滚动计算，PB使用2026Q1每股净资产；EV与资本结构使用2025年报期末现金和归母净资产。心算、历史静态估值区间、CAGR、加权股本和分红率均为原始数据的直接运算，无估算与预测。本页不构成投资建议。"
-}
-  </script>
   <script>
     (() => {
       function readEmbeddedJson(id) {
@@ -949,73 +626,6 @@
       }
 
       const htmlSnapshots = readEmbeddedJson('html-snapshot-manifest');
-      const maotaiSnapshot = readEmbeddedJson('maotai-snapshot-data');
-      const snapshots = [
-        {
-          id: 'hk-00700-2025',
-          companyName: '腾讯控股',
-          ticker: '00700',
-          market: 'HK',
-          exchange: 'HKEX',
-          dataAsOf: '2025-12-31',
-          publishedAt: '2026-07-16',
-          generatedAt: '2026-07-16 10:30',
-          isLatest: true,
-          summary: '现金流和资产负债表稳健，增长持续性仍需结合核心业务继续验证。',
-          verdict: 'second_round',
-          metrics: { pe: '18.2', pb: '3.4', dividend: '2.1%', marketCap: '44,500 亿港元' },
-          sections: [
-            { id: 'entry', title: '一、入口检验', kind: 'fact', body: '经营现金流为正，净现金覆盖主要短期偿债需求。核心数据来自公司年度报告及港交所披露。' },
-            { id: 'scan', title: '二、五步扫描', kind: 'judgement', body: '盈利质量通过第一轮检查，但资本开支回报和新业务投入仍需持续跟踪。' },
-            { id: 'mental', title: '三、5 秒心算', kind: 'fact', body: '以当前市值和近年自由现金流计算，现金回报率仍需结合增长持续性判断。' },
-            { id: 'questions', title: '四、五问清单', kind: 'todo', body: '待验证视频号商业化、游戏监管变化和云业务利润率对长期现金流的影响。' },
-            { id: 'sources', title: '五、资料来源', kind: 'source', body: '腾讯控股 2025 年年度报告；港交所披露易；行情日期 2026-07-15。' }
-          ]
-        },
-        {
-          id: 'hk-00700-2024',
-          companyName: '腾讯控股',
-          ticker: '00700',
-          market: 'HK',
-          exchange: 'HKEX',
-          dataAsOf: '2024-12-31',
-          publishedAt: '2025-06-18',
-          generatedAt: '2025-06-18 09:20',
-          isLatest: false,
-          summary: '核心业务恢复增长，资本配置改善，但广告与视频号的增量仍需验证。',
-          verdict: 'second_round',
-          metrics: { pe: '21.6', pb: '3.7', dividend: '1.6%', marketCap: '38,900 亿港元' },
-          sections: [
-            { id: 'entry', title: '一、入口检验', kind: 'fact', body: '自由现金流为正，账面资金充足，主营业务仍具有规模优势。' },
-            { id: 'scan', title: '二、五步扫描', kind: 'judgement', body: '业务结构改善，股东回报增加，进入下一轮研究。' },
-            { id: 'mental', title: '三、5 秒心算', kind: 'fact', body: '估值隐含的增长要求高于成熟互联网平台，需要观察利润兑现。' },
-            { id: 'questions', title: '四、五问清单', kind: 'todo', body: '待验证回购能否长期抵消员工股权激励造成的稀释。' },
-            { id: 'sources', title: '五、资料来源', kind: 'source', body: '腾讯控股 2024 年年度报告；港交所披露易。' }
-          ]
-        },
-        maotaiSnapshot,
-        {
-          id: 'hk-03690-2025',
-          companyName: '美团',
-          ticker: '03690',
-          market: 'HK',
-          exchange: 'HKEX',
-          dataAsOf: '2025-12-31',
-          publishedAt: '2026-05-30',
-          generatedAt: '2026-05-30 11:45',
-          isLatest: true,
-          summary: '核心本地商业具备网络效应，新业务投入和竞争强度压低可见现金回报。',
-          verdict: 'skip',
-          metrics: { pe: '31.8', pb: '4.9', dividend: '0%', marketCap: '7,120 亿港元' },
-          sections: [
-            { id: 'entry', title: '一、入口检验', kind: 'fact', body: '核心业务实现盈利，但公司整体现金流受到新业务投入和竞争支出的影响。' },
-            { id: 'scan', title: '二、五步扫描', kind: 'judgement', body: '商业模式具有规模效应，当前竞争变量较多，暂不进入第二轮。' },
-            { id: 'mental', title: '三、5 秒心算', kind: 'fact', body: '需要以可持续自由现金流而非调整后利润作为估值起点。' },
-            { id: 'questions', title: '四、五问清单', kind: 'todo', body: '待验证即时零售补贴强度、骑手成本与海外投入上限。' },
-            { id: 'sources', title: '五、资料来源', kind: 'source', body: '美团 2025 年年度报告；港交所披露易。' }
-          ]
-        }
-      ];
 
       let adminRecords = [
         { id: 'published-maotai-html', snapshotId: 'cn-600519-html', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', quoteAsOf: '2026-07-15 12:05', status: 'published', report: 'clean', updatedAt: '2026-07-16' },
@@ -1040,7 +650,6 @@
         selectedSnapshotId: 'cn-600519-html',
         companyDrawerOpen: false,
         publicScenario: 'normal',
-        tocOpen: false,
         adminStatusFilter: 'all',
         adminMarketFilter: 'ALL',
         adminQuery: '',
@@ -1180,132 +789,6 @@
           </aside>`;
       }
 
-      function evidenceLabel(kind) {
-        return kind === 'fact' ? '事实' : kind === 'judgement' ? '判断' : kind === 'todo' ? '待验证' : '来源';
-      }
-
-      function renderResearchSection(section) {
-        if (section.kind === 'source') {
-          return `<section class='research-section' id='${section.id}'><h2>${section.title}</h2><ol class='source-list'><li>${section.body}</li><li>所有数据以公司正式披露为准，行情仅对应快照日期。</li></ol></section>`;
-        }
-        return `<section class='research-section' id='${section.id}'><h2>${section.title}</h2><div class='evidence-block evidence-block--${section.kind}'><span class='evidence-label'>${evidenceLabel(section.kind)}</span><p>${section.body}</p></div></section>`;
-      }
-
-      function renderSimpleSnapshot(snapshot) {
-        const versions = snapshots.filter((item) => item.market === snapshot.market && item.ticker === snapshot.ticker);
-        const skip = snapshot.verdict === 'skip';
-        return `
-          <div class='site-shell' data-route="snapshot">
-            ${renderSiteHeader()}
-            <main class='page-wrap snapshot-page ${state.tocOpen ? 'toc-open' : ''}'>
-              <button class='back-link' type='button' data-action='back-results'>← 返回快照列表</button>
-              <header class='snapshot-head'>
-                <div class='snapshot-kicker'><span>${snapshot.market} · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>数据截至 ${snapshot.dataAsOf}</span></div>
-                <h1 class='snapshot-title'>${snapshot.companyName}</h1>
-                <p class='snapshot-summary'>${snapshot.summary}</p>
-              </header>
-              <div class='metric-strip'>
-                ${[['市盈率 TTM', snapshot.metrics.pe], ['市净率', snapshot.metrics.pb], ['股息率', snapshot.metrics.dividend], ['总市值', snapshot.metrics.marketCap]].map(([label, value]) => `<div class='metric'><span class='metric-label'>${label}</span><span class='metric-value'>${value}</span></div>`).join('')}
-              </div>
-              <div class='verdict-banner ${skip ? 'is-skip' : ''}'><div><strong>${skip ? '暂不进入第二轮研究' : '进入第二轮研究'}</strong><small>这是第一轮筛选结论，不是买卖建议。</small></div><span class='ticker'>生成于 ${snapshot.generatedAt}</span></div>
-              <button class='button mobile-toc-toggle' type='button' data-action="toggle-toc">${state.tocOpen ? '收起目录' : '展开目录'}</button>
-              <div class='scan-rail' aria-label="快照扫描轨">
-                ${snapshot.sections.map((section, index) => `<div class='scan-step'><span class='scan-number'>0${index + 1}</span><span class='scan-label'>${section.title.replace(/^.+、/, '')}</span></div>`).join('')}
-              </div>
-              <div class='snapshot-grid'>
-                <article class='snapshot-body'>${snapshot.sections.map(renderResearchSection).join('')}<div class='disclaimer'>内容基于公开资料整理，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div></article>
-                <aside class='snapshot-toc ${state.tocOpen ? '' : 'desktop-toc'}'>
-                  <h2>本页目录</h2>
-                  ${snapshot.sections.map((section) => `<a href='#${section.id}'>${section.title}</a>`).join('')}
-                  <div class='version-list'><h2>历史版本</h2>${versions.map((version) => `<button class='${version.id === snapshot.id ? 'is-active' : ''}' type='button' data-action="select-version" data-id='${version.id}'>${version.dataAsOf}</button>`).join('')}</div>
-                </aside>
-              </div>
-            </main>
-            ${renderFooter()}
-          </div>`;
-      }
-
-      function renderValueTable(table, tableId) {
-        return `
-          <div class='value-table-shell'>
-            <div class='value-table-tools'>
-              <button type='button' data-action="table-earliest" data-table-id='${tableId}'>跳到最早年份</button>
-              <button type='button' data-action="table-latest" data-table-id='${tableId}'>回到最近年份</button>
-            </div>
-            <div class='value-table-scroll' id='${tableId}' tabindex='0' aria-label='${table.label}'>
-              <table class='value-table'>
-                <thead><tr><th>指标</th>${table.years.map((year) => `<th>${year}</th>`).join('')}</tr></thead>
-                <tbody>${table.rows.map((row) => `<tr><th>${row.label}</th>${row.values.map((value, index) => `<td class='${row.negativeIndexes?.includes(index) ? 'is-negative' : ''}'>${value}</td>`).join('')}</tr>`).join('')}</tbody>
-              </table>
-            </div>
-          </div>`;
-      }
-
-      function renderEvidenceNote(note) {
-        return `<div class='value-note ${note.tone === 'watch' ? 'value-note--watch' : ''}'><span class='value-note__number'>${note.number}</span><div><strong>${note.title}</strong><p>${note.body}</p><span class='value-note__result'>${note.tone === 'watch' ? '△' : '✓'} ${note.result}</span></div></div>`;
-      }
-
-      function renderValueLineBody(snapshot, { compact = false } = {}) {
-        const metricMarkup = snapshot.marketMetrics.map((metric) => `<div class='value-metric'><span class='value-metric__label'>${metric.label}</span><span class='value-metric__value'>${metric.value}</span><span class='value-metric__note'>${metric.note}</span></div>`).join('');
-        const scanMarkup = snapshot.scanChecks.map((check) => `<a class='value-scan ${check.tone === 'watch' ? 'value-scan--watch' : ''}' href='#${check.anchor}'><span class='value-scan__number'>0${check.number}</span><span class='value-scan__label'>${check.label}</span><span class='value-scan__result'>${check.tone === 'watch' ? '△' : '✓'} ${check.result}</span></a>`).join('');
-        const capitalTable = { label: '资本结构与流动性', years: snapshot.capitalStructure.years, rows: snapshot.capitalStructure.rows };
-        return `
-          <div class='value-content ${compact ? 'value-compact' : ''}'>
-            <div class='value-metrics'>${metricMarkup}</div>
-            <section class='value-conclusion' id='quick-conclusion' data-value-section="quick-conclusion">
-              <div class='value-conclusion__head'><h2>30 秒结论</h2><span class='value-stamp'>进入第二轮</span></div>
-              <div class='value-evidence'><span class='value-evidence__label'>事实</span><div>${snapshot.quickConclusion.facts.map((fact) => `<p>${fact}</p>`).join('')}</div></div>
-              <div class='value-evidence'><span class='value-evidence__label'>判断</span><p>${snapshot.quickConclusion.judgement}</p></div>
-              <div class='value-evidence value-evidence--question'><span class='value-evidence__label'>待验证</span><p>${snapshot.quickConclusion.question}</p></div>
-            </section>
-            <nav class='value-scan-grid' aria-label='快照扫描轨'>${scanMarkup}</nav>
-            <section class='value-section' id='business-model' data-value-section="business-model">
-              <div class='value-section__head'><h2>公司业务与商业模式</h2><span class='value-section__hint'>先建立商业认知，再读财务快照</span></div>
-              <p>${snapshot.businessModel.description}</p><div class='value-thesis'><strong>读快照前先记住：</strong>${snapshot.businessModel.thesis}</div>
-            </section>
-            <section class='value-section' id='per-share-history' data-value-section="per-share-history">
-              <div class='value-section__head'><h2>企业快照 · 上半部</h2><span class='value-section__hint'>2001–2025 · 每股数据 · 人民币元</span></div>
-              ${renderValueTable(snapshot.perShareHistory, 'maotai-per-share-table')}
-              <div class='value-notes'>${snapshot.perShareNotes.map(renderEvidenceNote).join('')}</div>
-            </section>
-            <section class='value-section' id='operating-history' data-value-section="operating-history">
-              <div class='value-section__head'><h2>企业快照 · 下半部</h2><span class='value-section__hint'>2000–2025 · 年度经营数据 · 人民币</span></div>
-              ${renderValueTable(snapshot.operatingHistory, 'maotai-operating-table')}
-              <div class='value-notes'>${snapshot.operatingNotes.map(renderEvidenceNote).join('')}</div>
-            </section>
-            <section class='value-section' id='mental-math' data-value-section="mental-math">
-              <div class='value-section__head'><h2>5 秒心算</h2><span class='value-section__hint'>只做直接计算，不作预测</span></div>
-              <table class='value-small-table'><thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead><tbody>${snapshot.mentalMath.rows.map((row) => `<tr><td>${row.step}</td><td>${row.formula}</td><td>${row.result}</td></tr>`).join('')}</tbody></table>
-              <div class='value-thesis'><strong>心算结论：</strong>${snapshot.mentalMath.conclusion}</div>
-            </section>
-            <section class='value-section' id='capital-structure' data-value-section="capital-structure">
-              <div class='value-duo'>
-                <div><div class='value-section__head'><h2>资本结构与流动性</h2></div><ul class='value-capital-list'>${snapshot.capitalStructure.bullets.map((item) => `<li>${item}</li>`).join('')}</ul>${renderValueTable(capitalTable, 'maotai-capital-table')}<div class='value-thesis'>${snapshot.capitalStructure.note}</div></div>
-                <div><div class='value-section__head'><h2>年均变化率</h2><span class='value-section__hint'>${snapshot.cagr.period}</span></div><table class='value-small-table'><thead><tr><th>指标</th><th>复合增长</th></tr></thead><tbody>${snapshot.cagr.rows.map((row) => `<tr><td>${row.label}</td><td>${row.value}</td></tr>`).join('')}</tbody></table><div class='value-thesis'>${snapshot.cagr.note}</div></div>
-              </div>
-            </section>
-            <section class='value-section' id='five-questions' data-value-section="five-questions">
-              <div class='value-section__head'><h2>五问检查清单</h2><span class='value-section__hint'>前两问页面内，后三问从合上页面开始</span></div>
-              <div class='question-scroll'><table class='question-table'><thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>贵州茅台的答案 / 去处</th></tr></thead><tbody>${snapshot.fiveQuestions.map((item) => `<tr><td>${item.number}</td><td>${item.question}</td><td class='${item.answerable ? 'question-answerable' : 'question-external'}'>${item.answerable ? '✓ 页面内' : '✋ 页面外'}</td><td>${item.answer}</td></tr>`).join('')}</tbody></table></div>
-              <div class='value-handoff'><strong>交接棒规则：</strong>${snapshot.handoff}</div>
-            </section>
-            <section class='value-section' id='methodology' data-value-section="methodology"><div class='value-section__head'><h2>数据来源与计算口径</h2></div><p class='value-methodology'>${snapshot.methodology}</p></section>
-          </div>`;
-      }
-
-      function renderSimpleWorkspaceBody(snapshot) {
-        const skip = snapshot.verdict === 'skip';
-        return `
-          <header class='snapshot-head'>
-            <div class='snapshot-kicker'><span>${snapshot.market} · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>数据截至 ${snapshot.dataAsOf}</span></div>
-            <h1 class='snapshot-title'>${snapshot.companyName}</h1>
-            <p class='snapshot-summary'>${snapshot.summary}</p>
-          </header>
-          <div class='metric-strip'>${[['市盈率 TTM', snapshot.metrics.pe], ['市净率', snapshot.metrics.pb], ['股息率', snapshot.metrics.dividend], ['总市值', snapshot.metrics.marketCap]].map(([label, value]) => `<div class='metric'><span class='metric-label'>${label}</span><span class='metric-value'>${value}</span></div>`).join('')}</div>
-          <div class='verdict-banner ${skip ? 'is-skip' : ''}'><div><strong>${skip ? '暂不进入第二轮研究' : '进入第二轮研究'}</strong><small>这是第一轮筛选结论，不是买卖建议。</small></div><span class='ticker'>生成于 ${snapshot.generatedAt}</span></div>
-          <div class='scan-rail' aria-label='快照扫描轨'>${snapshot.sections.map((section, index) => `<div class='scan-step'><span class='scan-number'>0${index + 1}</span><span class='scan-label'>${section.title.replace(/^.+、/, '')}</span></div>`).join('')}</div>
-          <article class='snapshot-body'>${snapshot.sections.map(renderResearchSection).join('')}<div class='disclaimer'>内容基于公开资料整理，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div></article>`;
-      }
 
       function renderInvalidHtmlPreview() {
         return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法生成 HTML 预览</h3><p>HTML 校验失败，无法生成预览。请补全页面标题并移除远程脚本。</p></div>`;
@@ -1342,24 +825,6 @@
         return renderCompanyWorkspace();
       }
 
-      function renderValueLineSnapshot(snapshot) {
-        const toc = [
-          ['quick-conclusion', '30 秒结论'], ['business-model', '商业模式'], ['per-share-history', '每股数据'], ['operating-history', '经营数据'],
-          ['mental-math', '5 秒心算'], ['capital-structure', '资本结构'], ['five-questions', '五问清单'], ['methodology', '数据口径']
-        ];
-        return `
-          <div class='site-shell' data-route="snapshot">
-            ${renderSiteHeader()}
-            <main class='snapshot-page value-page ${state.tocOpen ? 'toc-open' : ''}'>
-              <button class='back-link' type='button' data-action='back-results'>← 返回快照列表</button>
-              <header class='snapshot-head'><div class='snapshot-kicker'><span>A 股 · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>行情 ${snapshot.quoteAsOf}</span></div><h1 class='snapshot-title'>${snapshot.companyName}</h1><p class='snapshot-summary'>只寻找事实，不寻求意见。${snapshot.summary}</p></header>
-              <button class='button mobile-toc-toggle' type='button' data-action="toggle-toc">${state.tocOpen ? '收起目录' : '展开目录'}</button>
-              <div class='value-layout'><article class='value-body'>${renderValueLineBody(snapshot)}</article><aside class='value-toc ${state.tocOpen ? '' : 'desktop-toc'}'><h2>本页目录</h2>${toc.map(([id, label]) => `<a href='#${id}'>${label}</a>`).join('')}</aside></div>
-              <div class='disclaimer'>内容基于公开资料和直接计算，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div>
-            </main>
-            ${renderFooter()}
-          </div>`;
-      }
 
       function renderHtmlSnapshotPage(snapshot) {
         return `<div class='site-shell html-snapshot-page' data-route="snapshot">${renderSiteHeader()}<main class='html-snapshot-main'><button class='back-link' type='button' data-action='back-results'>← 返回公司目录</button>${renderSnapshotFrame(snapshot, 'standalone')}</main></div>`;
@@ -1505,7 +970,7 @@
       }
 
       function renderReviewAudit(record) {
-        return `<section class='review-panel'><h2>操作记录</h2><ol class='audit-list'><li><strong>完成 HTML 校验</strong><br>${record.updatedAt} · 系统</li><li><strong>导入 HTML 草稿</strong><br>${record.updatedAt} · admin</li><li><strong>生成快照</strong><br>2026-07-16 10:30 · hk-value-snapshot</li></ol></section>`;
+        return `<section class='review-panel'><h2>操作记录</h2><ol class='audit-list'><li><strong>完成 HTML 校验</strong><br>${record.updatedAt} · 系统</li><li><strong>导入 HTML 草稿</strong><br>${record.updatedAt} · admin</li><li><strong>生成快照</strong><br>2026-07-16 10:30 · 企业快照 Skill</li></ol></section>`;
       }
 
       function renderReview() {
@@ -1676,7 +1141,6 @@
             </div>`;
         armSnapshotFrameTimeouts();
         document.body.classList.toggle('company-drawer-open', state.companyDrawerOpen);
-        if (app.querySelector('.value-table-scroll')) window.requestAnimationFrame(() => app.querySelectorAll('.value-table-scroll').forEach((scroller) => { scroller.scrollLeft = scroller.scrollWidth; }));
         if (state.dialog) window.requestAnimationFrame(() => app.querySelector('[data-dialog-initial]')?.focus());
       }
 
@@ -1703,21 +1167,14 @@
         if (action === 'market') setState(publicSelectionPatch({ marketFilter: value, publicScenario: 'normal' }));
         if (action === 'select-company') {
           const wasDrawerOpen = state.companyDrawerOpen;
-          setState({ selectedSnapshotId: id, companyDrawerOpen: false, tocOpen: false });
+          setState({ selectedSnapshotId: id, companyDrawerOpen: false });
           app.querySelector('[data-workspace-scroll]')?.scrollTo({ top: 0 });
           if (wasDrawerOpen) window.requestAnimationFrame(() => app.querySelector('[data-action="open-company-drawer"]')?.focus());
         }
         if (action === 'open-company-drawer') openCompanyDrawer();
         if (action === 'close-company-drawer') closeCompanyDrawer();
-        if (action === 'open-snapshot') setState({ route: 'snapshot', selectedSnapshotId: id });
-        if (action === 'select-version') setState({ selectedSnapshotId: id });
         if (action === 'retry-public') setState(publicSelectionPatch({ publicScenario: 'normal' }));
         if (action === 'clear-search') setState(publicSelectionPatch({ searchQuery: '', marketFilter: 'ALL', publicScenario: 'normal' }));
-        if (action === 'toggle-toc') setState({ tocOpen: !state.tocOpen });
-        if (action === 'table-earliest' || action === 'table-latest') {
-          const scroller = app.querySelector(`#${trigger.dataset.tableId}`);
-          scroller?.scrollTo({ left: action === 'table-earliest' ? 0 : scroller.scrollWidth, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-        }
         if (action === 'logout') { setState({ isAuthenticated: false, route: 'login' }); showToast('已退出登录。'); }
         if (action === 'admin-home') setState({ route: 'admin-list', reviewTab: 'check' });
         if (action === 'open-upload') setState({ uploadOpen: true, inboxScanned: false });

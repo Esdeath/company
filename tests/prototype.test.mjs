@@ -35,6 +35,7 @@ test('prototype is a standalone HTML document', () => {
   assert.doesNotMatch(html, /<(?:script|img)[^>]+src=["']https?:\/\//i);
   assert.doesNotMatch(html, /<link[^>]+href=["']https?:\/\//i);
   assert.doesNotMatch(html, /@import\s+url\(["']?https?:\/\//i);
+  assert.match(html, /<link rel="icon" href="data:,">/);
   assert.doesNotThrow(() => new Function(inlineScript(html)));
 });
 
@@ -236,4 +237,24 @@ test('generated HTML snapshots are self-contained safe documents', () => {
     assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i, `${snapshot.fileName} contains remote asset`);
     assert.doesNotMatch(html, /@import\s+(?:url\()?\s*["']?https?:\/\//i, `${snapshot.fileName} contains remote import`);
   }
+});
+
+test('prototype no longer stores or renders copied financial bodies', () => {
+  const html = readPrototype();
+  for (const obsolete of [
+    'maotai-snapshot-data',
+    'renderValueLineBody',
+    'renderValueLineSnapshot',
+    'renderValueTable',
+    'renderEvidenceNote',
+    'renderSimpleSnapshot',
+    'renderSimpleWorkspaceBody',
+    'renderResearchSection',
+    'metricItems',
+    'table-earliest',
+    'table-latest',
+    'hk-00700-2025',
+    'hk-03690-2025',
+    '¥15,563.14亿元'
+  ]) assert.equal(html.includes(obsolete), false, `obsolete content remains: ${obsolete}`);
 });
