@@ -23,3 +23,21 @@ test('prototype is a standalone HTML document', () => {
   assert.doesNotMatch(html, /@import\s+url\(["']?https?:\/\//i);
   assert.doesNotThrow(() => new Function(inlineScript(html)));
 });
+
+test('prototype contains the complete public research flow', () => {
+  const html = readPrototype();
+  for (const required of [
+    'data-route="home"',
+    'data-route="snapshot"',
+    'data-action="search"',
+    'data-action="market"',
+    'data-action="sort"',
+    'data-action="open-snapshot"',
+    'data-action="select-version"',
+    'data-action="toggle-toc"',
+    '事实',
+    '判断',
+    '待验证',
+    '快照扫描轨'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+});
