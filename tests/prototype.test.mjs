@@ -136,3 +136,21 @@ test('Moutai is clean and published while the invalid demo stays admin-only', ()
   const data = embeddedJson(html, 'maotai-snapshot-data');
   assert.equal(data.summary.includes('2025年营收和利润转为负增长'), true);
 });
+
+test('value-line tables preserve readable mobile behavior', () => {
+  const html = readPrototype();
+  for (const required of [
+    '.value-table-scroll',
+    'overflow: auto',
+    'position: sticky',
+    '.prototype-stage.is-mobile .value-metrics',
+    '.prototype-stage.is-mobile .value-duo',
+    '@media (max-width: 767px)'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+});
+
+test('value-line grid children cannot widen the mobile stage', () => {
+  const html = readPrototype();
+  assert.match(html, /\.value-duo > \* \{ min-width: 0; \}/);
+  assert.match(html, /\.value-section \{[^}]*min-width: 0;/s);
+});

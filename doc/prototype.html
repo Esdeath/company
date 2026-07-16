@@ -347,7 +347,7 @@
     .value-scan--watch .value-scan__result { color: var(--caution); }
     .value-layout { display: grid; grid-template-columns: minmax(0, 1fr) 235px; gap: 28px; align-items: start; }
     .value-body { min-width: 0; }
-    .value-section { scroll-margin-top: 74px; margin-bottom: 18px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .value-section { min-width: 0; scroll-margin-top: 74px; margin-bottom: 18px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
     .value-section__head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
     .value-section h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.2; }
     .value-section__hint { color: var(--muted); font-size: 11px; text-align: right; }
@@ -376,6 +376,7 @@
     .value-small-table td { font-size: 13px; }
     .value-small-table td:last-child { font-family: var(--font-data); }
     .value-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .value-duo > * { min-width: 0; }
     .value-capital-list { margin: 0 0 14px; padding-left: 20px; color: var(--muted); font-size: 13px; }
     .value-capital-list li + li { margin-top: 5px; }
     .question-scroll { overflow-x: auto; }
@@ -491,6 +492,7 @@
       .snapshot-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .snapshot-grid { grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; }
       .admin-review-grid { grid-template-columns: 310px minmax(0, 1fr); }
+      .value-layout { grid-template-columns: minmax(0, 1fr) 205px; gap: 20px; }
     }
     @media (max-width: 767px) {
       .site-header { min-height: 56px; padding: 0 16px; }
@@ -534,6 +536,25 @@
       .review-tabs { overflow-x: auto; }
       .review-panel { padding: 15px; }
       .preview-paper { max-height: none; }
+      .value-page { width: calc(100% - 32px); }
+      .value-layout { grid-template-columns: 1fr; }
+      .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .value-metrics > :last-child { grid-column: 1 / -1; }
+      .value-metric:nth-child(even) { border-right: 0; }
+      .value-metric { border-bottom: 1px solid var(--line); }
+      .value-metric:last-child { border-bottom: 0; }
+      .value-conclusion { padding: 18px; }
+      .value-conclusion__head, .value-section__head { align-items: start; flex-direction: column; }
+      .value-evidence { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; }
+      .value-scan-grid { grid-template-columns: 1fr; }
+      .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .value-scan:last-child { border-bottom: 0; }
+      .value-scan__label, .value-scan__result { margin: 0; }
+      .value-section { padding: 16px; }
+      .value-section__hint { text-align: left; }
+      .value-duo { grid-template-columns: 1fr; }
+      .value-page.toc-open .value-toc { display: block; position: static; order: -1; }
+      .value-table-scroll { max-height: 460px; }
       .toast-region { right: 12px; bottom: 12px; left: 12px; }
       .toast { min-width: 0; }
     }
@@ -570,6 +591,24 @@
     .prototype-stage.is-mobile .admin-table { display: none; }
     .prototype-stage.is-mobile .admin-card-list { display: grid; gap: 10px; padding: 10px; }
     .prototype-stage.is-mobile .import-result { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .value-page { width: calc(100% - 32px); }
+    .prototype-stage.is-mobile .value-layout { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .prototype-stage.is-mobile .value-metrics > :last-child { grid-column: 1 / -1; }
+    .prototype-stage.is-mobile .value-metric:nth-child(even) { border-right: 0; }
+    .prototype-stage.is-mobile .value-metric { border-bottom: 1px solid var(--line); }
+    .prototype-stage.is-mobile .value-metric:last-child { border-bottom: 0; }
+    .prototype-stage.is-mobile .value-conclusion { padding: 18px; }
+    .prototype-stage.is-mobile .value-conclusion__head,
+    .prototype-stage.is-mobile .value-section__head { align-items: start; flex-direction: column; }
+    .prototype-stage.is-mobile .value-evidence { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; }
+    .prototype-stage.is-mobile .value-scan-grid { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .prototype-stage.is-mobile .value-scan__label,
+    .prototype-stage.is-mobile .value-scan__result { margin: 0; }
+    .prototype-stage.is-mobile .value-section { padding: 16px; }
+    .prototype-stage.is-mobile .value-duo { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .value-page.toc-open .value-toc { display: block; position: static; order: -1; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
