@@ -67,7 +67,7 @@ content/
 skills/
 └── hk-value-snapshot/    # 现有快照 Skill，需统一 A/H 输出契约
 infra/
-└── caddy/                # 反向代理配置
+└── nginx/                # Nginx 反向代理配置
 docs/
 compose.yaml
 .env.example
@@ -79,7 +79,7 @@ compose.yaml
 - `admin`：Vue/Vite 构建的管理端 SPA。
 - `api`：登录、导入、校验、索引、发布和公开 API。
 - `postgres`：管理员、快照索引和操作日志。
-- `proxy`：统一域名、HTTPS 和路径路由。
+- `nginx`：统一域名、静态资源、HTTPS 和路径路由。
 
 不引入 Redis、任务 Worker、MinIO 或消息队列。
 
@@ -319,7 +319,7 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 
 `compose.yaml` 包含：
 
-- `proxy`
+- `nginx`
 - `web`
 - `admin`
 - `api`
@@ -337,13 +337,15 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 
 - API 提供 `/api/health/live` 和 `/api/health/ready`。
 - PostgreSQL 使用 `pg_isready`。
-- Proxy 只在上游服务健康后转发请求。
+- Nginx 只在上游服务健康后转发请求。
 
 路由：
 
 - `/api/*` → FastAPI
 - `/admin/*` → Vue Admin
 - 其他路径 → Nuxt Web
+
+本地 Docker 环境默认使用 HTTP。生产环境由 Nginx 加载宿主机挂载的 TLS 证书；证书申请与自动续期不纳入首版应用代码。
 
 ## 12. 测试与验收
 
