@@ -164,7 +164,7 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
-    .hero h1, .snapshot-title {
+    .hero h1 {
       margin: 0;
       font-family: var(--font-display);
       font-weight: 600;
@@ -331,7 +331,6 @@
     .directory-card .card-footer { margin-top: 12px; }
     .file-kind { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .workspace-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); container-name: workspace-detail; container-type: inline-size; }
-    .workspace-detail__scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
     .workspace-context {
       display: flex;
       align-items: center;
@@ -382,12 +381,7 @@
     .empty-state__mark { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 16px; color: var(--accent); background: var(--accent-soft); border-radius: 50%; font-family: var(--font-data); }
     .empty-state h3 { margin: 0; font-family: var(--font-display); font-size: 26px; }
     .empty-state p { margin: 8px auto 20px; max-width: 440px; color: var(--muted); }
-    .snapshot-page { padding: 30px 0 72px; }
     .back-link { display: inline-flex; align-items: center; gap: 6px; padding: 5px 0; color: var(--muted); background: transparent; border: 0; cursor: pointer; }
-    .snapshot-head { padding: 34px 0 26px; border-bottom: 1px solid var(--line); }
-    .snapshot-kicker { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; color: var(--muted); font-family: var(--font-data); font-size: 12px; }
-    .snapshot-title { font-size: clamp(38px, 5vw, 62px); }
-    .snapshot-summary { max-width: 760px; margin: 16px 0 0; color: var(--muted); font-size: 17px; }
     .site-footer { padding: 26px 24px; color: var(--muted); background: #e6ebed; border-top: 1px solid var(--line); font-size: 12px; }
     .site-footer__inner { display: flex; justify-content: space-between; gap: 24px; width: min(1180px, 100%); margin: 0 auto; }
     .is-hidden { display: none !important; }
@@ -1168,7 +1162,6 @@
         if (action === 'select-company') {
           const wasDrawerOpen = state.companyDrawerOpen;
           setState({ selectedSnapshotId: id, companyDrawerOpen: false });
-          app.querySelector('[data-workspace-scroll]')?.scrollTo({ top: 0 });
           if (wasDrawerOpen) window.requestAnimationFrame(() => app.querySelector('[data-action="open-company-drawer"]')?.focus());
         }
         if (action === 'open-company-drawer') openCompanyDrawer();

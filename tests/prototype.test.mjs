@@ -136,7 +136,6 @@ test('homepage renders a master-detail financial workspace', () => {
   ]) assert.ok(html.includes(required), `missing ${required}`);
   assert.match(html, /grid-template-columns: 320px minmax\(0, 1fr\)/);
   assert.match(html, /\.company-directory__scroll[^}]*overflow-y: auto/s);
-  assert.match(html, /\.workspace-detail__scroll[^}]*overflow-y: auto/s);
 });
 
 test('public workspace loads registered HTML through a sandboxed iframe', () => {
@@ -255,6 +254,13 @@ test('prototype no longer stores or renders copied financial bodies', () => {
     'table-latest',
     'hk-00700-2025',
     'hk-03690-2025',
-    '¥15,563.14亿元'
+    '¥15,563.14亿元',
+    '.snapshot-page',
+    '.snapshot-head',
+    '.snapshot-kicker',
+    '.snapshot-title',
+    '.snapshot-summary',
+    '.workspace-detail__scroll',
+    'data-workspace-scroll'
   ]) assert.equal(html.includes(obsolete), false, `obsolete content remains: ${obsolete}`);
 });
