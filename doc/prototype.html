@@ -353,8 +353,9 @@
     .workspace-empty .empty-state { width: min(560px, 100%); }
     .snapshot-frame-shell { position: relative; flex: 1; min-width: 0; min-height: 0; background: #fff; }
     .snapshot-frame-shell--review { min-height: 720px; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
-    .snapshot-frame-shell--standalone { min-height: calc(100dvh - 150px); }
+    .snapshot-frame-shell--standalone { height: calc(100dvh - 150px); min-height: calc(100dvh - 150px); }
     .snapshot-html-frame { display: block; width: 100%; height: 100%; min-height: 0; background: #f7f5f1; border: 0; }
+    .snapshot-frame-shell--standalone .snapshot-html-frame { height: calc(100dvh - 150px); }
     .snapshot-frame-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: var(--muted); background: #f7f5f1; font-size: 13px; }
     .snapshot-frame-loading.is-hidden { display: none; }
     .snapshot-frame-loading.is-error { color: var(--negative); background: var(--negative-soft); }
@@ -1630,13 +1631,47 @@
         render();
       }
 
+      function snapshotFrameLoading(frame) {
+        return frame.closest('.snapshot-frame-shell')?.querySelector('[data-frame-loading]');
+      }
+
+      function showSnapshotFrameError(frame) {
+        const loading = snapshotFrameLoading(frame);
+        if (!loading?.isConnected) return;
+        loading.textContent = 'HTML 快照未能加载，请检查文件路径';
+        loading.classList.remove('is-hidden');
+        loading.classList.add('is-error');
+      }
+
+      function completeSnapshotFrameLoad(frame) {
+        const isLocalFile = window.location.protocol === 'file:';
+        const httpLoadComplete = frame.dataset.frameHttpStatus === 'ok' && frame.dataset.frameLoadStatus === 'loaded';
+        if (!isLocalFile && !httpLoadComplete) return;
+        snapshotFrameLoading(frame)?.classList.add('is-hidden');
+      }
+
+      async function preflightSnapshotFrame(frame) {
+        if (!['http:', 'https:'].includes(window.location.protocol)) return;
+        try {
+          const url = new URL(frame.src, window.location.href);
+          if (url.origin !== window.location.origin) throw new Error('Snapshot frame must be same-origin');
+          const response = await fetch(frame.src, { method: 'HEAD', credentials: 'same-origin' });
+          if (!response.ok) throw new Error(`Snapshot preflight failed: ${response.status}`);
+          frame.dataset.frameHttpStatus = 'ok';
+          completeSnapshotFrameLoad(frame);
+        } catch (error) {
+          frame.dataset.frameHttpStatus = 'error';
+          showSnapshotFrameError(frame);
+        }
+      }
+
       function armSnapshotFrameTimeouts() {
         app.querySelectorAll('[data-frame-load]').forEach((frame) => {
-          const loading = frame.closest('.snapshot-frame-shell')?.querySelector('[data-frame-loading]');
+          preflightSnapshotFrame(frame);
           window.setTimeout(() => {
+            const loading = snapshotFrameLoading(frame);
             if (!loading?.isConnected || loading.classList.contains('is-hidden')) return;
-            loading.textContent = 'HTML 快照未能加载，请检查文件路径';
-            loading.classList.add('is-error');
+            showSnapshotFrameError(frame);
           }, 3500);
         });
       }
@@ -1669,8 +1704,10 @@
       }
 
       app.addEventListener('load', (event) => {
-        if (!event.target.matches('[data-frame-load]')) return;
-        event.target.closest('.snapshot-frame-shell')?.querySelector('[data-frame-loading]')?.classList.add('is-hidden');
+        const frame = event.target;
+        if (!frame.matches('[data-frame-load]')) return;
+        frame.dataset.frameLoadStatus = 'loaded';
+        completeSnapshotFrameLoad(frame);
       }, true);
 
       app.addEventListener('click', (event) => {

@@ -143,6 +143,34 @@ test('public workspace loads registered HTML through a sandboxed iframe', () => 
   assert.doesNotMatch(html, /sandbox=["'][^"']+/, 'iframe sandbox must have no allowances');
 });
 
+test('standalone snapshot iframe has a definite height chain', () => {
+  const html = readPrototype();
+  const shellRule = html.match(/\.snapshot-frame-shell--standalone\s*\{([^}]*)\}/s);
+  assert.ok(shellRule, 'missing standalone snapshot shell rule');
+  assert.match(
+    shellRule[1],
+    /(?:^|;)\s*height:\s*calc\(100dvh\s*-\s*150px\);/,
+    'standalone shell needs a definite height for its 100%-height iframe'
+  );
+  const frameRule = html.match(/\.snapshot-frame-shell--standalone\s+\.snapshot-html-frame\s*\{([^}]*)\}/s);
+  assert.ok(frameRule, 'standalone iframe needs its own definite-height rule');
+  assert.match(frameRule[1], /height:\s*calc\(100dvh\s*-\s*150px\);/);
+});
+
+test('HTTP snapshot loading requires a successful HEAD check and iframe load', () => {
+  const html = readPrototype();
+  for (const required of [
+    'function preflightSnapshotFrame(frame)',
+    "fetch(frame.src, { method: 'HEAD'",
+    'response.ok',
+    "frame.dataset.frameHttpStatus = 'ok'",
+    "frame.dataset.frameLoadStatus = 'loaded'",
+    "window.location.protocol === 'file:'",
+    "frame.dataset.frameHttpStatus === 'ok' && frame.dataset.frameLoadStatus === 'loaded'"
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.match(html, /if \(!response\.ok\)[^\n]*throw new Error/);
+});
+
 test('public company cards contain identity metadata but no copied financial metrics', () => {
   const html = readPrototype();
   assert.match(html, /HTML 快照/);
