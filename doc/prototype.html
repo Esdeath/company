@@ -270,6 +270,87 @@
     .verdict::before { content: ""; width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
     .verdict--skip { color: var(--caution); }
     .card-link { padding: 6px; color: var(--accent); background: transparent; border: 0; cursor: pointer; }
+    .workspace-site-shell {
+      display: flex;
+      flex-direction: column;
+      height: calc(100dvh - 52px);
+      min-height: 620px;
+      overflow: hidden;
+    }
+    .company-workspace {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .company-directory {
+      z-index: 2;
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+      flex-direction: column;
+      background: #e8edef;
+      border-right: 1px solid var(--line);
+    }
+    .company-directory__head { position: relative; padding: 20px 18px 14px; border-bottom: 1px solid var(--line); }
+    .company-directory__title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .company-directory__title h1 { margin: 0; font-family: var(--font-display); font-size: 25px; font-weight: 600; }
+    .company-directory__title span { color: var(--muted); font-family: var(--font-data); font-size: 11px; }
+    .directory-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-top: 14px; }
+    .directory-search .search-input { min-height: 42px; padding: 0 12px; }
+    .directory-search .button { min-height: 42px; padding-inline: 12px; }
+    .directory-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+    .directory-filter .filter-group { flex-wrap: nowrap; gap: 2px; }
+    .directory-filter .filter-button { padding-inline: 9px; }
+    .directory-filter .sort-control { width: 88px; padding-right: 22px; }
+    .company-directory__scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px; }
+    .directory-card {
+      position: relative;
+      display: block;
+      width: 100%;
+      margin: 0 0 10px;
+      padding: 16px;
+      overflow: hidden;
+      color: var(--ink);
+      text-align: left;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      cursor: pointer;
+      transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+    .directory-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: transparent; }
+    .directory-card:hover { border-color: #9eafb7; }
+    .directory-card.is-selected { background: #f7fbfc; border-color: #8fb8c3; box-shadow: 0 10px 28px rgba(23, 33, 43, 0.08); }
+    .directory-card.is-selected::before { background: var(--accent); }
+    .directory-card__current { color: var(--accent); font-size: 11px; font-weight: 750; }
+    .directory-card h2 { margin: 13px 0 4px; font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.2; }
+    .directory-card .card-summary { display: -webkit-box; margin: 12px 0 14px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .directory-card .card-footer { margin-top: 12px; }
+    .workspace-detail { min-width: 0; min-height: 0; background: var(--canvas); }
+    .workspace-detail__scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
+    .workspace-context {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 64px;
+      padding: 10px 24px;
+      background: rgba(242, 245, 246, 0.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .workspace-context__identity { min-width: 0; }
+    .workspace-context__identity strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .workspace-context__identity span { color: var(--muted); font-family: var(--font-data); font-size: 11px; }
+    .workspace-context__category { color: var(--accent); font-size: 12px; font-weight: 750; }
+    .workspace-document { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 0 0 64px; }
+    .workspace-document .snapshot-head { padding-top: 28px; }
+    .workspace-document.value-page { width: min(1320px, calc(100% - 48px)); }
+    .workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
+    .workspace-empty .empty-state { width: min(560px, 100%); }
+    .company-drawer-button { display: none; }
     .empty-state {
       grid-column: 1 / -1;
       padding: 64px 24px;
@@ -974,73 +1055,48 @@
         return pairs.map(([label, value]) => `<span class='mini-metric'><span>${label}</span> ${value}</span>`).join('');
       }
 
-      function renderCard(snapshot) {
+      function renderCompanyCard(snapshot, selected) {
         const skip = snapshot.verdict === 'skip';
         return `
-          <article class='snapshot-card'>
+          <button class='directory-card ${selected ? 'is-selected' : ''}' type='button' data-action="select-company" data-id='${snapshot.id}' aria-current='${selected ? 'true' : 'false'}'>
             <div class='card-meta'><span class='market-tag'>${snapshot.market === 'CN' ? 'A 股' : '港股'}</span><time>${snapshot.dataAsOf}</time></div>
-            <h3>${snapshot.companyName}</h3>
+            <h2>${snapshot.companyName}</h2>
             <span class='ticker'>${snapshot.ticker} · ${snapshot.exchange}</span>
             <p class='card-summary'>${snapshot.summary}</p>
             <div class='mini-metrics'>${metricItems(snapshot)}</div>
             <div class='card-footer'>
               <span class='verdict ${skip ? 'verdict--skip' : ''}'>${skip ? '暂不进入第二轮' : '进入第二轮研究'}</span>
-              <button class='card-link' type='button' data-action="open-snapshot" data-id='${snapshot.id}'>查看 →</button>
+              ${selected ? `<span class='directory-card__current'>当前阅读</span>` : ''}
             </div>
-          </article>`;
+          </button>`;
       }
 
-      function renderHomeResults() {
+      function renderDirectoryResults() {
         if (state.publicScenario === 'error') {
-          return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>快照列表没有加载成功</h3><p>演示中的请求被设为失败状态。恢复后可以继续查看公司快照。</p><button class='button button--primary' type='button' data-action='retry-public'>重新加载</button></div>`;
+          return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>公司目录没有加载成功</h3><p>恢复后可以继续查看公司快照。</p><button class='button button--primary' type='button' data-action='retry-public'>重新加载</button></div>`;
         }
         const results = filteredSnapshots();
         if (!results.length) {
-          return `<div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有找到符合条件的公司</h3><p>请尝试公司简称、证券代码，或清除市场筛选。</p><button class='button' type='button' data-action='clear-search'>清除筛选</button></div>`;
+          return `<div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有找到公司</h3><p>尝试公司简称、证券代码，或清除市场筛选。</p><button class='button' type='button' data-action='clear-search'>清除筛选</button></div>`;
         }
-        return results.map(renderCard).join('');
+        return results.map((snapshot) => renderCompanyCard(snapshot, snapshot.id === state.selectedSnapshotId)).join('');
       }
 
-      function renderHome() {
+      function renderCompanyDirectory({ drawer = false } = {}) {
         const count = state.publicScenario === 'error' ? 0 : filteredSnapshots().length;
         return `
-          <div class='site-shell' data-route="home">
-            ${renderSiteHeader()}
-            <main>
-              <div class='page-wrap'>
-                <section class='hero'>
-                  <div>
-                    <p class='eyebrow'>A 股 · 港股 / 财务快照</p>
-                    <h1>先看事实，再决定是否继续研究。</h1>
-                    <p class='hero-copy'>把公开财报整理成可以复查的企业快照。这里不预测股价，只保留数据、直接计算和需要继续验证的问题。</p>
-                  </div>
-                  <aside class='hero-note'>
-                    <strong>阅读顺序</strong>
-                    <p>入口检验 → 五步扫描 → 5 秒心算 → 五问清单 → 资料来源</p>
-                  </aside>
-                </section>
-                <section class='search-panel' aria-label='搜索公司'>
-                  <form class='search-form' data-action="search">
-                    <input class='search-input' name='q' value='${escapeHtml(state.searchQuery)}' aria-label='公司名称或证券代码' placeholder='搜索公司名称或证券代码，例如 腾讯、00700'>
-                    <button class='button button--primary' type='submit'>搜索公司</button>
-                  </form>
-                  <div class='filter-row'>
-                    <div class='filter-group' aria-label='市场筛选'>
-                      ${[['ALL', '全部'], ['CN', 'A 股'], ['HK', '港股']].map(([value, label]) => `<button class='filter-button ${state.marketFilter === value ? 'is-active' : ''}' type='button' data-action="market" data-value='${value}' aria-pressed='${state.marketFilter === value}'>${label}</button>`).join('')}
-                    </div>
-                    <select class='sort-control' data-action="sort" aria-label='结果排序'>
-                      <option value='data_desc' ${state.sortMode === 'data_desc' ? 'selected' : ''}>数据日期</option>
-                      <option value='published_desc' ${state.sortMode === 'published_desc' ? 'selected' : ''}>发布时间</option>
-                      <option value='name_asc' ${state.sortMode === 'name_asc' ? 'selected' : ''}>公司名称</option>
-                    </select>
-                  </div>
-                </section>
-                <div class='result-header'><h2>${state.searchQuery ? `“${escapeHtml(state.searchQuery)}”的结果` : '最新快照'}</h2><span class='result-count'>${count} 家公司</span></div>
-                <section class='snapshot-cards' aria-live='polite'>${renderHomeResults()}</section>
+          <aside class='company-directory ${drawer ? 'company-directory--drawer' : ''}' aria-label='公司目录' ${drawer ? `role='dialog' aria-modal='true' aria-labelledby='company-drawer-title'` : ''}>
+            <div class='company-directory__head'>
+              <div class='company-directory__title'><h1 id='${drawer ? 'company-drawer-title' : 'company-directory-title'}'>公司目录</h1><span>${count} 家公司</span></div>
+              ${drawer ? `<button class='drawer-close' type='button' data-action="close-company-drawer" data-drawer-initial aria-label='关闭公司列表'>×</button>` : ''}
+              <form class='directory-search' data-action="search"><input class='search-input' name='q' value='${escapeHtml(state.searchQuery)}' aria-label='公司名称或证券代码' placeholder='公司名称或代码'><button class='button button--primary' type='submit'>搜索</button></form>
+              <div class='directory-filter'>
+                <div class='filter-group' aria-label='市场筛选'>${[['ALL', '全部'], ['CN', 'A 股'], ['HK', '港股']].map(([value, label]) => `<button class='filter-button ${state.marketFilter === value ? 'is-active' : ''}' type='button' data-action="market" data-value='${value}' aria-pressed='${state.marketFilter === value}'>${label}</button>`).join('')}</div>
+                <select class='sort-control' data-action="sort" aria-label='结果排序'><option value='data_desc' ${state.sortMode === 'data_desc' ? 'selected' : ''}>日期</option><option value='published_desc' ${state.sortMode === 'published_desc' ? 'selected' : ''}>发布</option><option value='name_asc' ${state.sortMode === 'name_asc' ? 'selected' : ''}>名称</option></select>
               </div>
-            </main>
-            ${renderFooter()}
-          </div>`;
+            </div>
+            <div class='company-directory__scroll' aria-live='polite'>${renderDirectoryResults()}</div>
+          </aside>`;
       }
 
       function evidenceLabel(kind) {
@@ -1154,6 +1210,59 @@
             </section>
             <section class='value-section' id='methodology' data-value-section="methodology"><div class='value-section__head'><h2>数据来源与计算口径</h2></div><p class='value-methodology'>${snapshot.methodology}</p></section>
           </div>`;
+      }
+
+      function renderSimpleWorkspaceBody(snapshot) {
+        const skip = snapshot.verdict === 'skip';
+        return `
+          <header class='snapshot-head'>
+            <div class='snapshot-kicker'><span>${snapshot.market} · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>数据截至 ${snapshot.dataAsOf}</span></div>
+            <h1 class='snapshot-title'>${snapshot.companyName}</h1>
+            <p class='snapshot-summary'>${snapshot.summary}</p>
+          </header>
+          <div class='metric-strip'>${[['市盈率 TTM', snapshot.metrics.pe], ['市净率', snapshot.metrics.pb], ['股息率', snapshot.metrics.dividend], ['总市值', snapshot.metrics.marketCap]].map(([label, value]) => `<div class='metric'><span class='metric-label'>${label}</span><span class='metric-value'>${value}</span></div>`).join('')}</div>
+          <div class='verdict-banner ${skip ? 'is-skip' : ''}'><div><strong>${skip ? '暂不进入第二轮研究' : '进入第二轮研究'}</strong><small>这是第一轮筛选结论，不是买卖建议。</small></div><span class='ticker'>生成于 ${snapshot.generatedAt}</span></div>
+          <div class='scan-rail' aria-label='快照扫描轨'>${snapshot.sections.map((section, index) => `<div class='scan-step'><span class='scan-number'>0${index + 1}</span><span class='scan-label'>${section.title.replace(/^.+、/, '')}</span></div>`).join('')}</div>
+          <article class='snapshot-body'>${snapshot.sections.map(renderResearchSection).join('')}<div class='disclaimer'>内容基于公开资料整理，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div></article>`;
+      }
+
+      function renderWorkspaceDetail(snapshot) {
+        if (!snapshot) {
+          return `<section class='workspace-detail workspace-empty'><div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有可阅读的财务快照</h3><p>请调整公司名称或市场条件。</p><button class='button' type='button' data-action='clear-search'>清除筛选</button></div></section>`;
+        }
+        const toc = [
+          ['quick-conclusion', '30 秒结论'], ['business-model', '商业模式'], ['per-share-history', '每股数据'], ['operating-history', '经营数据'],
+          ['mental-math', '5 秒心算'], ['capital-structure', '资本结构'], ['five-questions', '五问清单'], ['methodology', '数据口径']
+        ];
+        const body = snapshot.format === 'value_line'
+          ? `
+            <header class='snapshot-head'><div class='snapshot-kicker'><span>A 股 · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>行情 ${snapshot.quoteAsOf}</span></div><h1 class='snapshot-title'>${snapshot.companyName}</h1><p class='snapshot-summary'>只寻找事实，不寻求意见。${snapshot.summary}</p></header>
+            <button class='button mobile-toc-toggle' type='button' data-action="toggle-toc">${state.tocOpen ? '收起目录' : '展开目录'}</button>
+            <div class='value-layout'><article class='value-body'>${renderValueLineBody(snapshot)}</article><aside class='value-toc ${state.tocOpen ? '' : 'desktop-toc'}'><h2>本页目录</h2>${toc.map(([id, label]) => `<a href='#${id}'>${label}</a>`).join('')}</aside></div>
+            <div class='disclaimer'>内容基于公开资料和直接计算，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div>`
+          : renderSimpleWorkspaceBody(snapshot);
+        return `
+          <section class='workspace-detail'>
+            <div class='workspace-context'>
+              <button class='button company-drawer-button' type='button' data-action="open-company-drawer" aria-haspopup='dialog'>选择公司</button>
+              <div class='workspace-context__identity'><strong>${snapshot.companyName}</strong><span>${snapshot.ticker} · ${snapshot.market === 'CN' ? 'A 股' : '港股'}</span></div>
+              <span class='workspace-context__category'>财务快照</span>
+            </div>
+            <div class='workspace-detail__scroll' tabindex='-1' data-workspace-scroll><div class='workspace-document ${snapshot.format === 'value_line' ? 'value-page' : ''}'>${body}</div></div>
+          </section>`;
+      }
+
+      function renderCompanyWorkspace() {
+        return `
+          <div class='site-shell workspace-site-shell' data-route="home">
+            ${renderSiteHeader()}
+            <main class='company-workspace'>${renderCompanyDirectory()}${renderWorkspaceDetail(selectedPublicSnapshot())}</main>
+            ${state.companyDrawerOpen ? `<div class='company-drawer-layer'><button class='company-drawer-backdrop' type='button' data-action="close-company-drawer" aria-label='关闭公司列表'></button>${renderCompanyDirectory({ drawer: true })}</div>` : ''}
+          </div>`;
+      }
+
+      function renderHome() {
+        return renderCompanyWorkspace();
       }
 
       function renderValueLineSnapshot(snapshot) {
@@ -1443,6 +1552,10 @@
         if (action === 'viewport') setState({ viewportMode: value });
         if (action === 'navigate-home' || action === 'back-results') setState({ route: 'home' });
         if (action === 'market') setState(publicSelectionPatch({ marketFilter: value, publicScenario: 'normal' }));
+        if (action === 'select-company') {
+          setState({ selectedSnapshotId: id, companyDrawerOpen: false, tocOpen: false });
+          app.querySelector('[data-workspace-scroll]')?.scrollTo({ top: 0 });
+        }
         if (action === 'open-snapshot') setState({ route: 'snapshot', selectedSnapshotId: id });
         if (action === 'select-version') setState({ selectedSnapshotId: id });
         if (action === 'retry-public') setState(publicSelectionPatch({ publicScenario: 'normal' }));

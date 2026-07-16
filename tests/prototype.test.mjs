@@ -46,7 +46,7 @@ test('prototype contains the complete public research flow', () => {
     'data-action="search"',
     'data-action="market"',
     'data-action="sort"',
-    'data-action="open-snapshot"',
+    'data-action="select-company"',
     'data-action="select-version"',
     'data-action="toggle-toc"',
     '事实',
@@ -163,4 +163,22 @@ test('public workspace defaults to Moutai and reconciles selection after filteri
   assert.match(html, /function publicSelectionPatch\(patch\)/);
   assert.match(html, /results\.some\(\(snapshot\) => snapshot\.id === nextSelectedId\)/);
   assert.match(html, /nextSelectedId = results\[0\]\?\.id \|\| null/);
+});
+
+test('homepage renders a master-detail financial workspace', () => {
+  const html = readPrototype();
+  for (const required of [
+    "class='company-workspace'",
+    "aria-label='公司目录'",
+    "class='company-directory__scroll'",
+    "class='workspace-detail__scroll'",
+    'data-action="select-company"',
+    "aria-current='${selected ? 'true' : 'false'}'",
+    'renderCompanyDirectory',
+    'renderWorkspaceDetail',
+    '财务快照'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.match(html, /grid-template-columns: 320px minmax\(0, 1fr\)/);
+  assert.match(html, /\.company-directory__scroll[^}]*overflow-y: auto/s);
+  assert.match(html, /\.workspace-detail__scroll[^}]*overflow-y: auto/s);
 });
