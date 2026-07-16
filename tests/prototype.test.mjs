@@ -199,3 +199,12 @@ test('mobile company drawer has complete dismissal and focus contracts', () => {
   assert.match(html, /width: min\(88vw, 340px\)/);
   assert.match(html, /\.prototype-stage\.is-mobile \.company-workspace > \.company-directory:not\(\.company-directory--drawer\)/);
 });
+
+test('workspace detail responds to its own readable width', () => {
+  const html = readPrototype();
+  assert.match(html, /\.workspace-detail \{[^}]*container-type: inline-size;/s);
+  assert.match(html, /@container workspace-detail \(max-width: 720px\)/);
+  assert.match(html, /\.workspace-document \.value-layout \{ grid-template-columns: 1fr; \}/);
+  assert.match(html, /\.workspace-document \.value-metrics \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(html, /\.workspace-document \.desktop-toc \{ display: none; \}/);
+});

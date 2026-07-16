@@ -328,7 +328,7 @@
     .directory-card h2 { margin: 13px 0 4px; font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.2; }
     .directory-card .card-summary { display: -webkit-box; margin: 12px 0 14px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
     .directory-card .card-footer { margin-top: 12px; }
-    .workspace-detail { min-width: 0; min-height: 0; background: var(--canvas); }
+    .workspace-detail { min-width: 0; min-height: 0; background: var(--canvas); container-name: workspace-detail; container-type: inline-size; }
     .workspace-detail__scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
     .workspace-context {
       display: flex;
@@ -351,6 +351,26 @@
     .workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
     .workspace-empty .empty-state { width: min(560px, 100%); }
     .company-drawer-button { display: none; }
+    @container workspace-detail (max-width: 720px) {
+      .workspace-document .value-layout { grid-template-columns: 1fr; }
+      .workspace-document .value-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workspace-document .value-metrics > :last-child { grid-column: 1 / -1; }
+      .workspace-document .value-metric:nth-child(even) { border-right: 0; }
+      .workspace-document .value-metric { border-bottom: 1px solid var(--line); }
+      .workspace-document .value-metric:last-child { border-bottom: 0; }
+      .workspace-document .desktop-toc { display: none; }
+      .workspace-document .mobile-toc-toggle { display: inline-flex; }
+      .workspace-document .value-scan-grid { grid-template-columns: 1fr; }
+      .workspace-document .value-scan { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); align-items: center; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .workspace-document .value-scan__label,
+      .workspace-document .value-scan__result { margin: 0; }
+      .workspace-document .value-duo { grid-template-columns: 1fr; }
+      .workspace-document .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workspace-document .metric:nth-child(2) { border-right: 0; }
+      .workspace-document .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .workspace-document .scan-rail { grid-template-columns: 1fr; }
+      .workspace-document .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
+    }
     body.company-drawer-open { overflow: hidden; }
     .company-drawer-layer { position: fixed; inset: 52px 0 0; z-index: 45; display: none; }
     .company-drawer-backdrop { position: absolute; inset: 0; width: 100%; padding: 0; background: rgba(9, 18, 23, 0.52); border: 0; }
