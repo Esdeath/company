@@ -324,6 +324,98 @@
     .site-footer { padding: 26px 24px; color: var(--muted); background: #e6ebed; border-top: 1px solid var(--line); font-size: 12px; }
     .site-footer__inner { display: flex; justify-content: space-between; gap: 24px; width: min(1180px, 100%); margin: 0 auto; }
     .is-hidden { display: none !important; }
+    .admin-surface { min-height: calc(100vh - 52px); background: #e9edef; }
+    .login-page { min-height: calc(100vh - 52px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr); }
+    .login-context { display: flex; flex-direction: column; justify-content: space-between; padding: clamp(34px, 6vw, 84px); color: #e9f0f2; background: #17242d; }
+    .login-context .brand { color: #fff; }
+    .login-context h1 { max-width: 650px; margin: 80px 0 20px; font-family: var(--font-display); font-size: clamp(40px, 5vw, 68px); font-weight: 600; line-height: 1.08; }
+    .login-context p { max-width: 560px; color: #aebdc4; }
+    .login-context small { color: #7f929b; }
+    .login-form-side { display: grid; place-items: center; padding: 32px; background: var(--canvas); }
+    .login-card { width: min(420px, 100%); padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow); }
+    .login-card h2 { margin: 0; font-family: var(--font-display); font-size: 32px; font-weight: 600; }
+    .login-card > p { margin: 8px 0 24px; color: var(--muted); }
+    .form-field { display: grid; gap: 7px; margin-top: 16px; }
+    .form-field label { font-size: 13px; font-weight: 700; }
+    .form-field input { min-height: 44px; padding: 0 12px; border: 1px solid #aebbc1; border-radius: var(--radius-control); }
+    .form-error { margin: 14px 0 0; padding: 10px 12px; color: var(--negative); background: var(--negative-soft); border-radius: var(--radius-control); font-size: 13px; }
+    .demo-credential { margin-top: 18px; padding: 12px; color: var(--muted); background: #eef2f3; border-radius: var(--radius-control); font-family: var(--font-data); font-size: 12px; }
+    .login-submit { width: 100%; margin-top: 20px; }
+    .admin-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100vh - 52px); }
+    .admin-sidebar { display: flex; flex-direction: column; padding: 22px 14px; color: #dfe8eb; background: #17242d; }
+    .admin-sidebar .brand { margin: 0 8px 28px; color: #fff; }
+    .admin-nav-button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; color: #afbec5; background: transparent; border: 0; border-radius: var(--radius-control); text-align: left; cursor: pointer; }
+    .admin-nav-button.is-active { color: #fff; background: #23404d; }
+    .admin-sidebar-footer { margin-top: auto; }
+    .admin-main { min-width: 0; }
+    .admin-topbar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .admin-topbar strong { font-size: 14px; }
+    .admin-content { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 30px 0 64px; }
+    .admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+    .admin-heading h1 { margin: 0; font-family: var(--font-display); font-size: 36px; font-weight: 600; }
+    .admin-heading p { margin: 4px 0 0; color: var(--muted); }
+    .admin-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .admin-toolbar__group { display: flex; flex-wrap: wrap; gap: 7px; }
+    .admin-search { min-height: 36px; padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius-control); }
+    .admin-panel { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th, .admin-table td { padding: 13px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .admin-table th { color: var(--muted); background: #f7f9f9; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .admin-table tr:last-child td { border-bottom: 0; }
+    .admin-table td { font-size: 13px; }
+    .admin-table strong { display: block; font-size: 14px; }
+    .status-pill { display: inline-flex; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .status-pill--draft { color: var(--caution); background: var(--caution-soft); }
+    .status-pill--published { color: var(--positive); background: var(--positive-soft); }
+    .status-pill--withdrawn { color: var(--muted); background: #e9edef; }
+    .validation-count { display: flex; gap: 8px; font-family: var(--font-data); font-size: 11px; }
+    .validation-count .has-error { color: var(--negative); }
+    .validation-count .has-warning { color: var(--caution); }
+    .admin-card-list { display: none; }
+    .upload-panel { margin-bottom: 16px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .upload-drop { display: grid; place-items: center; min-height: 130px; padding: 20px; text-align: center; background: #f7f9f9; border: 1px dashed #9baab1; border-radius: var(--radius-control); }
+    .upload-drop strong { display: block; }
+    .upload-drop p { margin: 4px 0 12px; color: var(--muted); font-size: 13px; }
+    .import-result { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .import-result > div { padding: 12px; border-radius: var(--radius-control); font-size: 12px; }
+    .import-result strong { display: block; margin-bottom: 4px; }
+    .report-error { color: var(--negative); background: var(--negative-soft); }
+    .report-warning { color: var(--caution); background: var(--caution-soft); }
+    .report-info { color: var(--accent); background: var(--accent-soft); }
+    .review-back { margin-bottom: 14px; }
+    .review-summary { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .review-summary h1 { margin: 0; font-family: var(--font-display); font-size: 30px; font-weight: 600; }
+    .review-summary p { margin: 5px 0 0; color: var(--muted); }
+    .review-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+    .button--danger { color: var(--negative); border-color: #dfb8b8; }
+    .button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .review-tabs { display: flex; gap: 4px; margin: 18px 0 10px; }
+    .review-tab { padding: 8px 12px; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+    .review-tab.is-active { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+    .admin-review-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; }
+    .review-panel { padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); }
+    .review-panel h2 { margin: 0 0 12px; font-size: 15px; }
+    .metadata-list { display: grid; grid-template-columns: 110px 1fr; gap: 7px 12px; margin: 0; font-size: 12px; }
+    .metadata-list dt { color: var(--muted); }
+    .metadata-list dd { margin: 0; font-family: var(--font-data); overflow-wrap: anywhere; }
+    .validation-group { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .validation-group h3 { margin: 0 0 8px; font-size: 13px; }
+    .validation-group ul { margin: 0; padding-left: 18px; font-size: 12px; }
+    .validation-group li + li { margin-top: 5px; }
+    .preview-paper { max-height: 720px; overflow: auto; }
+    .preview-paper .research-section { padding: 18px 0; }
+    .audit-list { margin: 0; padding: 0; list-style: none; }
+    .audit-list li { position: relative; padding: 0 0 18px 18px; color: var(--muted); font-size: 13px; border-left: 1px solid var(--line); }
+    .audit-list li::before { content: ""; position: absolute; left: -5px; top: 3px; width: 9px; height: 9px; background: var(--accent); border-radius: 50%; }
+    .dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(10, 18, 23, 0.62); }
+    .dialog { width: min(460px, 100%); padding: 24px; background: var(--surface); border-radius: var(--radius-card); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28); }
+    .dialog h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; }
+    .dialog p { margin: 10px 0 22px; color: var(--muted); }
+    .dialog-actions { display: flex; justify-content: end; gap: 8px; }
+    .toast-region { position: fixed; right: 18px; bottom: 18px; z-index: 120; display: grid; gap: 8px; pointer-events: none; }
+    .toast { min-width: 240px; padding: 12px 14px; color: #fff; background: #22313a; border-radius: var(--radius-control); box-shadow: var(--shadow); font-size: 13px; }
+    .toast--success { background: var(--positive); }
+    .toast--error { background: var(--negative); }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
@@ -424,10 +516,36 @@
         }
       ];
 
+      let adminRecords = [
+        { id: 'draft-tencent', snapshotId: 'hk-00700-2025', companyName: '腾讯控股', ticker: '00700', market: 'HK', dataAsOf: '2025-12-31', status: 'draft', report: 'warning', updatedAt: '今天 10:32' },
+        { id: 'draft-maotai', snapshotId: 'cn-600519-2025', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', status: 'draft', report: 'error', updatedAt: '昨天 18:05' },
+        { id: 'published-meituan', snapshotId: 'hk-03690-2025', companyName: '美团', ticker: '03690', market: 'HK', dataAsOf: '2025-12-31', status: 'published', report: 'clean', updatedAt: '2026-05-30' }
+      ];
+
+      const validationReports = {
+        warning: {
+          errors: [],
+          warnings: ['市盈率口径来自行情接口，与财报期末日期不同。'],
+          info: ['港股代码 700 已标准化为 00700。']
+        },
+        error: {
+          errors: ['frontmatter 缺少 reporting_currency。', '正文缺少“五、资料来源”。'],
+          warnings: [],
+          info: []
+        },
+        clean: {
+          errors: [],
+          warnings: [],
+          info: ['文件结构和来源链接校验通过。']
+        }
+      };
+
       const initialState = Object.freeze({
         route: 'home',
         viewportMode: 'desktop',
         isAuthenticated: false,
+        pendingRoute: null,
+        loginError: null,
         searchQuery: '',
         marketFilter: 'ALL',
         sortMode: 'data_desc',
@@ -435,6 +553,12 @@
         publicScenario: 'normal',
         tocOpen: false,
         adminStatusFilter: 'all',
+        adminMarketFilter: 'ALL',
+        adminQuery: '',
+        selectedAdminRecord: 'draft-tencent',
+        reviewTab: 'check',
+        uploadOpen: false,
+        inboxScanned: false,
         validationScenario: 'warning',
         dialog: null,
         toast: null
@@ -639,9 +763,210 @@
         return `<div class='site-shell'><div class='building-state'><p><strong>${title}</strong>将在下一阶段实现</p></div></div>`;
       }
 
+      function renderLogin() {
+        return `
+          <main class='login-page' data-route="login">
+            <section class='login-context'>
+              <div class='brand'><span class='brand-mark'>FS</span><span>企业快照库</span></div>
+              <div><p class='eyebrow'>ADMIN / 内容审核</p><h1>让发布动作慢下来，让资料更可信。</h1><p>管理端只处理 Markdown 导入、校验、预览和发布。正文需要修改时，回到原始文件重新生成。</p></div>
+              <small>Prototype · 本页账号仅用于交互演示</small>
+            </section>
+            <section class='login-form-side'>
+              <form class='login-card' data-action="login">
+                <h2>管理员登录</h2><p>登录后查看草稿和校验结果。</p>
+                <div class='form-field'><label for='username'>用户名</label><input id='username' name='username' autocomplete='username' value='admin'></div>
+                <div class='form-field'><label for='password'>密码</label><input id='password' name='password' type='password' autocomplete='current-password' value='demo123'></div>
+                ${state.loginError ? `<p class='form-error' role='alert'>${state.loginError}</p>` : ''}
+                <button class='button button--primary login-submit' type='submit'>登录</button>
+                <div class='demo-credential'>演示账号：admin<br>演示密码：demo123</div>
+              </form>
+            </section>
+          </main>`;
+      }
+
+      function renderAdminSidebar(active) {
+        return `
+          <aside class='admin-sidebar'>
+            <div class='brand'><span class='brand-mark'>FS</span><span>快照管理</span></div>
+            <nav aria-label='管理导航'>
+              <button class='admin-nav-button ${active === 'snapshots' ? 'is-active' : ''}' type='button' data-action='admin-home'>▦ 快照管理</button>
+            </nav>
+            <div class='admin-sidebar-footer'><button class='admin-nav-button' type='button' data-action='logout'>↩ 退出登录</button></div>
+          </aside>`;
+      }
+
+      function renderAdminShell(content, active = 'snapshots') {
+        return `
+          <div class='admin-surface'>
+            <div class='admin-layout'>
+              ${renderAdminSidebar(active)}
+              <div class='admin-main'><header class='admin-topbar'><strong>企业快照库 · 管理端</strong><span class='ticker'>admin</span></header>${content}</div>
+            </div>
+          </div>`;
+      }
+
+      function statusLabel(status) {
+        return status === 'draft' ? '草稿' : status === 'published' ? '已发布' : '已撤回';
+      }
+
+      function reportCounts(reportName) {
+        const report = validationReports[reportName];
+        return `<div class='validation-count'><span class='${report.errors.length ? 'has-error' : ''}'>${report.errors.length} 错误</span><span class='${report.warnings.length ? 'has-warning' : ''}'>${report.warnings.length} 警告</span></div>`;
+      }
+
+      function filteredAdminRecords() {
+        const query = state.adminQuery.trim().toLowerCase();
+        return adminRecords.filter((record) => {
+          const statusMatches = state.adminStatusFilter === 'all' || record.status === state.adminStatusFilter;
+          const marketMatches = state.adminMarketFilter === 'ALL' || record.market === state.adminMarketFilter;
+          const queryMatches = !query || record.companyName.toLowerCase().includes(query) || record.ticker.includes(query);
+          return statusMatches && marketMatches && queryMatches;
+        });
+      }
+
+      function renderUploadPanel() {
+        if (!state.uploadOpen && !state.inboxScanned) return '';
+        const report = validationReports.warning;
+        return `
+          <section class='upload-panel'>
+            <div class='upload-drop'>
+              <div><strong>${state.inboxScanned ? '在 inbox 中发现 1 个 Markdown' : '选择一份 Markdown 快照'}</strong><p>${state.inboxScanned ? 'hk/00700/2025-12-31.md 已读取并完成校验。' : '原型使用内置的腾讯控股演示文件，不读取你的本地文件。'}</p><button class='button button--primary' type='button' data-action="simulate-upload">使用演示 Markdown</button></div>
+            </div>
+            ${state.uploadOpen ? `<div class='import-result'><div class='report-error'><strong>校验错误</strong>${report.errors.length || '无'}</div><div class='report-warning'><strong>校验警告</strong>${report.warnings[0]}</div><div class='report-info'><strong>标准化信息</strong>${report.info[0]}</div></div>` : ''}
+          </section>`;
+      }
+
+      function renderAdminRows(records) {
+        if (!records.length) return `<tr><td colspan='7'><div class='empty-state'><h3>没有符合条件的快照</h3><p>调整状态、市场或搜索关键词。</p></div></td></tr>`;
+        return records.map((record) => `
+          <tr>
+            <td><strong>${record.companyName}</strong><span class='ticker'>${record.ticker}</span></td><td>${record.market}</td><td>${record.dataAsOf}</td>
+            <td><span class='status-pill status-pill--${record.status}'>${statusLabel(record.status)}</span></td><td>${reportCounts(record.report)}</td><td>${record.updatedAt}</td>
+            <td><button class='button button--quiet' type='button' data-action="review-snapshot" data-id='${record.id}'>审核</button></td>
+          </tr>`).join('');
+      }
+
+      function renderAdminCards(records) {
+        return records.map((record) => `<article class='snapshot-card'><div class='card-meta'><span class='status-pill status-pill--${record.status}'>${statusLabel(record.status)}</span><span>${record.market}</span></div><h3>${record.companyName}</h3><span class='ticker'>${record.ticker} · ${record.dataAsOf}</span><div class='card-footer'>${reportCounts(record.report)}<button class='button button--quiet' type='button' data-action="review-snapshot" data-id='${record.id}'>审核</button></div></article>`).join('');
+      }
+
+      function renderAdminList() {
+        const records = filteredAdminRecords();
+        const content = `
+          <main class='admin-content' data-route="admin-list">
+            <div class='admin-heading'><div><h1>快照管理</h1><p>导入 Markdown，检查资料，再决定是否发布。</p></div><div class='review-actions'><button class='button' type='button' data-action="scan-inbox">扫描 inbox</button><button class='button button--primary' type='button' data-action='open-upload'>上传 Markdown</button></div></div>
+            ${renderUploadPanel()}
+            <div class='admin-toolbar'>
+              <div class='admin-toolbar__group'>${[['all', '全部'], ['draft', '草稿'], ['published', '已发布'], ['withdrawn', '已撤回']].map(([value, label]) => `<button class='filter-button ${state.adminStatusFilter === value ? 'is-active' : ''}' type='button' data-action='admin-filter' data-value='${value}'>${label}</button>`).join('')}</div>
+              <div class='admin-toolbar__group'><select class='sort-control' data-action='admin-market' aria-label='管理市场筛选'><option value='ALL'>全部市场</option><option value='CN' ${state.adminMarketFilter === 'CN' ? 'selected' : ''}>A 股</option><option value='HK' ${state.adminMarketFilter === 'HK' ? 'selected' : ''}>港股</option></select><input class='admin-search' value='${escapeHtml(state.adminQuery)}' data-action='admin-query' aria-label='搜索管理快照' placeholder='公司或代码'></div>
+            </div>
+            <div class='admin-panel'><table class='admin-table'><thead><tr><th>公司</th><th>市场</th><th>数据日期</th><th>状态</th><th>校验</th><th>更新</th><th>操作</th></tr></thead><tbody>${renderAdminRows(records)}</tbody></table><div class='admin-card-list'>${renderAdminCards(records)}</div></div>
+          </main>`;
+        return renderAdminShell(content);
+      }
+
+      function renderValidationList(title, items, tone, emptyText) {
+        return `<div class='validation-group ${tone}'><h3>${title}</h3>${items.length ? `<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>` : `<p class='ticker'>${emptyText}</p>`}</div>`;
+      }
+
+      function renderReviewCheck(record, report) {
+        const snapshot = snapshots.find((item) => item.id === record.snapshotId);
+        return `
+          <section class='review-panel'>
+            <h2>元数据</h2><dl class='metadata-list'><dt>公司</dt><dd>${record.companyName}</dd><dt>代码</dt><dd>${record.ticker}</dd><dt>市场</dt><dd>${record.market}</dd><dt>数据日期</dt><dd>${record.dataAsOf}</dd><dt>文件</dt><dd>${record.market}/${record.ticker}/${record.dataAsOf}.md</dd><dt>摘要</dt><dd>${snapshot.summary}</dd></dl>
+            ${renderValidationList('校验错误', report.errors, 'report-error', '没有错误')}
+            ${renderValidationList('校验警告', report.warnings, 'report-warning', '没有警告')}
+            ${renderValidationList('标准化信息', report.info, 'report-info', '没有标准化信息')}
+          </section>`;
+      }
+
+      function renderReviewPreview(record) {
+        const snapshot = snapshots.find((item) => item.id === record.snapshotId);
+        return `<section class='review-panel preview-paper'><p class='eyebrow'>公开页面预览</p><h2 class='snapshot-title'>${snapshot.companyName}</h2><p class='snapshot-summary'>${snapshot.summary}</p>${snapshot.sections.map(renderResearchSection).join('')}</section>`;
+      }
+
+      function renderReviewAudit(record) {
+        return `<section class='review-panel'><h2>操作记录</h2><ol class='audit-list'><li><strong>完成 Markdown 校验</strong><br>${record.updatedAt} · 系统</li><li><strong>导入草稿</strong><br>${record.updatedAt} · admin</li><li><strong>生成快照</strong><br>2026-07-16 10:30 · hk-value-snapshot</li></ol></section>`;
+      }
+
+      function renderReview() {
+        const record = adminRecords.find((item) => item.id === state.selectedAdminRecord) || adminRecords[0];
+        const report = validationReports[record.report];
+        const hasErrors = report.errors.length > 0;
+        const content = `
+          <main class='admin-content' data-route="review">
+            <button class='back-link review-back' type='button' data-action='admin-home'>← 返回快照管理</button>
+            <section class='review-summary'><div><span class='status-pill status-pill--${record.status}'>${statusLabel(record.status)}</span><h1>${record.companyName} · ${record.ticker}</h1><p>${record.market} · 数据截至 ${record.dataAsOf}</p></div><div class='review-actions'>${record.status === 'published' ? `<button class='button button--danger' type='button' data-action='withdraw'>撤回</button>` : `<button class='button button--danger' type='button' data-action='delete-draft'>删除草稿</button><button class='button button--primary' type='button' data-action="publish" ${hasErrors ? 'disabled' : ''}>发布${hasErrors ? '（先修复错误）' : ''}</button>`}</div></section>
+            <nav class='review-tabs' aria-label='审核内容'>${[['check', '检查'], ['preview', '预览'], ['audit', '记录']].map(([value, label]) => `<button class='review-tab ${state.reviewTab === value ? 'is-active' : ''}' type='button' data-action='review-tab' data-value='${value}'>${label}</button>`).join('')}</nav>
+            <div class='admin-review-grid'>${renderReviewCheck(record, report)}${state.reviewTab === 'audit' ? renderReviewAudit(record) : renderReviewPreview(record)}</div>
+          </main>`;
+        return renderAdminShell(content);
+      }
+
+      function dialogCopy(kind, record) {
+        if (kind === 'publish') return { title: '发布这份快照？', message: `${record.companyName} ${record.ticker} 将立即出现在公开网站。校验警告已经保留在记录中。`, confirm: '确认发布' };
+        if (kind === 'withdraw') return { title: '撤回这份快照？', message: `${record.companyName} ${record.ticker} 将从公开网站隐藏，并回到草稿状态。`, confirm: '确认撤回' };
+        return { title: '删除这份草稿？', message: `${record.companyName} ${record.ticker} 的草稿将从原型列表删除。`, confirm: '确认删除' };
+      }
+
+      function renderDialog() {
+        if (!state.dialog) return '';
+        const record = adminRecords.find((item) => item.id === state.dialog.recordId);
+        const copy = dialogCopy(state.dialog.kind, record);
+        return `<div class='dialog-backdrop'><section class='dialog'><h2>${copy.title}</h2><p>${copy.message}</p><div class='dialog-actions'><button class='button' type='button' data-action='close-dialog'>取消</button><button class='button ${state.dialog.kind === 'publish' ? 'button--primary' : 'button--danger'}' type='button' data-action="confirm-dialog">${copy.confirm}</button></div></section></div>`;
+      }
+
+      function renderToast() {
+        return `<div class='toast-region'>${state.toast ? `<div class='toast toast--${state.toast.tone}'>${state.toast.message}</div>` : ''}</div>`;
+      }
+
+      function handleLogin(form) {
+        const data = new FormData(form);
+        const username = String(data.get('username') || '').trim();
+        const password = String(data.get('password') || '');
+        if (!username || !password) return setState({ loginError: '请输入用户名和密码。' });
+        if (username !== 'admin' || password !== 'demo123') return setState({ loginError: '用户名或密码不正确。请使用页面上的演示账号。' });
+        setState({ isAuthenticated: true, route: state.pendingRoute || 'admin-list', pendingRoute: null, loginError: null, toast: { tone: 'success', message: '已登录。' } });
+      }
+
+      function openDialog(kind) {
+        setState({ dialog: { kind, recordId: state.selectedAdminRecord } });
+      }
+
+      function closeDialog() {
+        setState({ dialog: null });
+      }
+
+      function showToast(message, tone = 'success') {
+        setState({ toast: { message, tone } });
+        window.setTimeout(() => setState({ toast: null }), 2800);
+      }
+
+      function confirmWorkflow(kind, recordId) {
+        const record = adminRecords.find((item) => item.id === recordId);
+        if (kind === 'delete') {
+          adminRecords = adminRecords.filter((item) => item.id !== recordId);
+          setState({ dialog: null, route: 'admin-list', toast: { tone: 'success', message: '草稿已删除。' } });
+          return;
+        }
+        record.status = kind === 'publish' ? 'published' : 'withdrawn';
+        record.updatedAt = '刚刚';
+        setState({ dialog: null, toast: { tone: 'success', message: kind === 'publish' ? '已发布。' : '已撤回。' } });
+      }
+
       function setState(patch) {
         state = { ...state, ...patch };
         render();
+      }
+
+      function renderRoute() {
+        if (state.route === 'home') return renderHome();
+        if (state.route === 'snapshot') return renderSnapshot();
+        if (state.route === 'login') return renderLogin();
+        if (!state.isAuthenticated && ['admin-list', 'review'].includes(state.route)) return renderLogin();
+        if (state.route === 'admin-list') return renderAdminList();
+        if (state.route === 'review') return renderReview();
+        return renderHome();
       }
 
       function render() {
@@ -650,8 +975,10 @@
           <div class="prototype-frame">
             ${renderPrototypeBar()}
             <div class="prototype-stage ${mobileClass}">
-              ${state.route === 'home' ? renderHome() : state.route === 'snapshot' ? renderSnapshot() : renderPlaceholder('管理端')}
+              ${renderRoute()}
             </div>
+            ${renderDialog()}
+            ${renderToast()}
           </div>`;
       }
 
@@ -661,7 +988,11 @@
         const action = trigger.dataset.action;
         const value = trigger.dataset.value;
         const id = trigger.dataset.id;
-        if (action === 'prototype-route') setState({ route: trigger.dataset.route, dialog: null, toast: null });
+        if (action === 'prototype-route') {
+          const route = trigger.dataset.route;
+          const protectedRoute = ['admin-list', 'review'].includes(route);
+          setState({ route: protectedRoute && !state.isAuthenticated ? 'login' : route, pendingRoute: protectedRoute && !state.isAuthenticated ? route : null, dialog: null, toast: null });
+        }
         if (action === 'viewport') setState({ viewportMode: value });
         if (action === 'navigate-home' || action === 'back-results') setState({ route: 'home' });
         if (action === 'market') setState({ marketFilter: value, publicScenario: 'normal' });
@@ -670,6 +1001,19 @@
         if (action === 'retry-public') setState({ publicScenario: 'normal' });
         if (action === 'clear-search') setState({ searchQuery: '', marketFilter: 'ALL', publicScenario: 'normal' });
         if (action === 'toggle-toc') setState({ tocOpen: !state.tocOpen });
+        if (action === 'logout') setState({ isAuthenticated: false, route: 'login', toast: { tone: 'success', message: '已退出登录。' } });
+        if (action === 'admin-home') setState({ route: 'admin-list', reviewTab: 'check' });
+        if (action === 'open-upload') setState({ uploadOpen: true, inboxScanned: false });
+        if (action === 'simulate-upload') setState({ uploadOpen: true, selectedAdminRecord: 'draft-tencent', toast: { tone: 'success', message: '演示 Markdown 已导入为草稿。' } });
+        if (action === 'scan-inbox') setState({ inboxScanned: true, uploadOpen: true, toast: { tone: 'success', message: '扫描完成：发现 1 个文件。' } });
+        if (action === 'admin-filter') setState({ adminStatusFilter: value });
+        if (action === 'review-snapshot') setState({ route: 'review', selectedAdminRecord: id, reviewTab: 'check' });
+        if (action === 'review-tab') setState({ reviewTab: value });
+        if (action === 'publish') openDialog('publish');
+        if (action === 'withdraw') openDialog('withdraw');
+        if (action === 'delete-draft') openDialog('delete');
+        if (action === 'close-dialog') closeDialog();
+        if (action === 'confirm-dialog' && state.dialog) confirmWorkflow(state.dialog.kind, state.dialog.recordId);
       });
 
       app.addEventListener('submit', (event) => {
@@ -678,9 +1022,20 @@
         setState({ searchQuery: String(new FormData(event.target).get('q') || '').trim(), publicScenario: 'normal' });
       });
 
+      app.addEventListener('submit', (event) => {
+        if (!event.target.matches('[data-action="login"]')) return;
+        event.preventDefault();
+        handleLogin(event.target);
+      });
+
       app.addEventListener('change', (event) => {
         if (event.target.matches('[data-action="sort"]')) setState({ sortMode: event.target.value });
         if (event.target.matches('[data-action="public-scenario"]')) setState({ publicScenario: event.target.value, route: 'home' });
+        if (event.target.matches('[data-action="admin-market"]')) setState({ adminMarketFilter: event.target.value });
+      });
+
+      app.addEventListener('input', (event) => {
+        if (event.target.matches('[data-action="admin-query"]')) setState({ adminQuery: event.target.value });
       });
 
       window.prototypeApp = {

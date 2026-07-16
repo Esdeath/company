@@ -41,3 +41,21 @@ test('prototype contains the complete public research flow', () => {
     '快照扫描轨'
   ]) assert.ok(html.includes(required), `missing ${required}`);
 });
+
+test('prototype contains the complete administrator workflow', () => {
+  const html = readPrototype();
+  for (const required of [
+    'data-route="login"',
+    'data-route="admin-list"',
+    'data-route="review"',
+    'data-action="login"',
+    'data-action="simulate-upload"',
+    'data-action="scan-inbox"',
+    'data-action="review-snapshot"',
+    'data-action="publish"',
+    'data-action="confirm-dialog"',
+    'demo123',
+    '校验错误',
+    '校验警告'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+});
