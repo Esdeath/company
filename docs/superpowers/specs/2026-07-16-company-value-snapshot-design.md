@@ -70,6 +70,7 @@ infra/
 └── nginx/                # Nginx 反向代理配置
 docs/
 compose.yaml
+compose.prod.yaml
 .env.example
 ```
 
@@ -177,6 +178,8 @@ flowchart LR
 ```
 
 只有 FastAPI 容器以读写方式挂载 `content/`。Nuxt 和管理端通过 API 获取内容，避免多个进程同时写文件。
+
+生产环境运行在一台阿里云 ECS 上。ECS 安全组是公网入口，Docker Compose 内部网络承载应用通信；PostgreSQL、Nuxt、管理端和 FastAPI 均不直接暴露公网端口。
 
 ### 4.4 请求与发布链路
 
@@ -593,6 +596,8 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 
 ## 11. Docker 部署
 
+首版生产环境部署到阿里云 ECS，不使用 Cloudflare Workers、Pages、D1 或 R2。Docker Compose 同时作为本地和生产编排方式，差异通过环境变量和生产覆盖文件表达。
+
 `compose.yaml` 包含：
 
 - `nginx`
@@ -614,7 +619,7 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 持久化：
 
 - PostgreSQL 使用命名卷。
-- `content/` 使用宿主机绑定挂载，便于 Codex Skill 直接写入和 Git 管理。
+- `content/` 使用宿主机绑定挂载，便于备份和 Git 管理。
 - 代码打包进镜像，不在运行时修改。
 
 网站不自动执行 Git commit 或 push。管理员完成发布后，可在宿主机检查 `content/` 变化并人工提交；远程仓库凭证不进入应用容器。
@@ -633,7 +638,84 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 
 本地 Docker 环境默认使用 HTTP。生产环境由 Nginx 加载宿主机挂载的 TLS 证书；证书申请与自动续期不纳入首版应用代码。
 
-### 11.1 环境配置
+### 11.1 阿里云 ECS 基线
+
+首版建议配置：
+
+- 2 核 CPU、4 GB 内存。
+- 40–80 GB 系统盘或数据盘。
+- Ubuntu LTS 或 Alibaba Cloud Linux 的受支持版本。
+- 固定公网 IP 或 EIP。
+- 服务器时区设置为 `Asia/Shanghai`，容器内部日志统一使用 UTC 并携带时区信息。
+
+这是低流量个人研究站的起步配置，不是硬编码的运行要求。持续监测内存、磁盘和数据库大小后再升级。
+
+### 11.2 ECS 安全组
+
+入方向只开放：
+
+| 端口 | 来源 | 用途 |
+|---|---|---|
+| 80/TCP | `0.0.0.0/0`、`::/0` | HTTP，仅用于跳转 HTTPS 和证书验证 |
+| 443/TCP | `0.0.0.0/0`、`::/0` | HTTPS 网站 |
+| 22/TCP | 管理员固定 IP | SSH 运维 |
+
+PostgreSQL `5432`、FastAPI `8000`、Nuxt `3000` 不加入安全组公网规则，也不在 Compose 中映射到宿主机。只有 Nginx 暴露 `80` 和 `443`。
+
+生产服务器禁用 root 密码登录，使用 SSH 密钥；SSH 管理 IP 变化时先更新安全组，避免临时放开到全网。
+
+### 11.3 服务器目录
+
+```text
+/srv/company/
+├── app/                         # Git 代码仓库
+├── data/
+│   └── content/                 # inbox、drafts、published Markdown
+├── backups/
+│   ├── postgres/
+│   └── content/
+├── logs/
+│   └── nginx/
+└── secrets/
+    └── .env                     # 600 权限，不进入 Git
+```
+
+生产 Compose 将 `/srv/company/data/content` 挂载为 FastAPI 容器的 `/data/content`。本地开发继续挂载仓库内的 `content/`。
+
+本地 Codex 生成的 Markdown 主要通过管理端上传进入服务器。只有在 Codex 直接运行于服务器仓库时，才允许输出到 `/srv/company/data/content/inbox/`；不要求为了导入一份快照执行完整代码部署。
+
+### 11.4 Docker 网络
+
+Compose 定义两个网络：
+
+- `edge`：Nginx、Nuxt、管理端。
+- `backend`：Nginx、Nuxt、FastAPI、PostgreSQL；设置为 internal。
+
+PostgreSQL 只加入 `backend`。Nginx 同时加入 `edge` 和 `backend`。服务之间使用 Compose 服务名解析，不写固定容器 IP。
+
+### 11.5 Nginx 生产配置
+
+- HTTP 全部 301 跳转 HTTPS，证书验证路径除外。
+- `/api/` 代理 FastAPI。
+- `/admin/` 代理管理端静态服务。
+- `/` 代理 Nuxt。
+- 上传限制与应用一致，设置为 2 MB。
+- 登录接口设置基础速率限制。
+- 代理传递真实 IP、协议和 Host。
+- 静态资源使用带内容哈希的长缓存；HTML、管理端入口和 API 不使用长期缓存。
+- 设置 HSTS、`X-Content-Type-Options`、`Referrer-Policy` 和适合当前页面的 Content Security Policy。
+
+### 11.6 HTTPS 与域名
+
+1. 域名 A 记录指向 ECS 公网 IP。
+2. Nginx 先以 HTTP 配置启动。
+3. 使用 Certbot 或阿里云 SSL 证书签发证书。
+4. 证书目录以只读方式挂载进 Nginx 容器。
+5. 自动续期在宿主机执行；续期成功后运行 `docker compose exec nginx nginx -s reload`。
+
+如果 ECS 位于中国内地，必须在公开使用域名前完成相应 ICP 备案，并在网站页脚展示备案信息。中国香港或海外节点不要求 ICP 备案。
+
+### 11.7 环境配置
 
 `.env.example` 至少包含：
 
@@ -651,7 +733,7 @@ CONTENT_ROOT=/data/content
 
 真实 `.env` 不进入 Git。生产环境必须替换所有 `change-me` 值。
 
-### 11.2 启动依赖
+### 11.8 启动依赖
 
 1. PostgreSQL 健康。
 2. API 执行迁移、创建首个管理员、扫描内容索引并就绪。
@@ -659,6 +741,53 @@ CONTENT_ROOT=/data/content
 4. Nginx 开始对外提供服务。
 
 API 就绪检查同时验证数据库连接和 `content/` 目录可读写；任一失败时返回非 200 状态。
+
+### 11.9 首次部署
+
+```text
+1. 创建 ECS、固定公网 IP 和安全组
+2. 安装 Git、Docker Engine 和 Docker Compose Plugin
+3. 克隆仓库到 /srv/company/app
+4. 创建 data、backups、logs、secrets 目录并设置权限
+5. 从 .env.example 创建 /srv/company/secrets/.env
+6. docker compose -f compose.yaml -f compose.prod.yaml build
+7. docker compose -f compose.yaml -f compose.prod.yaml up -d postgres api web admin nginx
+8. docker compose -f compose.yaml -f compose.prod.yaml ps 并检查全部健康状态
+9. 配置域名和 HTTPS
+10. 导入 A 股、港股各一份快照做验收
+```
+
+### 11.10 日常发布与回滚
+
+日常发布：
+
+```bash
+cd /srv/company/app
+git pull --ff-only
+docker compose -f compose.yaml -f compose.prod.yaml build
+docker compose -f compose.yaml -f compose.prod.yaml up -d
+docker compose -f compose.yaml -f compose.prod.yaml ps
+```
+
+数据库 migration 必须向后兼容当前与上一个应用版本。部署失败时检出上一个 Git 标签并重新构建；如果 migration 不兼容，则先从部署前备份恢复数据库，再恢复应用。
+
+不在服务器直接修改应用代码。`content/` 是运行数据，可由管理端写入，不随应用镜像回滚。
+
+### 11.11 备份与恢复
+
+- PostgreSQL：每日执行 `pg_dump -Fc`，保留 7 份日备份和 4 份周备份。
+- Markdown：每日归档 `/srv/company/data/content`；该目录可初始化为独立私有 Git 仓库，由管理员人工提交作为额外历史。
+- 备份至少复制一份到 ECS 之外，可使用阿里云 OSS 或另一台设备。
+- ECS 云盘快照是补充手段，不能代替数据库逻辑备份。
+- 每月执行一次恢复演练：把最新数据库和 Markdown 备份恢复到临时目录，启动隔离 Compose 项目并打开一份快照。
+
+### 11.12 日志与运维
+
+- Docker 日志使用 `json-file` 轮转，限制单文件大小和保留数量。
+- Nginx 访问日志与错误日志写入 `/srv/company/logs/nginx/` 并轮转。
+- FastAPI 日志包含请求 ID、状态码、耗时和管理员操作类型，不记录密码、Cookie 或 Markdown 正文。
+- 监控至少覆盖容器健康、磁盘使用率、数据库备份结果和 TLS 证书到期时间。
+- 磁盘使用率达到 80% 时必须告警；备份连续两次失败时必须告警。
 
 ## 12. 测试与验收
 
