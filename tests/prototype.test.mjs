@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
+const docDirectory = new URL('../doc/', import.meta.url);
 const prototypePath = new URL('../doc/prototype.html', import.meta.url);
+
+function readSnapshotAsset(fileName) {
+  const url = new URL(fileName, docDirectory);
+  assert.equal(existsSync(url), true, `missing ${fileName}`);
+  return readFileSync(url, 'utf8');
+}
 
 function readPrototype() {
   return readFileSync(prototypePath, 'utf8');
@@ -207,4 +214,33 @@ test('workspace detail responds to its own readable width', () => {
   assert.match(html, /\.workspace-document \.value-layout \{ grid-template-columns: 1fr; \}/);
   assert.match(html, /\.workspace-document \.value-metrics \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(html, /\.workspace-document \.desktop-toc \{ display: none; \}/);
+});
+
+test('HTML snapshot manifest registers only generated public reports', () => {
+  const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
+  assert.deepEqual(manifest.map((item) => item.id), ['cn-600519-html', 'hk-09626-html']);
+  assert.deepEqual(manifest.map((item) => item.companyName), ['贵州茅台', '哔哩哔哩']);
+  assert.deepEqual(manifest.map((item) => item.status), ['published', 'published']);
+  assert.equal(manifest[0].htmlPath, './价值线_贵州茅台_企业快照版.html');
+  assert.equal(manifest[1].htmlPath, './价值线_哔哩哔哩_企业快照版.html');
+});
+
+test('generated HTML snapshots are self-contained safe documents', () => {
+  const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
+  for (const snapshot of manifest) {
+    const html = readSnapshotAsset(snapshot.fileName);
+    assert.match(html, /^<!doctype html>/i, `${snapshot.fileName} missing doctype`);
+    assert.match(html, /<html[^>]+lang=["']zh-CN["']/i, `${snapshot.fileName} missing lang`);
+    assert.match(html, /<meta[^>]+charset=["']?utf-8/i, `${snapshot.fileName} missing charset`);
+    assert.match(html, /<meta[^>]+name=["']viewport["']/i, `${snapshot.fileName} missing viewport`);
+    assert.match(html, /<title>[^<]+<\/title>/i, `${snapshot.fileName} missing title`);
+    assert.match(html, /<style>[\s\S]+<\/style>/i, `${snapshot.fileName} missing style`);
+    assert.match(html, /<body>[\s\S]+<\/body>/i, `${snapshot.fileName} missing body`);
+    assert.ok(html.includes(snapshot.companyName), `${snapshot.fileName} missing company`);
+    assert.ok(html.includes(snapshot.titleTicker), `${snapshot.fileName} missing title ticker`);
+    assert.doesNotMatch(html, /<script\b/i, `${snapshot.fileName} contains script`);
+    assert.doesNotMatch(html, /<iframe\b/i, `${snapshot.fileName} contains iframe`);
+    assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i, `${snapshot.fileName} contains remote asset`);
+    assert.doesNotMatch(html, /@import\s+(?:url\()?\s*["']?https?:\/\//i, `${snapshot.fileName} contains remote import`);
+  }
 });

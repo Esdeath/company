@@ -755,6 +755,46 @@
 </head>
 <body>
   <div id="app"></div>
+  <script type="application/json" id="html-snapshot-manifest">
+[
+  {
+    "id": "cn-600519-html",
+    "companyName": "贵州茅台",
+    "ticker": "600519",
+    "titleTicker": "600519.SH",
+    "market": "CN",
+    "exchange": "SSE",
+    "dataAsOf": "2025-12-31",
+    "quoteAsOf": "2026-07-15 12:05",
+    "publishedAt": "2026-07-16",
+    "updatedAt": "2026-07-16",
+    "htmlPath": "./价值线_贵州茅台_企业快照版.html",
+    "fileName": "价值线_贵州茅台_企业快照版.html",
+    "pageTitle": "价值线企业快照版 — 贵州茅台 (600519.SH) · 只寻找事实，不寻求意见",
+    "status": "published",
+    "report": "clean",
+    "isLatest": true
+  },
+  {
+    "id": "hk-09626-html",
+    "companyName": "哔哩哔哩",
+    "ticker": "09626",
+    "titleTicker": "09626.HK",
+    "market": "HK",
+    "exchange": "HKEX",
+    "dataAsOf": "2025-12-31",
+    "quoteAsOf": "2026-07-16 16:08:38",
+    "publishedAt": "2026-07-17",
+    "updatedAt": "2026-07-17",
+    "htmlPath": "./价值线_哔哩哔哩_企业快照版.html",
+    "fileName": "价值线_哔哩哔哩_企业快照版.html",
+    "pageTitle": "价值线企业快照版 — 哔哩哔哩 (09626.HK) · 只寻找事实，不寻求意见",
+    "status": "published",
+    "report": "clean",
+    "isLatest": true
+  }
+]
+</script>
   <script type="application/json" id="maotai-snapshot-data">
 {
   "id": "cn-600519-2025",
@@ -894,11 +934,12 @@
   </script>
   <script>
     (() => {
-      function readEmbeddedSnapshot(id) {
+      function readEmbeddedJson(id) {
         return JSON.parse(document.querySelector(`#${id}`).textContent);
       }
 
-      const maotaiSnapshot = readEmbeddedSnapshot('maotai-snapshot-data');
+      const htmlSnapshots = readEmbeddedJson('html-snapshot-manifest');
+      const maotaiSnapshot = readEmbeddedJson('maotai-snapshot-data');
       const snapshots = [
         {
           id: 'hk-00700-2025',
