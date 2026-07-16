@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>企业快照库 · 交互原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f2f5f6;
+      --surface: #ffffff;
+      --ink: #17212b;
+      --muted: #66727d;
+      --line: #d7dee3;
+      --accent: #155e75;
+      --accent-soft: #e4f0f2;
+      --positive: #2f6b4f;
+      --positive-soft: #e6f0eb;
+      --caution: #a15c16;
+      --caution-soft: #f8ecdc;
+      --negative: #a33a3a;
+      --negative-soft: #f8e6e6;
+      --radius-card: 8px;
+      --radius-control: 6px;
+      --shadow: 0 18px 55px rgba(23, 33, 43, 0.1);
+      --font-display: "Iowan Old Style", "Songti SC", "STSong", serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-data: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #dfe5e7;
+      color: var(--ink);
+      font-family: var(--font-body);
+      line-height: 1.6;
+    }
+    button, input, select { font: inherit; }
+    button, a, select { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+      outline: 3px solid rgba(21, 94, 117, 0.35);
+      outline-offset: 2px;
+    }
+    .prototype-frame { min-height: 100vh; }
+    .prototype-stage {
+      min-height: 100vh;
+      margin: 0 auto;
+      overflow: hidden;
+      background: var(--canvas);
+      transition: width 180ms ease, box-shadow 180ms ease;
+    }
+    .prototype-stage.is-mobile {
+      width: min(390px, 100%);
+      box-shadow: var(--shadow);
+    }
+    .building-state {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      color: var(--muted);
+    }
+    .building-state strong {
+      display: block;
+      color: var(--ink);
+      font-family: var(--font-display);
+      font-size: clamp(26px, 5vw, 48px);
+      font-weight: 600;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    (() => {
+      const initialState = Object.freeze({
+        route: 'home',
+        viewportMode: 'desktop',
+        isAuthenticated: false,
+        searchQuery: '',
+        marketFilter: 'ALL',
+        sortMode: 'data_desc',
+        selectedSnapshot: 'hk-00700-2025',
+        adminStatusFilter: 'all',
+        validationScenario: 'warning',
+        dialog: null,
+        toast: null
+      });
+
+      let state = { ...initialState };
+      const app = document.querySelector('#app');
+
+      function setState(patch) {
+        state = { ...state, ...patch };
+        render();
+      }
+
+      function render() {
+        const mobileClass = state.viewportMode === 'mobile' ? 'is-mobile' : '';
+        app.innerHTML = `
+          <div class="prototype-frame">
+            <main class="prototype-stage ${mobileClass}">
+              <div class="building-state">
+                <p><strong>企业快照库</strong>交互原型正在构建</p>
+              </div>
+            </main>
+          </div>`;
+      }
+
+      window.prototypeApp = {
+        navigate(route) { setState({ route, dialog: null, toast: null }); },
+        setViewport(viewportMode) { setState({ viewportMode }); },
+        reset() { state = { ...initialState }; render(); }
+      };
+
+      render();
+    })();
+  </script>
+</body>
+</html>
