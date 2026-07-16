@@ -154,3 +154,13 @@ test('value-line grid children cannot widen the mobile stage', () => {
   assert.match(html, /\.value-duo > \* \{ min-width: 0; \}/);
   assert.match(html, /\.value-section \{[^}]*min-width: 0;/s);
 });
+
+test('public workspace defaults to Moutai and reconciles selection after filtering', () => {
+  const html = readPrototype();
+  assert.match(html, /selectedSnapshotId: 'cn-600519-2025'/);
+  assert.match(html, /companyDrawerOpen: false/);
+  assert.match(html, /function selectedPublicSnapshot\(\)/);
+  assert.match(html, /function publicSelectionPatch\(patch\)/);
+  assert.match(html, /results\.some\(\(snapshot\) => snapshot\.id === nextSelectedId\)/);
+  assert.match(html, /nextSelectedId = results\[0\]\?\.id \|\| null/);
+});

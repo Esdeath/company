@@ -865,7 +865,8 @@
         searchQuery: '',
         marketFilter: 'ALL',
         sortMode: 'data_desc',
-        selectedSnapshot: 'hk-00700-2025',
+        selectedSnapshotId: 'cn-600519-2025',
+        companyDrawerOpen: false,
         publicScenario: 'normal',
         tocOpen: false,
         adminStatusFilter: 'all',
@@ -897,12 +898,12 @@
         return market === 'HK' ? digits.padStart(5, '0') : digits.padStart(6, '0');
       }
 
-      function filteredSnapshots() {
-        if (state.publicScenario === 'empty') return [];
-        const query = state.searchQuery.trim().toLowerCase();
+      function filteredSnapshots(sourceState = state) {
+        if (sourceState.publicScenario === 'empty') return [];
+        const query = sourceState.searchQuery.trim().toLowerCase();
         const records = snapshots.filter((snapshot) => snapshot.isLatest);
         const filtered = records.filter((snapshot) => {
-          const marketMatches = state.marketFilter === 'ALL' || snapshot.market === state.marketFilter;
+          const marketMatches = sourceState.marketFilter === 'ALL' || snapshot.market === sourceState.marketFilter;
           if (!marketMatches) return false;
           if (!query) return true;
           const normalized = normalizeTicker(query, snapshot.market);
@@ -911,10 +912,25 @@
             || snapshot.ticker.replace(/^0+/, '') === query.replace(/^0+/, '');
         });
         return [...filtered].sort((a, b) => {
-          if (state.sortMode === 'published_desc') return b.publishedAt.localeCompare(a.publishedAt);
-          if (state.sortMode === 'name_asc') return a.companyName.localeCompare(b.companyName, 'zh-CN');
+          if (sourceState.sortMode === 'published_desc') return b.publishedAt.localeCompare(a.publishedAt);
+          if (sourceState.sortMode === 'name_asc') return a.companyName.localeCompare(b.companyName, 'zh-CN');
           return b.dataAsOf.localeCompare(a.dataAsOf);
         });
+      }
+
+      function selectedPublicSnapshot() {
+        if (state.publicScenario !== 'normal') return null;
+        return snapshots.find((snapshot) => snapshot.id === state.selectedSnapshotId && snapshot.isLatest) || null;
+      }
+
+      function publicSelectionPatch(patch) {
+        const nextState = { ...state, ...patch };
+        const results = filteredSnapshots(nextState);
+        let nextSelectedId = nextState.selectedSnapshotId;
+        if (!results.some((snapshot) => snapshot.id === nextSelectedId)) {
+          nextSelectedId = results[0]?.id || null;
+        }
+        return { ...patch, selectedSnapshotId: nextSelectedId };
       }
 
       function routeButton(route, label) {
@@ -1160,7 +1176,7 @@
       }
 
       function renderSnapshot() {
-        const snapshot = snapshots.find((item) => item.id === state.selectedSnapshot) || snapshots[0];
+        const snapshot = snapshots.find((item) => item.id === state.selectedSnapshotId) || maotaiSnapshot;
         return snapshot.format === 'value_line' ? renderValueLineSnapshot(snapshot) : renderSimpleSnapshot(snapshot);
       }
 
@@ -1426,11 +1442,11 @@
         }
         if (action === 'viewport') setState({ viewportMode: value });
         if (action === 'navigate-home' || action === 'back-results') setState({ route: 'home' });
-        if (action === 'market') setState({ marketFilter: value, publicScenario: 'normal' });
-        if (action === 'open-snapshot') setState({ route: 'snapshot', selectedSnapshot: id });
-        if (action === 'select-version') setState({ selectedSnapshot: id });
-        if (action === 'retry-public') setState({ publicScenario: 'normal' });
-        if (action === 'clear-search') setState({ searchQuery: '', marketFilter: 'ALL', publicScenario: 'normal' });
+        if (action === 'market') setState(publicSelectionPatch({ marketFilter: value, publicScenario: 'normal' }));
+        if (action === 'open-snapshot') setState({ route: 'snapshot', selectedSnapshotId: id });
+        if (action === 'select-version') setState({ selectedSnapshotId: id });
+        if (action === 'retry-public') setState(publicSelectionPatch({ publicScenario: 'normal' }));
+        if (action === 'clear-search') setState(publicSelectionPatch({ searchQuery: '', marketFilter: 'ALL', publicScenario: 'normal' }));
         if (action === 'toggle-toc') setState({ tocOpen: !state.tocOpen });
         if (action === 'table-earliest' || action === 'table-latest') {
           const scroller = app.querySelector(`#${trigger.dataset.tableId}`);
@@ -1454,7 +1470,8 @@
       app.addEventListener('submit', (event) => {
         if (!event.target.matches('[data-action="search"]')) return;
         event.preventDefault();
-        setState({ searchQuery: String(new FormData(event.target).get('q') || '').trim(), publicScenario: 'normal' });
+        const searchQuery = String(new FormData(event.target).get('q') || '').trim();
+        setState(publicSelectionPatch({ searchQuery, publicScenario: 'normal' }));
       });
 
       app.addEventListener('submit', (event) => {
@@ -1464,7 +1481,7 @@
       });
 
       app.addEventListener('change', (event) => {
-        if (event.target.matches('[data-action="sort"]')) setState({ sortMode: event.target.value });
+        if (event.target.matches('[data-action="sort"]')) setState(publicSelectionPatch({ sortMode: event.target.value }));
         if (event.target.matches('[data-action="public-scenario"]')) setState({ publicScenario: event.target.value, route: 'home' });
         if (event.target.matches('[data-action="admin-market"]')) setState({ adminMarketFilter: event.target.value });
       });
