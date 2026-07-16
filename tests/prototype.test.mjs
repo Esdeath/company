@@ -109,3 +109,21 @@ test('Moutai payload preserves the Skill facts and aligned history', () => {
   assert.equal(data.scanChecks.length, 5);
   assert.equal(data.fiveQuestions.length, 5);
 });
+
+test('Moutai detail exposes every value-line research module', () => {
+  const html = readPrototype();
+  for (const required of [
+    'renderValueLineSnapshot',
+    'renderValueTable',
+    'data-value-section="quick-conclusion"',
+    'data-value-section="business-model"',
+    'data-value-section="per-share-history"',
+    'data-value-section="operating-history"',
+    'data-value-section="mental-math"',
+    'data-value-section="capital-structure"',
+    'data-value-section="five-questions"',
+    'data-value-section="methodology"',
+    'data-action="table-earliest"',
+    'data-action="table-latest"'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+});
