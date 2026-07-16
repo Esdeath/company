@@ -629,6 +629,8 @@
 
       const validationReports = {
         clean: { errors: [], warnings: [], info: ['完整 HTML、自包含资源和标题元数据校验通过。'] },
+        'html-checking': { errors: ['HTML 文件正在重新校验，完成前不能发布。'], warnings: [], info: [] },
+        'html-unavailable': { errors: ['HTML 文件不存在或无法访问，请检查文件路径。'], warnings: [], info: [] },
         'html-error': { errors: ['HTML 缺少非空 &lt;title&gt;。', 'HTML 包含远程 &lt;script&gt;，禁止发布。'], warnings: [], info: [] }
       };
 
@@ -658,6 +660,7 @@
 
       let state = { ...initialState };
       const app = document.querySelector('#app');
+      const failedSnapshotIds = new Set();
       let lastDialogAction = null;
       let toastTimer = null;
 
@@ -673,10 +676,18 @@
         return market === 'HK' ? digits.padStart(5, '0') : digits.padStart(6, '0');
       }
 
+      function adminRecordForSnapshot(snapshotId) {
+        return adminRecords.find((record) => record.snapshotId === snapshotId) || null;
+      }
+
+      function isSnapshotPublished(snapshot) {
+        return adminRecordForSnapshot(snapshot.id)?.status === 'published';
+      }
+
       function filteredSnapshots(sourceState = state) {
         if (sourceState.publicScenario === 'empty') return [];
         const query = sourceState.searchQuery.trim().toLowerCase();
-        const records = htmlSnapshots.filter((snapshot) => snapshot.isLatest && snapshot.status === 'published');
+        const records = htmlSnapshots.filter((snapshot) => snapshot.isLatest && isSnapshotPublished(snapshot));
         const filtered = records.filter((snapshot) => {
           const marketMatches = sourceState.marketFilter === 'ALL' || snapshot.market === sourceState.marketFilter;
           if (!marketMatches) return false;
@@ -695,7 +706,7 @@
 
       function selectedPublicSnapshot() {
         if (state.publicScenario !== 'normal') return null;
-        return htmlSnapshots.find((snapshot) => snapshot.id === state.selectedSnapshotId && snapshot.status === 'published') || null;
+        return htmlSnapshots.find((snapshot) => snapshot.id === state.selectedSnapshotId && isSnapshotPublished(snapshot)) || null;
       }
 
       function publicSelectionPatch(patch) {
@@ -790,10 +801,16 @@
 
       function renderSnapshotFrame(snapshot, mode) {
         if (!snapshot?.htmlPath) return renderInvalidHtmlPreview();
+        if (failedSnapshotIds.has(snapshot.id)) {
+          return `
+            <div class='snapshot-frame-shell snapshot-frame-shell--${mode}'>
+              <div class='snapshot-frame-loading is-error'><div><strong>HTML 文件不存在或无法访问</strong><p>请检查文件路径后重新校验。</p>${mode === 'review' ? `<button class='button' type='button' data-action="retry-validation">重新校验文件</button>` : ''}</div></div>
+            </div>`;
+        }
         return `
           <div class='snapshot-frame-shell snapshot-frame-shell--${mode}'>
             <div class='snapshot-frame-loading' data-frame-loading>正在加载 HTML 快照</div>
-            <iframe class='snapshot-html-frame' src='${escapeHtml(snapshot.htmlPath)}' title='${escapeHtml(snapshot.companyName)}企业财报快照' sandbox data-frame-load></iframe>
+            <iframe class='snapshot-html-frame' src='${escapeHtml(snapshot.htmlPath)}' title='${escapeHtml(snapshot.companyName)}企业财报快照' sandbox data-frame-load data-snapshot-id='${escapeHtml(snapshot.id)}'></iframe>
           </div>`;
       }
 
@@ -821,11 +838,12 @@
 
 
       function renderHtmlSnapshotPage(snapshot) {
+        if (!snapshot) return `<div class='site-shell html-snapshot-page' data-route="snapshot">${renderSiteHeader()}<main class='html-snapshot-main'><button class='back-link' type='button' data-action='back-results'>← 返回公司目录</button><div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有可阅读的企业财报 HTML</h3><p>当前没有已发布的企业快照。</p></div></main></div>`;
         return `<div class='site-shell html-snapshot-page' data-route="snapshot">${renderSiteHeader()}<main class='html-snapshot-main'><button class='back-link' type='button' data-action='back-results'>← 返回公司目录</button>${renderSnapshotFrame(snapshot, 'standalone')}</main></div>`;
       }
 
       function renderSnapshot() {
-        return renderHtmlSnapshotPage(selectedPublicSnapshot() || htmlSnapshots[0]);
+        return renderHtmlSnapshotPage(selectedPublicSnapshot());
       }
 
       function renderFooter() {
@@ -1032,10 +1050,26 @@
           showToast('草稿已删除。');
           return;
         }
+        if (kind === 'publish' && validationReports[record.report].errors.length) {
+          setState({ dialog: null });
+          showToast('HTML 校验未通过，无法发布。', 'error');
+          return;
+        }
         record.status = kind === 'publish' ? 'published' : 'withdrawn';
         record.updatedAt = '刚刚';
-        setState({ dialog: null });
+        const publicPatch = publicSelectionPatch({});
+        setState({ ...publicPatch, dialog: null });
         showToast(kind === 'publish' ? '已发布。' : '已撤回。');
+      }
+
+      function retrySnapshotValidation() {
+        const record = adminRecords.find((item) => item.id === state.selectedAdminRecord);
+        if (!record?.snapshotId) return;
+        record.report = 'html-checking';
+        record.updatedAt = '正在校验';
+        failedSnapshotIds.delete(record.snapshotId);
+        setState({ reviewTab: 'preview' });
+        showToast('正在重新校验 HTML 文件。');
       }
 
       function trapFocus(container, event) {
@@ -1077,12 +1111,40 @@
         loading.textContent = 'HTML 快照未能加载，请检查文件路径';
         loading.classList.remove('is-hidden');
         loading.classList.add('is-error');
+        if (markSnapshotUnavailable(frame.dataset.snapshotId)) setState({});
+      }
+
+      function markSnapshotUnavailable(snapshotId) {
+        if (!snapshotId) return false;
+        const record = adminRecordForSnapshot(snapshotId);
+        const changed = !failedSnapshotIds.has(snapshotId) || (record && record.report !== 'html-unavailable');
+        failedSnapshotIds.add(snapshotId);
+        if (record) {
+          record.report = 'html-unavailable';
+          record.updatedAt = '校验失败';
+        }
+        return changed;
+      }
+
+      function markSnapshotAvailable(snapshotId) {
+        if (!snapshotId) return false;
+        const record = adminRecordForSnapshot(snapshotId);
+        const changed = failedSnapshotIds.delete(snapshotId) || (record && record.report !== 'clean');
+        if (record) {
+          record.report = 'clean';
+          record.updatedAt = '刚刚';
+        }
+        return changed;
       }
 
       function completeSnapshotFrameLoad(frame) {
         const isLocalFile = window.location.protocol === 'file:';
         const httpLoadComplete = frame.dataset.frameHttpStatus === 'ok' && frame.dataset.frameLoadStatus === 'loaded';
         if (!isLocalFile && !httpLoadComplete) return;
+        if (markSnapshotAvailable(frame.dataset.snapshotId)) {
+          setState({});
+          return;
+        }
         snapshotFrameLoading(frame)?.classList.add('is-hidden');
       }
 
@@ -1145,6 +1207,11 @@
         completeSnapshotFrameLoad(frame);
       }, true);
 
+      app.addEventListener('error', (event) => {
+        const frame = event.target;
+        if (frame.matches?.('[data-frame-load]')) showSnapshotFrameError(frame);
+      }, true);
+
       app.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-action]');
         if (!trigger) return;
@@ -1176,6 +1243,7 @@
         if (action === 'admin-filter') setState({ adminStatusFilter: value });
         if (action === 'review-snapshot') setState({ route: 'review', selectedAdminRecord: id, reviewTab: 'check' });
         if (action === 'review-tab') setState({ reviewTab: value });
+        if (action === 'retry-validation') retrySnapshotValidation();
         if (action === 'publish') openDialog('publish');
         if (action === 'withdraw') openDialog('withdraw');
         if (action === 'delete-draft') openDialog('delete');

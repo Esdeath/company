@@ -122,6 +122,27 @@ test('public workspace defaults to Moutai and reconciles selection after filteri
   assert.match(html, /nextSelectedId = results\[0\]\?\.id \|\| null/);
 });
 
+test('administrator publication state is the source of truth for public visibility', () => {
+  const html = readPrototype();
+  for (const required of [
+    'function adminRecordForSnapshot(snapshotId)',
+    'function isSnapshotPublished(snapshot)',
+    'adminRecordForSnapshot(snapshot.id)?.status === \'published\'',
+    'htmlSnapshots.filter((snapshot) => snapshot.isLatest && isSnapshotPublished(snapshot))',
+    'isSnapshotPublished(snapshot)',
+    'const publicPatch = publicSelectionPatch({})',
+    'setState({ ...publicPatch, dialog: null })'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.doesNotMatch(html, /selectedPublicSnapshot\(\) \|\| htmlSnapshots\[0\]/);
+});
+
+test('withdraw and republish reconcile the selected public snapshot', () => {
+  const html = readPrototype();
+  assert.match(html, /record\.status = kind === 'publish' \? 'published' : 'withdrawn'[\s\S]*const publicPatch = publicSelectionPatch\(\{\}\)[\s\S]*setState\(\{ \.\.\.publicPatch, dialog: null \}\)/);
+  assert.match(html, /function renderSnapshot\(\) \{[\s\S]*renderHtmlSnapshotPage\(selectedPublicSnapshot\(\)\)/);
+  assert.match(html, /if \(!snapshot\)[\s\S]*没有可阅读的企业财报 HTML/);
+});
+
 test('homepage renders a master-detail financial workspace', () => {
   const html = readPrototype();
   for (const required of [
@@ -183,6 +204,25 @@ test('HTTP snapshot loading requires a successful HEAD check and iframe load', (
   assert.match(html, /if \(!response\.ok\)[^\n]*throw new Error/);
 });
 
+test('snapshot load failure becomes an administrator validation error and blocks publishing', () => {
+  const html = readPrototype();
+  for (const required of [
+    "'html-unavailable': { errors: ['HTML 文件不存在或无法访问，请检查文件路径。']",
+    'data-snapshot-id',
+    'function markSnapshotUnavailable(snapshotId)',
+    "record.report = 'html-unavailable'",
+    'markSnapshotUnavailable(frame.dataset.snapshotId)',
+    'function markSnapshotAvailable(snapshotId)',
+    "record.report = 'clean'",
+    'data-action="retry-validation"',
+    "record.report = 'html-checking'",
+    "failedSnapshotIds.delete(record.snapshotId)",
+    "data-action=\"publish\" ${hasErrors ? 'disabled' : ''}"
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.match(html, /function renderSnapshotFrame\(snapshot, mode\)[\s\S]*failedSnapshotIds\.has\(snapshot\.id\)[\s\S]*HTML 文件不存在或无法访问/);
+  assert.match(html, /if \(action === 'retry-validation'\)[\s\S]*retrySnapshotValidation/);
+});
+
 test('public company cards contain identity metadata but no copied financial metrics', () => {
   const html = readPrototype();
   assert.match(html, /HTML 快照/);
@@ -226,15 +266,17 @@ test('generated HTML snapshots are self-contained safe documents', () => {
     assert.match(html, /<html[^>]+lang=["']zh-CN["']/i, `${snapshot.fileName} missing lang`);
     assert.match(html, /<meta[^>]+charset=["']?utf-8/i, `${snapshot.fileName} missing charset`);
     assert.match(html, /<meta[^>]+name=["']viewport["']/i, `${snapshot.fileName} missing viewport`);
-    assert.match(html, /<title>[^<]+<\/title>/i, `${snapshot.fileName} missing title`);
+    const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+    assert.ok(titleMatch?.[1].trim(), `${snapshot.fileName} missing title`);
+    assert.ok(titleMatch[1].includes(snapshot.companyName), `${snapshot.fileName} title missing company`);
+    assert.ok(titleMatch[1].includes(snapshot.titleTicker), `${snapshot.fileName} title missing ticker`);
     assert.match(html, /<style>[\s\S]+<\/style>/i, `${snapshot.fileName} missing style`);
     assert.match(html, /<body>[\s\S]+<\/body>/i, `${snapshot.fileName} missing body`);
-    assert.ok(html.includes(snapshot.companyName), `${snapshot.fileName} missing company`);
-    assert.ok(html.includes(snapshot.titleTicker), `${snapshot.fileName} missing title ticker`);
     assert.doesNotMatch(html, /<script\b/i, `${snapshot.fileName} contains script`);
     assert.doesNotMatch(html, /<iframe\b/i, `${snapshot.fileName} contains iframe`);
-    assert.doesNotMatch(html, /(?:src|href)=["']https?:\/\//i, `${snapshot.fileName} contains remote asset`);
-    assert.doesNotMatch(html, /@import\s+(?:url\()?\s*["']?https?:\/\//i, `${snapshot.fileName} contains remote import`);
+    assert.doesNotMatch(html, /\b(?:src|href|srcset|poster|action|formaction)\s*=\s*["'][^"']*(?:https?:)?\/\//i, `${snapshot.fileName} contains remote asset`);
+    assert.doesNotMatch(html, /url\(\s*["']?(?:https?:)?\/\//i, `${snapshot.fileName} contains remote CSS URL`);
+    assert.doesNotMatch(html, /@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//i, `${snapshot.fileName} contains remote import`);
   }
 });
 
