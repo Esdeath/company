@@ -182,3 +182,20 @@ test('homepage renders a master-detail financial workspace', () => {
   assert.match(html, /\.company-directory__scroll[^}]*overflow-y: auto/s);
   assert.match(html, /\.workspace-detail__scroll[^}]*overflow-y: auto/s);
 });
+
+test('mobile company drawer has complete dismissal and focus contracts', () => {
+  const html = readPrototype();
+  for (const required of [
+    'data-action="open-company-drawer"',
+    'data-action="close-company-drawer"',
+    "role='dialog' aria-modal='true'",
+    'data-drawer-initial',
+    'function openCompanyDrawer()',
+    'function closeCompanyDrawer',
+    'function trapFocus',
+    "document.body.classList.toggle('company-drawer-open'"
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.match(html, /\.company-drawer-layer[^}]*position: fixed/s);
+  assert.match(html, /width: min\(88vw, 340px\)/);
+  assert.match(html, /\.prototype-stage\.is-mobile \.company-workspace > \.company-directory:not\(\.company-directory--drawer\)/);
+});

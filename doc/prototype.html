@@ -351,6 +351,18 @@
     .workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
     .workspace-empty .empty-state { width: min(560px, 100%); }
     .company-drawer-button { display: none; }
+    body.company-drawer-open { overflow: hidden; }
+    .company-drawer-layer { position: fixed; inset: 52px 0 0; z-index: 45; display: none; }
+    .company-drawer-backdrop { position: absolute; inset: 0; width: 100%; padding: 0; background: rgba(9, 18, 23, 0.52); border: 0; }
+    .company-directory--drawer {
+      position: relative;
+      width: min(88vw, 340px);
+      height: 100%;
+      box-shadow: 18px 0 52px rgba(23, 33, 43, 0.24);
+      animation: drawer-in 180ms ease-out;
+    }
+    .drawer-close { position: absolute; top: 13px; right: 12px; display: grid; width: 36px; height: 36px; place-items: center; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; }
+    @keyframes drawer-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
     .empty-state {
       grid-column: 1 / -1;
       padding: 64px 24px;
@@ -690,6 +702,28 @@
     .prototype-stage.is-mobile .value-section { padding: 16px; }
     .prototype-stage.is-mobile .value-duo { grid-template-columns: 1fr; }
     .prototype-stage.is-mobile .value-page.toc-open .value-toc { display: block; position: static; order: -1; }
+    @media (max-width: 767px) {
+      .workspace-site-shell { height: calc(100dvh - 52px); min-height: 0; }
+      .company-workspace { grid-template-columns: minmax(0, 1fr); }
+      .company-workspace > .company-directory:not(.company-directory--drawer) { display: none; }
+      .company-drawer-layer { display: block; }
+      .company-drawer-button { display: inline-flex; flex: 0 0 auto; }
+      .workspace-context { padding: 8px 16px; }
+      .workspace-context__identity { flex: 1; }
+      .workspace-context__category { display: none; }
+      .workspace-document,
+      .workspace-document.value-page { width: calc(100% - 32px); }
+    }
+    .prototype-stage.is-mobile .workspace-site-shell { height: calc(100dvh - 52px); min-height: 0; }
+    .prototype-stage.is-mobile .company-workspace { grid-template-columns: minmax(0, 1fr); }
+    .prototype-stage.is-mobile .company-workspace > .company-directory:not(.company-directory--drawer) { display: none; }
+    .prototype-stage.is-mobile .company-drawer-layer { display: block; inset: 52px calc((100% - min(390px, 100%)) / 2) 0; }
+    .prototype-stage.is-mobile .company-drawer-button { display: inline-flex; flex: 0 0 auto; }
+    .prototype-stage.is-mobile .workspace-context { padding: 8px 16px; }
+    .prototype-stage.is-mobile .workspace-context__identity { flex: 1; }
+    .prototype-stage.is-mobile .workspace-context__category { display: none; }
+    .prototype-stage.is-mobile .workspace-document,
+    .prototype-stage.is-mobile .workspace-document.value-page { width: calc(100% - 32px); }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
@@ -1508,6 +1542,30 @@
         showToast(kind === 'publish' ? '已发布。' : '已撤回。');
       }
 
+      function trapFocus(container, event) {
+        const focusable = [...container.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')];
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+
+      function openCompanyDrawer() {
+        setState({ companyDrawerOpen: true });
+        window.requestAnimationFrame(() => app.querySelector('[data-drawer-initial]')?.focus());
+      }
+
+      function closeCompanyDrawer({ restoreFocus = true } = {}) {
+        setState({ companyDrawerOpen: false });
+        if (restoreFocus) window.requestAnimationFrame(() => app.querySelector('[data-action="open-company-drawer"]')?.focus());
+      }
+
       function setState(patch) {
         state = { ...state, ...patch };
         render();
@@ -1532,8 +1590,9 @@
               ${renderRoute()}
             </div>
             ${renderDialog()}
-            ${renderToast()}
-          </div>`;
+              ${renderToast()}
+            </div>`;
+        document.body.classList.toggle('company-drawer-open', state.companyDrawerOpen);
         if (app.querySelector('.value-table-scroll')) window.requestAnimationFrame(() => app.querySelectorAll('.value-table-scroll').forEach((scroller) => { scroller.scrollLeft = scroller.scrollWidth; }));
         if (state.dialog) window.requestAnimationFrame(() => app.querySelector('[data-dialog-initial]')?.focus());
       }
@@ -1553,9 +1612,13 @@
         if (action === 'navigate-home' || action === 'back-results') setState({ route: 'home' });
         if (action === 'market') setState(publicSelectionPatch({ marketFilter: value, publicScenario: 'normal' }));
         if (action === 'select-company') {
+          const wasDrawerOpen = state.companyDrawerOpen;
           setState({ selectedSnapshotId: id, companyDrawerOpen: false, tocOpen: false });
           app.querySelector('[data-workspace-scroll]')?.scrollTo({ top: 0 });
+          if (wasDrawerOpen) window.requestAnimationFrame(() => app.querySelector('[data-action="open-company-drawer"]')?.focus());
         }
+        if (action === 'open-company-drawer') openCompanyDrawer();
+        if (action === 'close-company-drawer') closeCompanyDrawer();
         if (action === 'open-snapshot') setState({ route: 'snapshot', selectedSnapshotId: id });
         if (action === 'select-version') setState({ selectedSnapshotId: id });
         if (action === 'retry-public') setState(publicSelectionPatch({ publicScenario: 'normal' }));
@@ -1604,24 +1667,27 @@
       });
 
       document.addEventListener('keydown', (event) => {
+        if (state.companyDrawerOpen) {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            closeCompanyDrawer();
+            return;
+          }
+          if (event.key === 'Tab') {
+            const drawer = app.querySelector('.company-directory--drawer');
+            if (drawer) trapFocus(drawer, event);
+          }
+          return;
+        }
         if (!state.dialog) return;
         if (event.key === 'Escape') {
           event.preventDefault();
           closeDialog();
           return;
         }
-        if (event.key !== 'Tab') return;
-        const dialog = app.querySelector('[role="dialog"]');
-        const focusable = [...dialog.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')];
-        if (!focusable.length) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
+        if (event.key === 'Tab') {
+          const dialog = app.querySelector('[role="dialog"]');
+          if (dialog) trapFocus(dialog, event);
         }
       });
 
