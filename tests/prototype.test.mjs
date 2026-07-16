@@ -13,6 +13,20 @@ function inlineScript(html) {
   return matches.map((match) => match[1]).join('\n');
 }
 
+function embeddedJson(html, id) {
+  const pattern = new RegExp(`<script type="application/json" id="${id}">([\\s\\S]*?)<\\/script>`);
+  const match = html.match(pattern);
+  assert.ok(match, `missing embedded JSON ${id}`);
+  return JSON.parse(match[1]);
+}
+
+function assertAlignedTable(table, expectedYearCount) {
+  assert.equal(table.years.length, expectedYearCount);
+  for (const row of table.rows) {
+    assert.equal(row.values.length, expectedYearCount, `${row.label} is not aligned`);
+  }
+}
+
 test('prototype is a standalone HTML document', () => {
   const html = readPrototype();
   assert.match(html, /^<!doctype html>/i);
@@ -78,4 +92,20 @@ test('dialog focus returns to the re-rendered action control', () => {
   const html = readPrototype();
   assert.match(html, /lastDialogAction/);
   assert.match(html, /data-action="\$\{lastDialogAction\}"/);
+});
+
+test('Moutai payload preserves the Skill facts and aligned history', () => {
+  const data = embeddedJson(readPrototype(), 'maotai-snapshot-data');
+  assert.equal(data.format, 'value_line');
+  assert.equal(data.companyName, '贵州茅台');
+  assert.equal(data.ticker, '600519');
+  assert.equal(data.quoteAsOf, '2026-07-15 12:05');
+  assert.deepEqual(
+    data.marketMetrics.map((metric) => metric.value),
+    ['¥1,244.97', '18.82×', '5.76×', '4.2%', '¥15,563.14亿元']
+  );
+  assertAlignedTable(data.perShareHistory, 25);
+  assertAlignedTable(data.operatingHistory, 26);
+  assert.equal(data.scanChecks.length, 5);
+  assert.equal(data.fiveQuestions.length, 5);
 });
