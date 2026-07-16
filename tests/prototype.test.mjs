@@ -1,9 +1,25 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const docDirectory = new URL('../doc/', import.meta.url);
 const prototypePath = new URL('../doc/prototype.html', import.meta.url);
+const REMOTE_ATTRIBUTE_PATTERN = /\b(?:src|href|srcset|poster|action|formaction)\s*=\s*(?:"[^"]*(?:https?:)?\/\/[^"]*"|'[^']*(?:https?:)?\/\/[^']*'|[^\s>"']*(?:https?:)?\/\/[^\s>]+)/i;
+const REMOTE_CSS_URL_PATTERN = /url\(\s*["']?(?:https?:)?\/\//i;
+const REMOTE_IMPORT_PATTERN = /@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//i;
+
+const chromePath = [
+  process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser'
+].find((candidate) => candidate && existsSync(candidate));
 
 function readSnapshotAsset(fileName) {
   const url = new URL(fileName, docDirectory);
@@ -25,6 +41,201 @@ function embeddedJson(html, id) {
   const match = html.match(pattern);
   assert.ok(match, `missing embedded JSON ${id}`);
   return JSON.parse(match[1]);
+}
+
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+async function startPrototypeServer() {
+  const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
+  const byPath = new Map(manifest.map((snapshot) => [`/doc/${snapshot.fileName}`, snapshot]));
+  const controls = new Map(manifest.map((snapshot) => [snapshot.id, { headStatus: 200, getStatus: 200, getDelayMs: 0 }]));
+  const requests = [];
+  const server = createServer((request, response) => {
+    const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/doc/prototype.html') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(readPrototype());
+      return;
+    }
+    const snapshot = byPath.get(pathname);
+    if (!snapshot) {
+      response.writeHead(404);
+      response.end('not found');
+      return;
+    }
+    const control = controls.get(snapshot.id);
+    const status = request.method === 'HEAD' ? control.headStatus : control.getStatus;
+    requests.push({ method: request.method, snapshotId: snapshot.id, status });
+    const send = () => {
+      response.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(status === 200 && request.method !== 'HEAD' ? readSnapshotAsset(snapshot.fileName) : '');
+    };
+    if (request.method === 'GET' && control.getDelayMs) setTimeout(send, control.getDelayMs);
+    else send();
+  });
+  await listen(server);
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}/doc/prototype.html`,
+    requests,
+    setSnapshot(snapshotId, patch) { Object.assign(controls.get(snapshotId), patch); },
+    clearRequests() { requests.length = 0; },
+    close() { return closeServer(server); }
+  };
+}
+
+function waitForChromeEndpoint(process, timeoutMs = 10_000) {
+  return new Promise((resolve, reject) => {
+    let stderr = '';
+    const timeout = setTimeout(() => reject(new Error(`Chrome DevTools endpoint timed out: ${stderr}`)), timeoutMs);
+    const finish = (error, endpoint) => {
+      clearTimeout(timeout);
+      process.stderr.off('data', onData);
+      process.off('exit', onExit);
+      if (error) reject(error);
+      else resolve(endpoint);
+    };
+    const onData = (chunk) => {
+      stderr += chunk;
+      const match = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match) finish(null, match[1]);
+    };
+    const onExit = (code) => finish(new Error(`Chrome exited before DevTools was ready (${code}): ${stderr}`));
+    process.stderr.on('data', onData);
+    process.once('exit', onExit);
+  });
+}
+
+async function waitForPageEndpoint(browserEndpoint, timeoutMs = 10_000) {
+  const debugOrigin = `http://${new URL(browserEndpoint).host}`;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const targets = await fetch(`${debugOrigin}/json/list`).then((response) => response.json());
+      const page = targets.find((target) => target.type === 'page');
+      if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('Chrome page target timed out');
+}
+
+async function connectCdp(endpoint) {
+  const socket = new WebSocket(endpoint);
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('CDP websocket connection timed out')), 5000);
+    socket.addEventListener('open', () => { clearTimeout(timeout); resolve(); }, { once: true });
+    socket.addEventListener('error', (event) => { clearTimeout(timeout); reject(event.error || new Error('CDP websocket failed')); }, { once: true });
+  });
+  let nextId = 1;
+  const pending = new Map();
+  socket.addEventListener('message', (event) => {
+    const message = JSON.parse(event.data);
+    if (!message.id || !pending.has(message.id)) return;
+    const { resolve, reject } = pending.get(message.id);
+    pending.delete(message.id);
+    if (message.error) reject(new Error(`${message.error.message} (${message.error.code})`));
+    else resolve(message.result);
+  });
+  return {
+    send(method, params = {}) {
+      const id = nextId++;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        socket.send(JSON.stringify({ id, method, params }));
+      });
+    },
+    close() { socket.close(); }
+  };
+}
+
+async function startBrowser(url) {
+  assert.ok(chromePath, 'Chrome or Chromium is required for runtime prototype tests');
+  const userDataDirectory = mkdtempSync(join(tmpdir(), 'company-prototype-chrome-'));
+  const child = spawn(chromePath, [
+    '--headless=new',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${userDataDirectory}`,
+    '--disable-background-networking',
+    '--disable-component-update',
+    '--no-first-run',
+    '--no-default-browser-check',
+    'about:blank'
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  try {
+    const browserEndpoint = await waitForChromeEndpoint(child);
+    const pageEndpoint = await waitForPageEndpoint(browserEndpoint);
+    const cdp = await connectCdp(pageEndpoint);
+    await cdp.send('Page.enable');
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.navigate', { url });
+    return {
+      async evaluate(expression) {
+        const response = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+        if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
+        return response.result.value;
+      },
+      async waitFor(expression, description, timeoutMs = 8000) {
+        const deadline = Date.now() + timeoutMs;
+        let lastError;
+        while (Date.now() < deadline) {
+          try {
+            if (await this.evaluate(expression)) return;
+          } catch (error) {
+            lastError = error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        throw new Error(`Timed out waiting for ${description}${lastError ? `: ${lastError.message}` : ''}`);
+      },
+      async click(selector) {
+        const clicked = await this.evaluate(`(() => { const element = document.querySelector(${JSON.stringify(selector)}); if (!element) return false; element.click(); return true; })()`);
+        assert.equal(clicked, true, `missing clickable ${selector}`);
+      },
+      async close() {
+        cdp.close();
+        child.kill('SIGTERM');
+        await new Promise((resolve) => {
+          if (child.exitCode !== null) return resolve();
+          child.once('exit', resolve);
+          setTimeout(() => { child.kill('SIGKILL'); resolve(); }, 2000).unref();
+        });
+        rmSync(userDataDirectory, { recursive: true, force: true });
+      }
+    };
+  } catch (error) {
+    child.kill('SIGKILL');
+    rmSync(userDataDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function openAdminRecord(browser, recordId) {
+  await browser.evaluate("window.prototypeApp.navigate('admin-list')");
+  const onLogin = await browser.evaluate("Boolean(document.querySelector('main[data-route=\"login\"]'))");
+  if (onLogin) {
+    await browser.waitFor("Boolean(document.querySelector('#username') && document.querySelector('#password') && document.querySelector('[data-action=\"login\"]'))", 'administrator login form');
+    await browser.evaluate(`(() => {
+      document.querySelector('#username').value = 'admin';
+      document.querySelector('#password').value = 'demo123';
+      document.querySelector('[data-action="login"]').requestSubmit();
+    })()`);
+  }
+  await browser.waitFor("Boolean(document.querySelector('main[data-route=\"admin-list\"]'))", 'administrator list');
+  await browser.click(`[data-action="review-snapshot"][data-id="${recordId}"]`);
+  await browser.waitFor("Boolean(document.querySelector('main[data-route=\"review\"]'))", `review ${recordId}`);
 }
 
 test('prototype is a standalone HTML document', () => {
@@ -249,6 +460,117 @@ test('mobile company drawer has complete dismissal and focus contracts', () => {
   assert.match(html, /\.prototype-stage\.is-mobile \.company-workspace > \.company-directory:not\(\.company-directory--drawer\)/);
 });
 
+test('administrator publication and HTML validation execute as runtime state transitions', async (t) => {
+  const server = await startPrototypeServer();
+  const browser = await startBrowser(server.url);
+  try {
+    await browser.waitFor(
+      "Boolean(window.prototypeApp) && document.querySelectorAll('[data-action=\"select-company\"]').length === 2",
+      'initial public company directory'
+    );
+
+    await t.test('withdrawing and republishing reconcile the public directory, selection, and iframe', async () => {
+      await openAdminRecord(browser, 'published-maotai-html');
+      await browser.click('[data-action="withdraw"]');
+      await browser.click('[data-action="confirm-dialog"]');
+      await browser.waitFor("document.querySelector('.review-summary')?.innerText.includes('已撤回')", 'withdrawn administrator status');
+
+      await browser.evaluate("window.prototypeApp.navigate('home')");
+      await browser.waitFor("document.querySelectorAll('[data-action=\"select-company\"]').length === 1", 'withdrawn company to leave the public directory');
+      const withdrawnPublicState = await browser.evaluate(`(() => ({
+        directoryIds: [...document.querySelectorAll('[data-action="select-company"]')].map((card) => card.dataset.id),
+        selectedId: document.querySelector('[data-action="select-company"][aria-current="true"]')?.dataset.id || null,
+        iframeIds: [...document.querySelectorAll('[data-frame-load]')].map((frame) => frame.dataset.snapshotId)
+      }))()`);
+      assert.deepEqual(withdrawnPublicState.directoryIds, ['hk-09626-html']);
+      assert.equal(withdrawnPublicState.selectedId, 'hk-09626-html');
+      assert.deepEqual(withdrawnPublicState.iframeIds, ['hk-09626-html']);
+
+      await openAdminRecord(browser, 'published-maotai-html');
+      await browser.click('[data-action="publish"]');
+      await browser.click('[data-action="confirm-dialog"]');
+      await browser.waitFor("document.querySelector('.review-summary')?.innerText.includes('已发布')", 'republished administrator status');
+      await browser.evaluate("window.prototypeApp.navigate('home')");
+      await browser.waitFor("document.querySelectorAll('[data-action=\"select-company\"]').length === 2", 'republished company to return to the public directory');
+      const restoredIds = await browser.evaluate("[...document.querySelectorAll('[data-action=\"select-company\"]')].map((card) => card.dataset.id)");
+      assert.deepEqual(new Set(restoredIds), new Set(['cn-600519-html', 'hk-09626-html']));
+    });
+
+    await t.test('HEAD and iframe failure persist html-unavailable, remove the iframe, and block a withdrawn record', async () => {
+      server.setSnapshot('cn-600519-html', { headStatus: 404, getStatus: 404, getDelayMs: 0 });
+      server.clearRequests();
+      await openAdminRecord(browser, 'published-maotai-html');
+      await browser.waitFor(
+        "document.querySelector('main[data-route=\"review\"]')?.innerText.includes('HTML 文件不存在或无法访问，请检查文件路径。') && !document.querySelector('[data-frame-load]')",
+        'unavailable HTML administrator error'
+      );
+      assert.ok(server.requests.some((request) => request.snapshotId === 'cn-600519-html' && request.method === 'HEAD' && request.status === 404));
+      assert.ok(server.requests.some((request) => request.snapshotId === 'cn-600519-html' && request.method === 'GET' && request.status === 404));
+
+      await browser.evaluate("window.prototypeApp.navigate('admin-list')");
+      await browser.waitFor("Boolean(document.querySelector('main[data-route=\"admin-list\"]'))", 'administrator list after validation failure');
+      const failedRowText = await browser.evaluate("document.querySelector('[data-action=\"review-snapshot\"][data-id=\"published-maotai-html\"]')?.closest('tr')?.innerText || ''");
+      assert.match(failedRowText, /1 错误/);
+
+      await openAdminRecord(browser, 'published-maotai-html');
+      await browser.click('[data-action="withdraw"]');
+      await browser.click('[data-action="confirm-dialog"]');
+      await browser.waitFor("Boolean(document.querySelector('[data-action=\"publish\"]:disabled'))", 'disabled publish gate after withdrawal');
+      const withdrawnFailure = await browser.evaluate(`(() => ({
+        reviewText: document.querySelector('main[data-route="review"]').innerText,
+        iframeCount: document.querySelectorAll('[data-frame-load]').length,
+        publishDisabled: document.querySelector('[data-action="publish"]').disabled
+      }))()`);
+      assert.match(withdrawnFailure.reviewText, /已撤回/);
+      assert.match(withdrawnFailure.reviewText, /HTML 文件不存在或无法访问，请检查文件路径/);
+      assert.equal(withdrawnFailure.iframeCount, 0);
+      assert.equal(withdrawnFailure.publishDisabled, true);
+    });
+
+    await t.test('retry stays blocked after HEAD until iframe load, then restores clean and publishing', async () => {
+      server.setSnapshot('cn-600519-html', { headStatus: 200, getStatus: 200, getDelayMs: 1200 });
+      server.clearRequests();
+      await browser.click('[data-action="retry-validation"]');
+      await browser.waitFor(
+        "document.querySelector('[data-frame-load]')?.dataset.frameHttpStatus === 'ok'",
+        'successful HEAD preflight before delayed iframe load'
+      );
+      const headOnlyState = await browser.evaluate(`(() => {
+        const frame = document.querySelector('[data-frame-load]');
+        return {
+          httpStatus: frame?.dataset.frameHttpStatus || null,
+          loadStatus: frame?.dataset.frameLoadStatus || null,
+          reviewText: document.querySelector('main[data-route="review"]').innerText,
+          publishDisabled: document.querySelector('[data-action="publish"]').disabled
+        };
+      })()`);
+      assert.equal(headOnlyState.httpStatus, 'ok');
+      assert.notEqual(headOnlyState.loadStatus, 'loaded');
+      assert.match(headOnlyState.reviewText, /HTML 文件正在重新校验/);
+      assert.equal(headOnlyState.publishDisabled, true);
+
+      await browser.waitFor(
+        "document.querySelector('main[data-route=\"review\"]')?.innerText.includes('没有错误') && document.querySelector('[data-action=\"publish\"]')?.disabled === false && document.querySelector('[data-frame-load]')?.dataset.frameHttpStatus === 'ok' && document.querySelector('[data-frame-load]')?.dataset.frameLoadStatus === 'loaded'",
+        'clean validation after both HEAD and iframe load',
+        10_000
+      );
+      const recoveredState = await browser.evaluate(`(() => ({
+        reviewText: document.querySelector('main[data-route="review"]').innerText,
+        publishDisabled: document.querySelector('[data-action="publish"]').disabled,
+        iframeCount: document.querySelectorAll('[data-frame-load]').length
+      }))()`);
+      assert.match(recoveredState.reviewText, /没有错误/);
+      assert.equal(recoveredState.publishDisabled, false);
+      assert.equal(recoveredState.iframeCount, 1);
+      assert.ok(server.requests.some((request) => request.snapshotId === 'cn-600519-html' && request.method === 'HEAD' && request.status === 200));
+      assert.ok(server.requests.some((request) => request.snapshotId === 'cn-600519-html' && request.method === 'GET' && request.status === 200));
+    });
+  } finally {
+    await browser.close();
+    await server.close();
+  }
+});
+
 test('HTML snapshot manifest registers only generated public reports', () => {
   const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
   assert.deepEqual(manifest.map((item) => item.id), ['cn-600519-html', 'hk-09626-html']);
@@ -256,6 +578,26 @@ test('HTML snapshot manifest registers only generated public reports', () => {
   assert.deepEqual(manifest.map((item) => item.status), ['published', 'published']);
   assert.equal(manifest[0].htmlPath, './价值线_贵州茅台_企业快照版.html');
   assert.equal(manifest[1].htmlPath, './价值线_哔哩哔哩_企业快照版.html');
+});
+
+test('remote snapshot resource detection covers quoted and unquoted HTML and CSS URLs', () => {
+  for (const html of [
+    '<img src="https://example.com/a.png">',
+    "<a href='//example.com/x'>x</a>",
+    '<img src=https://example.com/a.png>',
+    '<a href=//example.com/x>x</a>',
+    '<img srcset=https://example.com/a.png>',
+    '<video poster=//example.com/poster.png>',
+    '<form action=https://example.com/save><button formaction=//example.com/submit>x</button></form>'
+  ]) assert.match(html, REMOTE_ATTRIBUTE_PATTERN);
+  for (const css of [
+    'body { background: url("https://example.com/a.png") }',
+    'body { background: url(//example.com/a.png) }'
+  ]) assert.match(css, REMOTE_CSS_URL_PATTERN);
+  for (const css of [
+    '@import "https://example.com/base.css";',
+    '@import url(//example.com/base.css);'
+  ]) assert.match(css, REMOTE_IMPORT_PATTERN);
 });
 
 test('generated HTML snapshots are self-contained safe documents', () => {
@@ -274,9 +616,9 @@ test('generated HTML snapshots are self-contained safe documents', () => {
     assert.match(html, /<body>[\s\S]+<\/body>/i, `${snapshot.fileName} missing body`);
     assert.doesNotMatch(html, /<script\b/i, `${snapshot.fileName} contains script`);
     assert.doesNotMatch(html, /<iframe\b/i, `${snapshot.fileName} contains iframe`);
-    assert.doesNotMatch(html, /\b(?:src|href|srcset|poster|action|formaction)\s*=\s*["'][^"']*(?:https?:)?\/\//i, `${snapshot.fileName} contains remote asset`);
-    assert.doesNotMatch(html, /url\(\s*["']?(?:https?:)?\/\//i, `${snapshot.fileName} contains remote CSS URL`);
-    assert.doesNotMatch(html, /@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//i, `${snapshot.fileName} contains remote import`);
+    assert.doesNotMatch(html, REMOTE_ATTRIBUTE_PATTERN, `${snapshot.fileName} contains remote asset`);
+    assert.doesNotMatch(html, REMOTE_CSS_URL_PATTERN, `${snapshot.fileName} contains remote CSS URL`);
+    assert.doesNotMatch(html, REMOTE_IMPORT_PATTERN, `${snapshot.fileName} contains remote import`);
   }
 });
 
