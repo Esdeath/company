@@ -416,6 +416,90 @@
     .toast { min-width: 240px; padding: 12px 14px; color: #fff; background: #22313a; border-radius: var(--radius-control); box-shadow: var(--shadow); font-size: 13px; }
     .toast--success { background: var(--positive); }
     .toast--error { background: var(--negative); }
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; gap: 24px; }
+      .snapshot-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .snapshot-grid { grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; }
+      .admin-review-grid { grid-template-columns: 310px minmax(0, 1fr); }
+    }
+    @media (max-width: 767px) {
+      .site-header { min-height: 56px; padding: 0 16px; }
+      .site-nav a { display: none; }
+      .page-wrap, .admin-content { width: calc(100% - 32px); }
+      .hero { padding: 42px 0 32px; }
+      .hero h1 { font-size: 42px; }
+      .search-form { grid-template-columns: 1fr auto; }
+      .filter-row, .result-header, .admin-heading, .admin-toolbar, .review-summary { align-items: stretch; flex-direction: column; }
+      .snapshot-cards { grid-template-columns: 1fr; }
+      .metric-strip { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .scan-rail { grid-template-columns: 1fr; }
+      .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
+      .snapshot-grid, .admin-review-grid { grid-template-columns: 1fr; }
+      .desktop-toc { display: none; }
+      .snapshot-page.toc-open .snapshot-toc { display: block; position: static; order: -1; }
+      .mobile-toc-toggle { display: inline-flex; }
+      .site-footer__inner { flex-direction: column; gap: 6px; }
+      .login-page { grid-template-columns: 1fr; }
+      .login-context { min-height: 260px; padding: 28px 22px; }
+      .login-context h1 { margin: 48px 0 12px; font-size: 38px; }
+      .login-form-side { padding: 22px 16px; }
+      .login-card { padding: 24px 20px; }
+      .admin-layout { grid-template-columns: 1fr; }
+      .admin-sidebar { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 10px 14px; }
+      .admin-sidebar .brand { margin: 0 auto 0 0; }
+      .admin-sidebar nav { display: none; }
+      .admin-sidebar-footer { margin: 0; }
+      .admin-sidebar-footer .admin-nav-button { width: auto; }
+      .admin-topbar { display: none; }
+      .admin-content { padding-top: 22px; }
+      .admin-heading h1 { font-size: 31px; }
+      .admin-toolbar__group { width: 100%; }
+      .admin-search { flex: 1; min-width: 0; }
+      .admin-table { display: none; }
+      .admin-card-list { display: grid; gap: 10px; padding: 10px; }
+      .import-result { grid-template-columns: 1fr; }
+      .review-actions { justify-content: start; }
+      .review-tabs { overflow-x: auto; }
+      .review-panel { padding: 15px; }
+      .preview-paper { max-height: none; }
+      .toast-region { right: 12px; bottom: 12px; left: 12px; }
+      .toast { min-width: 0; }
+    }
+    .prototype-stage.is-mobile .site-header { min-height: 56px; padding: 0 16px; }
+    .prototype-stage.is-mobile .site-nav a { display: none; }
+    .prototype-stage.is-mobile .page-wrap,
+    .prototype-stage.is-mobile .admin-content { width: calc(100% - 32px); }
+    .prototype-stage.is-mobile .hero { grid-template-columns: 1fr; gap: 24px; padding: 42px 0 32px; }
+    .prototype-stage.is-mobile .hero h1 { font-size: 42px; }
+    .prototype-stage.is-mobile .filter-row,
+    .prototype-stage.is-mobile .result-header,
+    .prototype-stage.is-mobile .admin-heading,
+    .prototype-stage.is-mobile .admin-toolbar,
+    .prototype-stage.is-mobile .review-summary { align-items: stretch; flex-direction: column; }
+    .prototype-stage.is-mobile .snapshot-cards,
+    .prototype-stage.is-mobile .snapshot-grid,
+    .prototype-stage.is-mobile .admin-review-grid { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .metric-strip { grid-template-columns: repeat(2, 1fr); }
+    .prototype-stage.is-mobile .scan-rail { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .scan-step { display: grid; grid-template-columns: 36px 1fr; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #3d4c57; }
+    .prototype-stage.is-mobile .desktop-toc { display: none; }
+    .prototype-stage.is-mobile .snapshot-page.toc-open .snapshot-toc { display: block; position: static; order: -1; }
+    .prototype-stage.is-mobile .mobile-toc-toggle { display: inline-flex; }
+    .prototype-stage.is-mobile .login-page { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .login-context { min-height: 260px; padding: 28px 22px; }
+    .prototype-stage.is-mobile .login-context h1 { margin: 48px 0 12px; font-size: 38px; }
+    .prototype-stage.is-mobile .login-form-side { padding: 22px 16px; }
+    .prototype-stage.is-mobile .admin-layout { grid-template-columns: 1fr; }
+    .prototype-stage.is-mobile .admin-sidebar { flex-direction: row; align-items: center; padding: 10px 14px; }
+    .prototype-stage.is-mobile .admin-sidebar .brand { margin: 0 auto 0 0; }
+    .prototype-stage.is-mobile .admin-sidebar nav,
+    .prototype-stage.is-mobile .admin-topbar { display: none; }
+    .prototype-stage.is-mobile .admin-sidebar-footer { margin: 0; }
+    .prototype-stage.is-mobile .admin-table { display: none; }
+    .prototype-stage.is-mobile .admin-card-list { display: grid; gap: 10px; padding: 10px; }
+    .prototype-stage.is-mobile .import-result { grid-template-columns: 1fr; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         scroll-behavior: auto !important;
@@ -566,6 +650,8 @@
 
       let state = { ...initialState };
       const app = document.querySelector('#app');
+      let lastDialogAction = null;
+      let toastTimer = null;
 
       function escapeHtml(value) {
         return String(value).replace(/[&<>'"]/g, (character) => ({
@@ -618,7 +704,7 @@
               <option value='empty' ${state.publicScenario === 'empty' ? 'selected' : ''}>无结果</option>
               <option value='error' ${state.publicScenario === 'error' ? 'selected' : ''}>请求失败</option>
             </select>
-            <button type='button' data-action='viewport' data-value='${state.viewportMode === 'mobile' ? 'desktop' : 'mobile'}'>${state.viewportMode === 'mobile' ? '恢复桌面' : '手机 390px'}</button>
+            <button type='button' data-action="viewport" data-value='${state.viewportMode === 'mobile' ? 'desktop' : 'mobile'}'>${state.viewportMode === 'mobile' ? '恢复桌面' : '手机 390px'}</button>
           </nav>`;
       }
 
@@ -727,7 +813,7 @@
         return `
           <div class='site-shell' data-route="snapshot">
             ${renderSiteHeader()}
-            <main class='page-wrap snapshot-page'>
+            <main class='page-wrap snapshot-page ${state.tocOpen ? 'toc-open' : ''}'>
               <button class='back-link' type='button' data-action='back-results'>← 返回快照列表</button>
               <header class='snapshot-head'>
                 <div class='snapshot-kicker'><span>${snapshot.market} · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>数据截至 ${snapshot.dataAsOf}</span></div>
@@ -913,11 +999,11 @@
         if (!state.dialog) return '';
         const record = adminRecords.find((item) => item.id === state.dialog.recordId);
         const copy = dialogCopy(state.dialog.kind, record);
-        return `<div class='dialog-backdrop'><section class='dialog'><h2>${copy.title}</h2><p>${copy.message}</p><div class='dialog-actions'><button class='button' type='button' data-action='close-dialog'>取消</button><button class='button ${state.dialog.kind === 'publish' ? 'button--primary' : 'button--danger'}' type='button' data-action="confirm-dialog">${copy.confirm}</button></div></section></div>`;
+        return `<div class='dialog-backdrop'><section class='dialog' role="dialog" aria-modal="true" aria-labelledby='dialog-title'><h2 id='dialog-title'>${copy.title}</h2><p>${copy.message}</p><div class='dialog-actions'><button class='button' type='button' data-action='close-dialog' data-dialog-initial>取消</button><button class='button ${state.dialog.kind === 'publish' ? 'button--primary' : 'button--danger'}' type='button' data-action="confirm-dialog">${copy.confirm}</button></div></section></div>`;
       }
 
       function renderToast() {
-        return `<div class='toast-region'>${state.toast ? `<div class='toast toast--${state.toast.tone}'>${state.toast.message}</div>` : ''}</div>`;
+        return `<div class='toast-region' aria-live="polite" aria-atomic='true'>${state.toast ? `<div class='toast toast--${state.toast.tone}'>${state.toast.message}</div>` : ''}</div>`;
       }
 
       function handleLogin(form) {
@@ -926,32 +1012,38 @@
         const password = String(data.get('password') || '');
         if (!username || !password) return setState({ loginError: '请输入用户名和密码。' });
         if (username !== 'admin' || password !== 'demo123') return setState({ loginError: '用户名或密码不正确。请使用页面上的演示账号。' });
-        setState({ isAuthenticated: true, route: state.pendingRoute || 'admin-list', pendingRoute: null, loginError: null, toast: { tone: 'success', message: '已登录。' } });
+        setState({ isAuthenticated: true, route: state.pendingRoute || 'admin-list', pendingRoute: null, loginError: null });
+        showToast('已登录。');
       }
 
       function openDialog(kind) {
+        lastDialogAction = document.activeElement?.getAttribute('data-action') || null;
         setState({ dialog: { kind, recordId: state.selectedAdminRecord } });
       }
 
       function closeDialog() {
         setState({ dialog: null });
+        window.requestAnimationFrame(() => app.querySelector(`[data-action="${lastDialogAction}"]`)?.focus());
       }
 
       function showToast(message, tone = 'success') {
+        window.clearTimeout(toastTimer);
         setState({ toast: { message, tone } });
-        window.setTimeout(() => setState({ toast: null }), 2800);
+        toastTimer = window.setTimeout(() => setState({ toast: null }), 2800);
       }
 
       function confirmWorkflow(kind, recordId) {
         const record = adminRecords.find((item) => item.id === recordId);
         if (kind === 'delete') {
           adminRecords = adminRecords.filter((item) => item.id !== recordId);
-          setState({ dialog: null, route: 'admin-list', toast: { tone: 'success', message: '草稿已删除。' } });
+          setState({ dialog: null, route: 'admin-list' });
+          showToast('草稿已删除。');
           return;
         }
         record.status = kind === 'publish' ? 'published' : 'withdrawn';
         record.updatedAt = '刚刚';
-        setState({ dialog: null, toast: { tone: 'success', message: kind === 'publish' ? '已发布。' : '已撤回。' } });
+        setState({ dialog: null });
+        showToast(kind === 'publish' ? '已发布。' : '已撤回。');
       }
 
       function setState(patch) {
@@ -980,6 +1072,7 @@
             ${renderDialog()}
             ${renderToast()}
           </div>`;
+        if (state.dialog) window.requestAnimationFrame(() => app.querySelector('[data-dialog-initial]')?.focus());
       }
 
       app.addEventListener('click', (event) => {
@@ -1001,11 +1094,11 @@
         if (action === 'retry-public') setState({ publicScenario: 'normal' });
         if (action === 'clear-search') setState({ searchQuery: '', marketFilter: 'ALL', publicScenario: 'normal' });
         if (action === 'toggle-toc') setState({ tocOpen: !state.tocOpen });
-        if (action === 'logout') setState({ isAuthenticated: false, route: 'login', toast: { tone: 'success', message: '已退出登录。' } });
+        if (action === 'logout') { setState({ isAuthenticated: false, route: 'login' }); showToast('已退出登录。'); }
         if (action === 'admin-home') setState({ route: 'admin-list', reviewTab: 'check' });
         if (action === 'open-upload') setState({ uploadOpen: true, inboxScanned: false });
-        if (action === 'simulate-upload') setState({ uploadOpen: true, selectedAdminRecord: 'draft-tencent', toast: { tone: 'success', message: '演示 Markdown 已导入为草稿。' } });
-        if (action === 'scan-inbox') setState({ inboxScanned: true, uploadOpen: true, toast: { tone: 'success', message: '扫描完成：发现 1 个文件。' } });
+        if (action === 'simulate-upload') { setState({ uploadOpen: true, selectedAdminRecord: 'draft-tencent' }); showToast('演示 Markdown 已导入为草稿。'); }
+        if (action === 'scan-inbox') { setState({ inboxScanned: true, uploadOpen: true }); showToast('扫描完成：发现 1 个文件。'); }
         if (action === 'admin-filter') setState({ adminStatusFilter: value });
         if (action === 'review-snapshot') setState({ route: 'review', selectedAdminRecord: id, reviewTab: 'check' });
         if (action === 'review-tab') setState({ reviewTab: value });
@@ -1036,6 +1129,28 @@
 
       app.addEventListener('input', (event) => {
         if (event.target.matches('[data-action="admin-query"]')) setState({ adminQuery: event.target.value });
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (!state.dialog) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeDialog();
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        const dialog = app.querySelector('[role="dialog"]');
+        const focusable = [...dialog.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')];
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       });
 
       window.prototypeApp = {

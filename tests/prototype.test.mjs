@@ -59,3 +59,23 @@ test('prototype contains the complete administrator workflow', () => {
     '校验警告'
   ]) assert.ok(html.includes(required), `missing ${required}`);
 });
+
+test('prototype exposes responsive and accessibility contracts', () => {
+  const html = readPrototype();
+  for (const required of [
+    'lang="zh-CN"',
+    'name="viewport"',
+    'data-action="viewport"',
+    'role="dialog"',
+    'aria-modal="true"',
+    'aria-live="polite"',
+    '@media (max-width: 767px)',
+    '@media (prefers-reduced-motion: reduce)'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+});
+
+test('dialog focus returns to the re-rendered action control', () => {
+  const html = readPrototype();
+  assert.match(html, /lastDialogAction/);
+  assert.match(html, /data-action="\$\{lastDialogAction\}"/);
+});
