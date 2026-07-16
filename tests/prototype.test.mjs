@@ -127,3 +127,12 @@ test('Moutai detail exposes every value-line research module', () => {
     'data-action="table-latest"'
   ]) assert.ok(html.includes(required), `missing ${required}`);
 });
+
+test('Moutai is clean and published while the invalid demo stays admin-only', () => {
+  const html = readPrototype();
+  assert.match(html, /id: 'published-maotai'[\s\S]*status: 'published'[\s\S]*report: 'clean'/);
+  assert.match(html, /id: 'demo-invalid'[\s\S]*companyName: '格式错误示例'[\s\S]*report: 'error'/);
+  assert.match(html, /renderReviewSnapshotContent/);
+  const data = embeddedJson(html, 'maotai-snapshot-data');
+  assert.equal(data.summary.includes('2025年营收和利润转为负增长'), true);
+});

@@ -794,7 +794,8 @@
 
       let adminRecords = [
         { id: 'draft-tencent', snapshotId: 'hk-00700-2025', companyName: '腾讯控股', ticker: '00700', market: 'HK', dataAsOf: '2025-12-31', status: 'draft', report: 'warning', updatedAt: '今天 10:32' },
-        { id: 'draft-maotai', snapshotId: 'cn-600519-2025', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', status: 'draft', report: 'error', updatedAt: '昨天 18:05' },
+        { id: 'published-maotai', snapshotId: 'cn-600519-2025', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', quoteAsOf: '2026-07-15 12:05', status: 'published', report: 'clean', updatedAt: '2026-07-16' },
+        { id: 'demo-invalid', snapshotId: null, companyName: '格式错误示例', ticker: '000000', market: 'CN', dataAsOf: '2025-12-31', status: 'draft', report: 'error', updatedAt: '今天 09:15' },
         { id: 'published-meituan', snapshotId: 'hk-03690-2025', companyName: '美团', ticker: '03690', market: 'HK', dataAsOf: '2025-12-31', status: 'published', report: 'clean', updatedAt: '2026-05-30' }
       ];
 
@@ -1240,18 +1241,32 @@
 
       function renderReviewCheck(record, report) {
         const snapshot = snapshots.find((item) => item.id === record.snapshotId);
+        const summary = snapshot?.summary || '格式错误，未建立公开快照';
         return `
           <section class='review-panel'>
-            <h2>元数据</h2><dl class='metadata-list'><dt>公司</dt><dd>${record.companyName}</dd><dt>代码</dt><dd>${record.ticker}</dd><dt>市场</dt><dd>${record.market}</dd><dt>数据日期</dt><dd>${record.dataAsOf}</dd><dt>文件</dt><dd>${record.market}/${record.ticker}/${record.dataAsOf}.md</dd><dt>摘要</dt><dd>${snapshot.summary}</dd></dl>
+            <h2>元数据</h2><dl class='metadata-list'><dt>公司</dt><dd>${record.companyName}</dd><dt>代码</dt><dd>${record.ticker}</dd><dt>市场</dt><dd>${record.market}</dd><dt>数据日期</dt><dd>${record.dataAsOf}</dd>${record.quoteAsOf ? `<dt>行情时间</dt><dd>${record.quoteAsOf}</dd>` : ''}<dt>文件</dt><dd>${record.market}/${record.ticker}/${record.dataAsOf}.md</dd><dt>摘要</dt><dd>${summary}</dd></dl>
             ${renderValidationList('校验错误', report.errors, 'report-error', '没有错误')}
             ${renderValidationList('校验警告', report.warnings, 'report-warning', '没有警告')}
             ${renderValidationList('标准化信息', report.info, 'report-info', '没有标准化信息')}
           </section>`;
       }
 
-      function renderReviewPreview(record) {
+      function renderSimplePreview(snapshot) {
+        return `<h2 class='snapshot-title'>${snapshot.companyName}</h2><p class='snapshot-summary'>${snapshot.summary}</p>${snapshot.sections.map(renderResearchSection).join('')}`;
+      }
+
+      function renderInvalidPreview() {
+        return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法生成公开预览</h3><p>文件校验失败，无法生成公开预览。请先补全 reporting_currency 和“五、资料来源”。</p></div>`;
+      }
+
+      function renderReviewSnapshotContent(record) {
+        if (!record.snapshotId) return renderInvalidPreview();
         const snapshot = snapshots.find((item) => item.id === record.snapshotId);
-        return `<section class='review-panel preview-paper'><p class='eyebrow'>公开页面预览</p><h2 class='snapshot-title'>${snapshot.companyName}</h2><p class='snapshot-summary'>${snapshot.summary}</p>${snapshot.sections.map(renderResearchSection).join('')}</section>`;
+        return snapshot.format === 'value_line' ? renderValueLineBody(snapshot, { compact: true }) : renderSimplePreview(snapshot);
+      }
+
+      function renderReviewPreview(record) {
+        return `<section class='review-panel preview-paper'><p class='eyebrow'>公开页面预览</p>${renderReviewSnapshotContent(record)}</section>`;
       }
 
       function renderReviewAudit(record) {
@@ -1355,10 +1370,7 @@
             ${renderDialog()}
             ${renderToast()}
           </div>`;
-        const selected = snapshots.find((item) => item.id === state.selectedSnapshot);
-        if (state.route === 'snapshot' && selected?.format === 'value_line') {
-          window.requestAnimationFrame(() => app.querySelectorAll('.value-table-scroll').forEach((scroller) => { scroller.scrollLeft = scroller.scrollWidth; }));
-        }
+        if (app.querySelector('.value-table-scroll')) window.requestAnimationFrame(() => app.querySelectorAll('.value-table-scroll').forEach((scroller) => { scroller.scrollLeft = scroller.scrollWidth; }));
         if (state.dialog) window.requestAnimationFrame(() => app.querySelector('[data-dialog-initial]')?.focus());
       }
 
