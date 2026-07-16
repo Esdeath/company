@@ -328,7 +328,8 @@
     .directory-card h2 { margin: 13px 0 4px; font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.2; }
     .directory-card .card-summary { display: -webkit-box; margin: 12px 0 14px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
     .directory-card .card-footer { margin-top: 12px; }
-    .workspace-detail { min-width: 0; min-height: 0; background: var(--canvas); container-name: workspace-detail; container-type: inline-size; }
+    .file-kind { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .workspace-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); container-name: workspace-detail; container-type: inline-size; }
     .workspace-detail__scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
     .workspace-context {
       display: flex;
@@ -350,6 +351,14 @@
     .workspace-document.value-page { width: min(1320px, calc(100% - 48px)); }
     .workspace-empty { display: grid; min-height: 100%; place-items: center; padding: 32px; }
     .workspace-empty .empty-state { width: min(560px, 100%); }
+    .snapshot-frame-shell { position: relative; flex: 1; min-width: 0; min-height: 0; background: #fff; }
+    .snapshot-frame-shell--review { min-height: 720px; border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; }
+    .snapshot-frame-shell--standalone { min-height: calc(100dvh - 150px); }
+    .snapshot-html-frame { display: block; width: 100%; height: 100%; min-height: 0; background: #f7f5f1; border: 0; }
+    .snapshot-frame-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: var(--muted); background: #f7f5f1; font-size: 13px; }
+    .snapshot-frame-loading.is-hidden { display: none; }
+    .snapshot-frame-loading.is-error { color: var(--negative); background: var(--negative-soft); }
+    .html-snapshot-main { display: flex; min-height: calc(100dvh - 116px); flex-direction: column; padding: 18px 24px 24px; }
     .company-drawer-button { display: none; }
     @container workspace-detail (max-width: 720px) {
       .workspace-document .value-layout { grid-template-columns: 1fr; }
@@ -1041,7 +1050,7 @@
         searchQuery: '',
         marketFilter: 'ALL',
         sortMode: 'data_desc',
-        selectedSnapshotId: 'cn-600519-2025',
+        selectedSnapshotId: 'cn-600519-html',
         companyDrawerOpen: false,
         publicScenario: 'normal',
         tocOpen: false,
@@ -1077,7 +1086,7 @@
       function filteredSnapshots(sourceState = state) {
         if (sourceState.publicScenario === 'empty') return [];
         const query = sourceState.searchQuery.trim().toLowerCase();
-        const records = snapshots.filter((snapshot) => snapshot.isLatest);
+        const records = htmlSnapshots.filter((snapshot) => snapshot.isLatest && snapshot.status === 'published');
         const filtered = records.filter((snapshot) => {
           const marketMatches = sourceState.marketFilter === 'ALL' || snapshot.market === sourceState.marketFilter;
           if (!marketMatches) return false;
@@ -1096,7 +1105,7 @@
 
       function selectedPublicSnapshot() {
         if (state.publicScenario !== 'normal') return null;
-        return snapshots.find((snapshot) => snapshot.id === state.selectedSnapshotId && snapshot.isLatest) || null;
+        return htmlSnapshots.find((snapshot) => snapshot.id === state.selectedSnapshotId && snapshot.status === 'published') || null;
       }
 
       function publicSelectionPatch(patch) {
@@ -1145,24 +1154,14 @@
           </header>`;
       }
 
-      function metricItems(snapshot) {
-        const pairs = [['PE', snapshot.metrics.pe], ['PB', snapshot.metrics.pb], ['股息率', snapshot.metrics.dividend]];
-        return pairs.map(([label, value]) => `<span class='mini-metric'><span>${label}</span> ${value}</span>`).join('');
-      }
-
       function renderCompanyCard(snapshot, selected) {
-        const skip = snapshot.verdict === 'skip';
         return `
           <button class='directory-card ${selected ? 'is-selected' : ''}' type='button' data-action="select-company" data-id='${snapshot.id}' aria-current='${selected ? 'true' : 'false'}'>
             <div class='card-meta'><span class='market-tag'>${snapshot.market === 'CN' ? 'A 股' : '港股'}</span><time>${snapshot.dataAsOf}</time></div>
-            <h2>${snapshot.companyName}</h2>
-            <span class='ticker'>${snapshot.ticker} · ${snapshot.exchange}</span>
-            <p class='card-summary'>${snapshot.summary}</p>
-            <div class='mini-metrics'>${metricItems(snapshot)}</div>
-            <div class='card-footer'>
-              <span class='verdict ${skip ? 'verdict--skip' : ''}'>${skip ? '暂不进入第二轮' : '进入第二轮研究'}</span>
-              ${selected ? `<span class='directory-card__current'>当前阅读</span>` : ''}
-            </div>
+            <h2>${escapeHtml(snapshot.companyName)}</h2>
+            <span class='ticker'>${escapeHtml(snapshot.ticker)} · ${escapeHtml(snapshot.exchange)}</span>
+            <div class='file-kind'><span>HTML 快照</span><span class='status-pill status-pill--published'>已发布</span></div>
+            <div class='card-footer'>${selected ? `<span class='directory-card__current'>当前阅读</span>` : `<span class='ticker'>点击阅读原始页面</span>`}</div>
           </button>`;
       }
 
@@ -1321,29 +1320,25 @@
           <article class='snapshot-body'>${snapshot.sections.map(renderResearchSection).join('')}<div class='disclaimer'>内容基于公开资料整理，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div></article>`;
       }
 
+      function renderInvalidHtmlPreview() {
+        return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法加载企业财报 HTML</h3><p>快照没有可用的 HTML 文件路径。</p></div>`;
+      }
+
+      function renderSnapshotFrame(snapshot, mode) {
+        if (!snapshot?.htmlPath) return renderInvalidHtmlPreview();
+        return `
+          <div class='snapshot-frame-shell snapshot-frame-shell--${mode}'>
+            <div class='snapshot-frame-loading' data-frame-loading>正在加载 HTML 快照</div>
+            <iframe class='snapshot-html-frame' src='${escapeHtml(snapshot.htmlPath)}' title='${escapeHtml(snapshot.companyName)}企业财报快照' sandbox data-frame-load></iframe>
+          </div>`;
+      }
+
       function renderWorkspaceDetail(snapshot) {
-        if (!snapshot) {
-          return `<section class='workspace-detail workspace-empty'><div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有可阅读的财务快照</h3><p>请调整公司名称或市场条件。</p><button class='button' type='button' data-action='clear-search'>清除筛选</button></div></section>`;
-        }
-        const toc = [
-          ['quick-conclusion', '30 秒结论'], ['business-model', '商业模式'], ['per-share-history', '每股数据'], ['operating-history', '经营数据'],
-          ['mental-math', '5 秒心算'], ['capital-structure', '资本结构'], ['five-questions', '五问清单'], ['methodology', '数据口径']
-        ];
-        const body = snapshot.format === 'value_line'
-          ? `
-            <header class='snapshot-head'><div class='snapshot-kicker'><span>A 股 · ${snapshot.exchange}</span><span>${snapshot.ticker}</span><span>行情 ${snapshot.quoteAsOf}</span></div><h1 class='snapshot-title'>${snapshot.companyName}</h1><p class='snapshot-summary'>只寻找事实，不寻求意见。${snapshot.summary}</p></header>
-            <button class='button mobile-toc-toggle' type='button' data-action="toggle-toc">${state.tocOpen ? '收起目录' : '展开目录'}</button>
-            <div class='value-layout'><article class='value-body'>${renderValueLineBody(snapshot)}</article><aside class='value-toc ${state.tocOpen ? '' : 'desktop-toc'}'><h2>本页目录</h2>${toc.map(([id, label]) => `<a href='#${id}'>${label}</a>`).join('')}</aside></div>
-            <div class='disclaimer'>内容基于公开资料和直接计算，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。</div>`
-          : renderSimpleWorkspaceBody(snapshot);
+        if (!snapshot) return `<section class='workspace-detail workspace-empty'><div class='empty-state'><span class='empty-state__mark'>0</span><h3>没有可阅读的企业财报 HTML</h3><p>请调整公司名称或市场条件。</p><button class='button' type='button' data-action='clear-search'>清除筛选</button></div></section>`;
         return `
           <section class='workspace-detail'>
-            <div class='workspace-context'>
-              <button class='button company-drawer-button' type='button' data-action="open-company-drawer" aria-haspopup='dialog'>选择公司</button>
-              <div class='workspace-context__identity'><strong>${snapshot.companyName}</strong><span>${snapshot.ticker} · ${snapshot.market === 'CN' ? 'A 股' : '港股'}</span></div>
-              <span class='workspace-context__category'>财务快照</span>
-            </div>
-            <div class='workspace-detail__scroll' tabindex='-1' data-workspace-scroll><div class='workspace-document ${snapshot.format === 'value_line' ? 'value-page' : ''}'>${body}</div></div>
+            <div class='workspace-context'><button class='button company-drawer-button' type='button' data-action="open-company-drawer" aria-haspopup='dialog'>选择公司</button><div class='workspace-context__identity'><strong>${escapeHtml(snapshot.companyName)}</strong><span>${escapeHtml(snapshot.ticker)} · ${snapshot.market === 'CN' ? 'A 股' : '港股'}</span></div><span class='workspace-context__category'>企业财报 HTML</span></div>
+            ${renderSnapshotFrame(snapshot, 'public')}
           </section>`;
       }
 
@@ -1379,9 +1374,12 @@
           </div>`;
       }
 
+      function renderHtmlSnapshotPage(snapshot) {
+        return `<div class='site-shell html-snapshot-page' data-route="snapshot">${renderSiteHeader()}<main class='html-snapshot-main'><button class='back-link' type='button' data-action='back-results'>← 返回公司目录</button>${renderSnapshotFrame(snapshot, 'standalone')}</main></div>`;
+      }
+
       function renderSnapshot() {
-        const snapshot = snapshots.find((item) => item.id === state.selectedSnapshotId) || maotaiSnapshot;
-        return snapshot.format === 'value_line' ? renderValueLineSnapshot(snapshot) : renderSimpleSnapshot(snapshot);
+        return renderHtmlSnapshotPage(selectedPublicSnapshot() || htmlSnapshots[0]);
       }
 
       function renderFooter() {
@@ -1632,6 +1630,17 @@
         render();
       }
 
+      function armSnapshotFrameTimeouts() {
+        app.querySelectorAll('[data-frame-load]').forEach((frame) => {
+          const loading = frame.closest('.snapshot-frame-shell')?.querySelector('[data-frame-loading]');
+          window.setTimeout(() => {
+            if (!loading?.isConnected || loading.classList.contains('is-hidden')) return;
+            loading.textContent = 'HTML 快照未能加载，请检查文件路径';
+            loading.classList.add('is-error');
+          }, 3500);
+        });
+      }
+
       function renderRoute() {
         if (state.route === 'home') return renderHome();
         if (state.route === 'snapshot') return renderSnapshot();
@@ -1653,10 +1662,16 @@
             ${renderDialog()}
               ${renderToast()}
             </div>`;
+        armSnapshotFrameTimeouts();
         document.body.classList.toggle('company-drawer-open', state.companyDrawerOpen);
         if (app.querySelector('.value-table-scroll')) window.requestAnimationFrame(() => app.querySelectorAll('.value-table-scroll').forEach((scroller) => { scroller.scrollLeft = scroller.scrollWidth; }));
         if (state.dialog) window.requestAnimationFrame(() => app.querySelector('[data-dialog-initial]')?.focus());
       }
+
+      app.addEventListener('load', (event) => {
+        if (!event.target.matches('[data-frame-load]')) return;
+        event.target.closest('.snapshot-frame-shell')?.querySelector('[data-frame-loading]')?.classList.add('is-hidden');
+      }, true);
 
       app.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-action]');

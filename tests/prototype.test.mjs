@@ -27,13 +27,6 @@ function embeddedJson(html, id) {
   return JSON.parse(match[1]);
 }
 
-function assertAlignedTable(table, expectedYearCount) {
-  assert.equal(table.years.length, expectedYearCount);
-  for (const row of table.rows) {
-    assert.equal(row.values.length, expectedYearCount, `${row.label} is not aligned`);
-  }
-}
-
 test('prototype is a standalone HTML document', () => {
   const html = readPrototype();
   assert.match(html, /^<!doctype html>/i);
@@ -54,12 +47,8 @@ test('prototype contains the complete public research flow', () => {
     'data-action="market"',
     'data-action="sort"',
     'data-action="select-company"',
-    'data-action="select-version"',
-    'data-action="toggle-toc"',
-    '事实',
-    '判断',
-    '待验证',
-    '快照扫描轨'
+    'renderSnapshotFrame',
+    '企业财报 HTML'
   ]) assert.ok(html.includes(required), `missing ${required}`);
 });
 
@@ -101,40 +90,6 @@ test('dialog focus returns to the re-rendered action control', () => {
   assert.match(html, /data-action="\$\{lastDialogAction\}"/);
 });
 
-test('Moutai payload preserves the Skill facts and aligned history', () => {
-  const data = embeddedJson(readPrototype(), 'maotai-snapshot-data');
-  assert.equal(data.format, 'value_line');
-  assert.equal(data.companyName, '贵州茅台');
-  assert.equal(data.ticker, '600519');
-  assert.equal(data.quoteAsOf, '2026-07-15 12:05');
-  assert.deepEqual(
-    data.marketMetrics.map((metric) => metric.value),
-    ['¥1,244.97', '18.82×', '5.76×', '4.2%', '¥15,563.14亿元']
-  );
-  assertAlignedTable(data.perShareHistory, 25);
-  assertAlignedTable(data.operatingHistory, 26);
-  assert.equal(data.scanChecks.length, 5);
-  assert.equal(data.fiveQuestions.length, 5);
-});
-
-test('Moutai detail exposes every value-line research module', () => {
-  const html = readPrototype();
-  for (const required of [
-    'renderValueLineSnapshot',
-    'renderValueTable',
-    'data-value-section="quick-conclusion"',
-    'data-value-section="business-model"',
-    'data-value-section="per-share-history"',
-    'data-value-section="operating-history"',
-    'data-value-section="mental-math"',
-    'data-value-section="capital-structure"',
-    'data-value-section="five-questions"',
-    'data-value-section="methodology"',
-    'data-action="table-earliest"',
-    'data-action="table-latest"'
-  ]) assert.ok(html.includes(required), `missing ${required}`);
-});
-
 test('Moutai is clean and published while the invalid demo stays admin-only', () => {
   const html = readPrototype();
   assert.match(html, /id: 'published-maotai'[\s\S]*status: 'published'[\s\S]*report: 'clean'/);
@@ -144,27 +99,9 @@ test('Moutai is clean and published while the invalid demo stays admin-only', ()
   assert.equal(data.summary.includes('2025年营收和利润转为负增长'), true);
 });
 
-test('value-line tables preserve readable mobile behavior', () => {
-  const html = readPrototype();
-  for (const required of [
-    '.value-table-scroll',
-    'overflow: auto',
-    'position: sticky',
-    '.prototype-stage.is-mobile .value-metrics',
-    '.prototype-stage.is-mobile .value-duo',
-    '@media (max-width: 767px)'
-  ]) assert.ok(html.includes(required), `missing ${required}`);
-});
-
-test('value-line grid children cannot widen the mobile stage', () => {
-  const html = readPrototype();
-  assert.match(html, /\.value-duo > \* \{ min-width: 0; \}/);
-  assert.match(html, /\.value-section \{[^}]*min-width: 0;/s);
-});
-
 test('public workspace defaults to Moutai and reconciles selection after filtering', () => {
   const html = readPrototype();
-  assert.match(html, /selectedSnapshotId: 'cn-600519-2025'/);
+  assert.match(html, /selectedSnapshotId: 'cn-600519-html'/);
   assert.match(html, /companyDrawerOpen: false/);
   assert.match(html, /function selectedPublicSnapshot\(\)/);
   assert.match(html, /function publicSelectionPatch\(patch\)/);
@@ -178,16 +115,41 @@ test('homepage renders a master-detail financial workspace', () => {
     "class='company-workspace'",
     "aria-label='公司目录'",
     "class='company-directory__scroll'",
-    "class='workspace-detail__scroll'",
     'data-action="select-company"',
     "aria-current='${selected ? 'true' : 'false'}'",
     'renderCompanyDirectory',
     'renderWorkspaceDetail',
-    '财务快照'
+    '企业财报 HTML'
   ]) assert.ok(html.includes(required), `missing ${required}`);
   assert.match(html, /grid-template-columns: 320px minmax\(0, 1fr\)/);
   assert.match(html, /\.company-directory__scroll[^}]*overflow-y: auto/s);
   assert.match(html, /\.workspace-detail__scroll[^}]*overflow-y: auto/s);
+});
+
+test('public workspace loads registered HTML through a sandboxed iframe', () => {
+  const html = readPrototype();
+  for (const required of [
+    'function renderSnapshotFrame(snapshot, mode)',
+    "class='snapshot-html-frame'",
+    "src='${escapeHtml(snapshot.htmlPath)}'",
+    "title='${escapeHtml(snapshot.companyName)}企业财报快照'",
+    'sandbox',
+    'data-frame-load',
+    '正在加载 HTML 快照',
+    'HTML 快照未能加载，请检查文件路径'
+  ]) assert.ok(html.includes(required), `missing ${required}`);
+  assert.match(html, /\.snapshot-html-frame \{[^}]*width: 100%;[^}]*height: 100%;/s);
+  assert.match(html, /\.snapshot-frame-shell \{[^}]*flex: 1;/s);
+  assert.doesNotMatch(html, /sandbox=["'][^"']+/, 'iframe sandbox must have no allowances');
+});
+
+test('public company cards contain identity metadata but no copied financial metrics', () => {
+  const html = readPrototype();
+  assert.match(html, /HTML 快照/);
+  assert.match(html, /已发布/);
+  assert.doesNotMatch(html, /function metricItems\(/);
+  assert.doesNotMatch(html, /class='mini-metrics'/);
+  assert.doesNotMatch(html, /class='verdict(?:\s|')/);
 });
 
 test('mobile company drawer has complete dismissal and focus contracts', () => {
@@ -205,15 +167,6 @@ test('mobile company drawer has complete dismissal and focus contracts', () => {
   assert.match(html, /\.company-drawer-layer[^}]*position: fixed/s);
   assert.match(html, /width: min\(88vw, 340px\)/);
   assert.match(html, /\.prototype-stage\.is-mobile \.company-workspace > \.company-directory:not\(\.company-directory--drawer\)/);
-});
-
-test('workspace detail responds to its own readable width', () => {
-  const html = readPrototype();
-  assert.match(html, /\.workspace-detail \{[^}]*container-type: inline-size;/s);
-  assert.match(html, /@container workspace-detail \(max-width: 720px\)/);
-  assert.match(html, /\.workspace-document \.value-layout \{ grid-template-columns: 1fr; \}/);
-  assert.match(html, /\.workspace-document \.value-metrics \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
-  assert.match(html, /\.workspace-document \.desktop-toc \{ display: none; \}/);
 });
 
 test('HTML snapshot manifest registers only generated public reports', () => {
