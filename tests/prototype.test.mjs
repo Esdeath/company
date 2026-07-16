@@ -90,13 +90,25 @@ test('dialog focus returns to the re-rendered action control', () => {
   assert.match(html, /data-action="\$\{lastDialogAction\}"/);
 });
 
-test('Moutai is clean and published while the invalid demo stays admin-only', () => {
+test('administrator manages two valid HTML snapshots and one invalid draft', () => {
   const html = readPrototype();
-  assert.match(html, /id: 'published-maotai'[\s\S]*status: 'published'[\s\S]*report: 'clean'/);
-  assert.match(html, /id: 'demo-invalid'[\s\S]*companyName: '格式错误示例'[\s\S]*report: 'error'/);
-  assert.match(html, /renderReviewSnapshotContent/);
-  const data = embeddedJson(html, 'maotai-snapshot-data');
-  assert.equal(data.summary.includes('2025年营收和利润转为负增长'), true);
+  assert.match(html, /id: 'published-maotai-html'[\s\S]*snapshotId: 'cn-600519-html'[\s\S]*status: 'published'[\s\S]*report: 'clean'/);
+  assert.match(html, /id: 'published-bilibili-html'[\s\S]*snapshotId: 'hk-09626-html'[\s\S]*status: 'published'[\s\S]*report: 'clean'/);
+  assert.match(html, /id: 'demo-invalid-html'[\s\S]*snapshotId: null[\s\S]*status: 'draft'[\s\S]*report: 'html-error'/);
+  assert.doesNotMatch(html, /draft-tencent|published-meituan|id: 'demo-invalid'/);
+});
+
+test('administrator copy and preview use the HTML artifact', () => {
+  const html = readPrototype();
+  for (const required of ['上传 HTML', '使用演示 HTML', 'HTML 文件', '页面标题', 'text/html', '完成 HTML 校验', "renderSnapshotFrame(snapshot, 'review')", 'HTML 校验失败，无法生成预览']) assert.ok(html.includes(required), `missing ${required}`);
+  assert.doesNotMatch(html, /上传 Markdown|使用演示 Markdown|完成 Markdown 校验/);
+});
+
+test('invalid HTML is blocked with two explicit errors and no iframe', () => {
+  const html = readPrototype();
+  assert.match(html, /'html-error': \{[\s\S]*errors: \[[\s\S]*HTML 缺少非空 &lt;title&gt;[\s\S]*HTML 包含远程 &lt;script&gt;[\s\S]*warnings: \[\]/);
+  assert.match(html, /data-action="publish" \$\{hasErrors \? 'disabled' : ''\}/);
+  assert.match(html, /if \(!record\.snapshotId\) return renderInvalidHtmlPreview\(\)/);
 });
 
 test('public workspace defaults to Moutai and reconciles selection after filtering', () => {

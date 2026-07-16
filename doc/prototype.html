@@ -1018,28 +1018,14 @@
       ];
 
       let adminRecords = [
-        { id: 'draft-tencent', snapshotId: 'hk-00700-2025', companyName: '腾讯控股', ticker: '00700', market: 'HK', dataAsOf: '2025-12-31', status: 'draft', report: 'warning', updatedAt: '今天 10:32' },
-        { id: 'published-maotai', snapshotId: 'cn-600519-2025', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', quoteAsOf: '2026-07-15 12:05', status: 'published', report: 'clean', updatedAt: '2026-07-16' },
-        { id: 'demo-invalid', snapshotId: null, companyName: '格式错误示例', ticker: '000000', market: 'CN', dataAsOf: '2025-12-31', status: 'draft', report: 'error', updatedAt: '今天 09:15' },
-        { id: 'published-meituan', snapshotId: 'hk-03690-2025', companyName: '美团', ticker: '03690', market: 'HK', dataAsOf: '2025-12-31', status: 'published', report: 'clean', updatedAt: '2026-05-30' }
+        { id: 'published-maotai-html', snapshotId: 'cn-600519-html', companyName: '贵州茅台', ticker: '600519', market: 'CN', dataAsOf: '2025-12-31', quoteAsOf: '2026-07-15 12:05', status: 'published', report: 'clean', updatedAt: '2026-07-16' },
+        { id: 'published-bilibili-html', snapshotId: 'hk-09626-html', companyName: '哔哩哔哩', ticker: '09626', market: 'HK', dataAsOf: '2025-12-31', quoteAsOf: '2026-07-16 16:08:38', status: 'published', report: 'clean', updatedAt: '2026-07-17' },
+        { id: 'demo-invalid-html', snapshotId: null, companyName: 'HTML 格式错误示例', ticker: '000000', market: 'CN', dataAsOf: '2025-12-31', quoteAsOf: null, fileName: '价值线_格式错误示例_企业快照版.html', pageTitle: '', status: 'draft', report: 'html-error', updatedAt: '今天 09:15' }
       ];
 
       const validationReports = {
-        warning: {
-          errors: [],
-          warnings: ['市盈率口径来自行情接口，与财报期末日期不同。'],
-          info: ['港股代码 700 已标准化为 00700。']
-        },
-        error: {
-          errors: ['frontmatter 缺少 reporting_currency。', '正文缺少“五、资料来源”。'],
-          warnings: [],
-          info: []
-        },
-        clean: {
-          errors: [],
-          warnings: [],
-          info: ['文件结构和来源链接校验通过。']
-        }
+        clean: { errors: [], warnings: [], info: ['完整 HTML、自包含资源和标题元数据校验通过。'] },
+        'html-error': { errors: ['HTML 缺少非空 &lt;title&gt;。', 'HTML 包含远程 &lt;script&gt;，禁止发布。'], warnings: [], info: [] }
       };
 
       const initialState = Object.freeze({
@@ -1058,7 +1044,7 @@
         adminStatusFilter: 'all',
         adminMarketFilter: 'ALL',
         adminQuery: '',
-        selectedAdminRecord: 'draft-tencent',
+        selectedAdminRecord: 'published-maotai-html',
         reviewTab: 'check',
         uploadOpen: false,
         inboxScanned: false,
@@ -1322,7 +1308,7 @@
       }
 
       function renderInvalidHtmlPreview() {
-        return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法加载企业财报 HTML</h3><p>快照没有可用的 HTML 文件路径。</p></div>`;
+        return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法生成 HTML 预览</h3><p>HTML 校验失败，无法生成预览。请补全页面标题并移除远程脚本。</p></div>`;
       }
 
       function renderSnapshotFrame(snapshot, mode) {
@@ -1396,7 +1382,7 @@
           <main class='login-page' data-route="login">
             <section class='login-context'>
               <div class='brand'><span class='brand-mark'>FS</span><span>企业快照库</span></div>
-              <div><p class='eyebrow'>ADMIN / 内容审核</p><h1>让发布动作慢下来，让资料更可信。</h1><p>管理端只处理 Markdown 导入、校验、预览和发布。正文需要修改时，回到原始文件重新生成。</p></div>
+              <div><p class='eyebrow'>ADMIN / 内容审核</p><h1>让发布动作慢下来，让资料更可信。</h1><p>管理端只处理 HTML 导入、校验、预览和发布。正文需要修改时，回到 Skill 重新生成。</p></div>
               <small>Prototype · 本页账号仅用于交互演示</small>
             </section>
             <section class='login-form-side'>
@@ -1454,13 +1440,13 @@
 
       function renderUploadPanel() {
         if (!state.uploadOpen && !state.inboxScanned) return '';
-        const report = validationReports.warning;
+        const report = validationReports['html-error'];
         return `
           <section class='upload-panel'>
             <div class='upload-drop'>
-              <div><strong>${state.inboxScanned ? '在 inbox 中发现 1 个 Markdown' : '选择一份 Markdown 快照'}</strong><p>${state.inboxScanned ? 'hk/00700/2025-12-31.md 已读取并完成校验。' : '原型使用内置的腾讯控股演示文件，不读取你的本地文件。'}</p><button class='button button--primary' type='button' data-action="simulate-upload">使用演示 Markdown</button></div>
+              <div><strong>${state.inboxScanned ? '扫描 inbox 中的企业快照 HTML' : '选择一份 HTML 快照'}</strong><p>${state.inboxScanned ? '扫描完成：发现 2 个 HTML 文件。' : '原型使用内置的 HTML 格式错误演示文件，不读取你的本地文件。'}</p><button class='button button--primary' type='button' data-action="simulate-upload">使用演示 HTML</button></div>
             </div>
-            ${state.uploadOpen ? `<div class='import-result'><div class='report-error'><strong>校验错误</strong>${report.errors.length || '无'}</div><div class='report-warning'><strong>校验警告</strong>${report.warnings[0]}</div><div class='report-info'><strong>标准化信息</strong>${report.info[0]}</div></div>` : ''}
+            ${state.uploadOpen ? `<div class='import-result'><div class='report-error'><strong>校验错误</strong>${report.errors.length ? report.errors.join('；') : '无'}</div><div class='report-warning'><strong>校验警告</strong>${report.warnings.length ? report.warnings.join('；') : '无'}</div><div class='report-info'><strong>标准化信息</strong>${report.info.length ? report.info.join('；') : '无'}</div></div>` : ''}
           </section>`;
       }
 
@@ -1482,7 +1468,7 @@
         const records = filteredAdminRecords();
         const content = `
           <main class='admin-content' data-route="admin-list">
-            <div class='admin-heading'><div><h1>快照管理</h1><p>导入 Markdown，检查资料，再决定是否发布。</p></div><div class='review-actions'><button class='button' type='button' data-action="scan-inbox">扫描 inbox</button><button class='button button--primary' type='button' data-action='open-upload'>上传 Markdown</button></div></div>
+            <div class='admin-heading'><div><h1>快照管理</h1><p>导入 HTML，检查文件，再决定是否发布。</p></div><div class='review-actions'><button class='button' type='button' data-action="scan-inbox">扫描 inbox 中的企业快照 HTML</button><button class='button button--primary' type='button' data-action='open-upload'>上传 HTML</button></div></div>
             ${renderUploadPanel()}
             <div class='admin-toolbar'>
               <div class='admin-toolbar__group'>${[['all', '全部'], ['draft', '草稿'], ['published', '已发布'], ['withdrawn', '已撤回']].map(([value, label]) => `<button class='filter-button ${state.adminStatusFilter === value ? 'is-active' : ''}' type='button' data-action='admin-filter' data-value='${value}'>${label}</button>`).join('')}</div>
@@ -1497,30 +1483,21 @@
         return `<div class='validation-group ${tone}'><h3>${title}</h3>${items.length ? `<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>` : `<p class='ticker'>${emptyText}</p>`}</div>`;
       }
 
+      function snapshotForRecord(record) {
+        return htmlSnapshots.find((snapshot) => snapshot.id === record.snapshotId) || null;
+      }
+
       function renderReviewCheck(record, report) {
-        const snapshot = snapshots.find((item) => item.id === record.snapshotId);
-        const summary = snapshot?.summary || '格式错误，未建立公开快照';
-        return `
-          <section class='review-panel'>
-            <h2>元数据</h2><dl class='metadata-list'><dt>公司</dt><dd>${record.companyName}</dd><dt>代码</dt><dd>${record.ticker}</dd><dt>市场</dt><dd>${record.market}</dd><dt>数据日期</dt><dd>${record.dataAsOf}</dd>${record.quoteAsOf ? `<dt>行情时间</dt><dd>${record.quoteAsOf}</dd>` : ''}<dt>文件</dt><dd>${record.market}/${record.ticker}/${record.dataAsOf}.md</dd><dt>摘要</dt><dd>${summary}</dd></dl>
-            ${renderValidationList('校验错误', report.errors, 'report-error', '没有错误')}
-            ${renderValidationList('校验警告', report.warnings, 'report-warning', '没有警告')}
-            ${renderValidationList('标准化信息', report.info, 'report-info', '没有标准化信息')}
-          </section>`;
-      }
-
-      function renderSimplePreview(snapshot) {
-        return `<h2 class='snapshot-title'>${snapshot.companyName}</h2><p class='snapshot-summary'>${snapshot.summary}</p>${snapshot.sections.map(renderResearchSection).join('')}`;
-      }
-
-      function renderInvalidPreview() {
-        return `<div class='empty-state'><span class='empty-state__mark'>!</span><h3>无法生成公开预览</h3><p>文件校验失败，无法生成公开预览。请先补全 reporting_currency 和“五、资料来源”。</p></div>`;
+        const snapshot = snapshotForRecord(record);
+        const fileName = snapshot?.fileName || record.fileName;
+        const pageTitle = snapshot?.pageTitle || record.pageTitle || '无法识别';
+        return `<section class='review-panel'><h2>元数据</h2><dl class='metadata-list'><dt>公司</dt><dd>${escapeHtml(record.companyName)}</dd><dt>代码</dt><dd>${escapeHtml(record.ticker)}</dd><dt>市场</dt><dd>${escapeHtml(record.market)}</dd><dt>数据日期</dt><dd>${escapeHtml(record.dataAsOf)}</dd>${record.quoteAsOf ? `<dt>行情时间</dt><dd>${escapeHtml(record.quoteAsOf)}</dd>` : ''}<dt>HTML 文件</dt><dd>${escapeHtml(fileName)}</dd><dt>页面标题</dt><dd>${escapeHtml(pageTitle)}</dd><dt>文件类型</dt><dd>text/html</dd></dl>${renderValidationList('校验错误', report.errors, 'report-error', '没有错误')}${renderValidationList('校验警告', report.warnings, 'report-warning', '没有警告')}${renderValidationList('标准化信息', report.info, 'report-info', '没有标准化信息')}</section>`;
       }
 
       function renderReviewSnapshotContent(record) {
-        if (!record.snapshotId) return renderInvalidPreview();
-        const snapshot = snapshots.find((item) => item.id === record.snapshotId);
-        return snapshot.format === 'value_line' ? renderValueLineBody(snapshot, { compact: true }) : renderSimplePreview(snapshot);
+        if (!record.snapshotId) return renderInvalidHtmlPreview();
+        const snapshot = snapshotForRecord(record);
+        return renderSnapshotFrame(snapshot, 'review');
       }
 
       function renderReviewPreview(record) {
@@ -1528,7 +1505,7 @@
       }
 
       function renderReviewAudit(record) {
-        return `<section class='review-panel'><h2>操作记录</h2><ol class='audit-list'><li><strong>完成 Markdown 校验</strong><br>${record.updatedAt} · 系统</li><li><strong>导入草稿</strong><br>${record.updatedAt} · admin</li><li><strong>生成快照</strong><br>2026-07-16 10:30 · hk-value-snapshot</li></ol></section>`;
+        return `<section class='review-panel'><h2>操作记录</h2><ol class='audit-list'><li><strong>完成 HTML 校验</strong><br>${record.updatedAt} · 系统</li><li><strong>导入 HTML 草稿</strong><br>${record.updatedAt} · admin</li><li><strong>生成快照</strong><br>2026-07-16 10:30 · hk-value-snapshot</li></ol></section>`;
       }
 
       function renderReview() {
@@ -1744,8 +1721,8 @@
         if (action === 'logout') { setState({ isAuthenticated: false, route: 'login' }); showToast('已退出登录。'); }
         if (action === 'admin-home') setState({ route: 'admin-list', reviewTab: 'check' });
         if (action === 'open-upload') setState({ uploadOpen: true, inboxScanned: false });
-        if (action === 'simulate-upload') { setState({ uploadOpen: true, selectedAdminRecord: 'draft-tencent' }); showToast('演示 Markdown 已导入为草稿。'); }
-        if (action === 'scan-inbox') { setState({ inboxScanned: true, uploadOpen: true }); showToast('扫描完成：发现 1 个文件。'); }
+        if (action === 'simulate-upload') { setState({ uploadOpen: true, selectedAdminRecord: 'demo-invalid-html' }); showToast('演示 HTML 已导入为草稿。'); }
+        if (action === 'scan-inbox') { setState({ inboxScanned: true, uploadOpen: true }); showToast('扫描完成：发现 2 个 HTML 文件。'); }
         if (action === 'admin-filter') setState({ adminStatusFilter: value });
         if (action === 'review-snapshot') setState({ route: 'review', selectedAdminRecord: id, reviewTab: 'check' });
         if (action === 'review-tab') setState({ reviewTab: value });
