@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.superpowers/
+node_modules/
+.nuxt/
+.output/
+dist/
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
