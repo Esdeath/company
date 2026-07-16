@@ -83,6 +83,126 @@ compose.yaml
 
 不引入 Redis、任务 Worker、MinIO 或消息队列。
 
+### 4.1 技术栈
+
+| 层 | 技术 | 具体职责 |
+|---|---|---|
+| 公开前台 | Nuxt 4、Vue 3、TypeScript | SSR 页面、SEO、搜索和 Markdown 快照阅读 |
+| 管理端 | Vue 3、Vite、TypeScript、Vue Router、Pinia | 登录、上传、校验结果、预览和发布操作 |
+| API | FastAPI、Pydantic、SQLAlchemy、Alembic | 认证、文件校验、内容索引、Markdown 渲染和发布事务 |
+| 数据库 | PostgreSQL | 管理员、会话、可重建快照索引和审计日志 |
+| 内容 | YAML frontmatter + GFM Markdown | 快照正文的唯一事实来源 |
+| 反向代理 | Nginx | 统一入口、路径路由、压缩、缓存头和生产 TLS |
+| 工程工具 | pnpm workspace、Python uv、OpenAPI | 前端依赖、Python 依赖和类型化 API 客户端 |
+
+Node.js、Python、PostgreSQL 和 Nginx 均使用受支持的稳定版本，并在项目工具文件及 Docker 镜像中固定主版本。规格不绑定具体补丁版本。
+
+### 4.2 应用模块边界
+
+`apps/web`：
+
+```text
+app/
+├── pages/
+│   ├── index.vue
+│   └── snapshots/[market]/[ticker]/[[date]].vue
+├── components/
+│   ├── AppHeader.vue
+│   ├── CompanySearch.vue
+│   ├── MarketFilter.vue
+│   ├── SnapshotCard.vue
+│   ├── SnapshotHeader.vue
+│   ├── MetricStrip.vue
+│   ├── VerdictBanner.vue
+│   ├── SnapshotBody.vue
+│   └── SnapshotToc.vue
+├── composables/useSnapshots.ts
+└── assets/css/
+```
+
+公开前台不直接读取磁盘或数据库，只调用公开 API。列表页使用 Nuxt SSR 获取首屏数据；搜索和筛选在客户端更新 URL 查询参数并重新请求。
+
+`apps/admin`：
+
+```text
+src/
+├── views/
+│   ├── LoginView.vue
+│   ├── SnapshotListView.vue
+│   └── SnapshotReviewView.vue
+├── components/
+│   ├── AdminShell.vue
+│   ├── SnapshotTable.vue
+│   ├── UploadPanel.vue
+│   ├── ValidationReport.vue
+│   ├── MetadataPanel.vue
+│   └── MarkdownPreview.vue
+├── stores/auth.ts
+├── router/index.ts
+└── api/generated/
+```
+
+管理端使用 OpenAPI 生成的 TypeScript 类型和请求客户端，不手写重复接口类型。Pinia 只保存登录状态和界面状态；服务端数据不长期复制进全局 Store。
+
+`apps/api`：
+
+```text
+app/
+├── main.py
+├── core/                 # 配置、安全、数据库和日志
+├── auth/                 # 登录、会话和 CSRF
+├── snapshots/            # 路由、schema、服务和索引
+├── content/              # frontmatter、Markdown、文件事务
+├── audit/                # 操作日志
+└── health/               # 存活和就绪检查
+```
+
+路由层只处理 HTTP；业务规则放在 service；文件解析、路径计算和原子写入放在 content 模块。任何模块都不能绕过 content service 直接修改 `content/`。
+
+### 4.3 运行拓扑
+
+```mermaid
+flowchart LR
+    U["公开用户"] --> N["Nginx"]
+    A["管理员"] --> N
+    N -->|/| W["Nuxt Web"]
+    N -->|/admin/| M["Vue Admin"]
+    N -->|/api/| F["FastAPI"]
+    W --> F
+    M --> F
+    F --> P[(PostgreSQL)]
+    F --> C["content/ 挂载目录"]
+    S["本地 Codex Skill"] --> I["content/inbox/ 或上传文件"]
+    I --> F
+```
+
+只有 FastAPI 容器以读写方式挂载 `content/`。Nuxt 和管理端通过 API 获取内容，避免多个进程同时写文件。
+
+### 4.4 请求与发布链路
+
+公开读取：
+
+```text
+浏览器 → Nginx → Nuxt SSR → FastAPI public API
+       ← 已渲染首屏 ← 元数据 + 安全 HTML
+```
+
+导入发布：
+
+```text
+上传/扫描 inbox
+→ FastAPI 读取临时文件
+→ Pydantic 校验 frontmatter
+→ Markdown 结构和安全校验
+→ 原子写入 drafts
+→ PostgreSQL 更新索引
+→ 管理端预览
+→ 发布事务移动到 published
+→ 更新索引和审计日志
+```
+
+Markdown 使用服务端解析。解析器关闭原始 HTML，启用 GFM 表格、列表、引用和代码；渲染结果再经过 HTML 白名单清理。公开 API 返回安全 HTML，管理端预览与公开页面使用同一结果，避免两套渲染规则不一致。
+
 ## 5. Markdown 内容契约
 
 ### 5.1 文件路径
@@ -127,6 +247,12 @@ generator: hk-value-snapshot
 status: draft
 verdict: second_round
 summary: 入口未到历史低位，现金流质量稳定，需继续核查资本配置。
+metrics:
+  price: 512.50
+  pe_ttm: 21.4
+  pb: 3.8
+  dividend_yield_pct: 0.82
+  market_cap_million: 48120.00
 source_urls:
   - https://example.com/financial-source
   - https://example.com/quote-source
@@ -145,6 +271,7 @@ source_urls:
 - `status` 只能是 `draft` 或 `published`。
 - `verdict` 只能是 `second_round` 或 `skip`，分别对应“进入第二轮”和“翻页”。
 - `summary` 是首页使用的一句话结论，最多 120 个中文字符。
+- `metrics` 保存详情页顶部使用的结构化快照值：`price` 为每股报价，`pe_ttm` 和 `pb` 为倍数，`dividend_yield_pct` 为百分数，`market_cap_million` 为报价币种的百万单位；缺失指标写 `null`，禁止从 Markdown 表格反向解析。
 - `source_urls` 至少包含一个有效的 HTTP 或 HTTPS 地址。
 - 发布时 API 将 `status` 改为 `published`，并原子移动到 `content/published/`。
 - 发布时 API 增加 `published_at`；撤回时移除该字段。
@@ -223,46 +350,186 @@ API 按以下顺序处理：
 
 ## 7. 页面设计
 
+产品暂定名为“企业快照库”。视觉目标是“研究台账”，不是资讯门户或行情终端：信息密度高，但通过稳定的数字对齐、分隔线和留白保持可读性。
+
+### 7.0 视觉语言
+
+颜色变量：
+
+| Token | 色值 | 用途 |
+|---|---|---|
+| `--canvas` | `#F2F5F6` | 页面背景 |
+| `--surface` | `#FFFFFF` | 卡片、表格和正文 |
+| `--ink` | `#17212B` | 主文字 |
+| `--muted` | `#66727D` | 次要说明 |
+| `--line` | `#D7DEE3` | 分隔线和边框 |
+| `--accent` | `#155E75` | 主操作、链接和选中状态 |
+| `--positive` | `#2F6B4F` | 进入第二轮、通过 |
+| `--caution` | `#A15C16` | 警告和待核查 |
+| `--negative` | `#A33A3A` | 翻页、失败和高风险错误 |
+
+字体：
+
+- 正文和界面：系统无衬线中文字体栈，保证跨平台加载稳定。
+- 财务数字：`font-variant-numeric: tabular-nums`，保证列对齐。
+- 代码、证券代码和数据日期：系统等宽字体。
+- 不依赖运行时外部字体服务。
+
+形态：
+
+- 卡片圆角 8px，按钮圆角 6px，不使用大面积胶囊形控件。
+- 阴影只用于浮层；普通卡片使用 1px 边框。
+- 8px 间距基线；内容最大宽度 1180px；正文阅读列最大宽度 820px。
+- 标志性元素是“快照扫描轨”：详情页用一条五段式细轨显示五步扫描结果，桌面竖排、手机横向滚动。
+- 动画只用于 150–200ms 的状态切换和浮层，不做滚动入场动画。
+
+### 7.0.1 响应式规则
+
+- 手机：`0–767px`，单列，页面左右边距 16px，点击目标至少 44px。
+- 平板：`768–1199px`，列表两列，详情正文单列，目录折叠。
+- 桌面：`1200px+`，列表三列或紧凑表格，详情为正文加右侧目录。
+- 财务表格在窄屏使用独立横向滚动容器，首列保持粘性；不把表格缩成不可读的小字。
+
 ### 7.1 公开首页
 
-- 网站名称和一句简短说明。
-- 公司名称或证券代码搜索。
-- 市场筛选：全部、A 股、港股。
-- 公司卡片显示公司名称、代码、市场、数据日期和结论印章。
-- 默认按数据日期倒序。
-- 手机单列，宽屏使用两至三列。
+页面从上到下：
+
+1. 56px 高度页头：左侧“企业快照库”，右侧“关于数据”链接。
+2. 搜索区：标题“从事实开始看一家公司”，下方是公司名称/代码搜索框。
+3. 筛选行：全部、A 股、港股；右侧显示结果数量。
+4. 最近更新列表：默认按数据日期倒序。
+5. 页脚：数据边界、免责声明和最后构建时间。
+
+手机线框：
+
+```text
+┌────────────────────────┐
+│ 企业快照库       关于数据 │
+├────────────────────────┤
+│ 从事实开始看一家公司       │
+│ [ 搜索名称或证券代码     ] │
+│ [全部] [A股] [港股]  12家 │
+├────────────────────────┤
+│ 腾讯控股        00700 HK │
+│ 数据日期 2026-07-16      │
+│ 【进入第二轮】            │
+│ 现金流稳定，需核查资本配置  │
+├────────────────────────┤
+│ 贵州茅台       600519 CN │
+│ 数据日期 2026-07-16      │
+└────────────────────────┘
+```
+
+桌面卡片每行三张。卡片固定显示公司名称、代码、市场、数据日期、`verdict` 印章和两行 `summary`；不在首页堆放 PE、PB 等全部指标。点击整张卡片进入详情，证券代码保持可选中文本。
+
+搜索输入防抖 250ms，并把 `q`、`market` 写入 URL。无结果时显示当前条件并提供“清除筛选”，不显示空白页面。
 
 ### 7.2 快照详情
 
-- 顶部显示公司名称、代码、市场和数据日期。
-- 明确提示“实际披露数据与直接运算，不构成投资建议”。
-- 渲染完整 Markdown 正文和 GFM 表格。
-- 提供来源链接。
-- 有多期快照时，可从简单日期下拉框切换；不做图表对比。
+桌面使用 12 列网格：正文占 9 列，右侧目录占 3 列；手机为单列。
+
+```text
+┌─────────────────────────────────────────────┐
+│ ← 返回公司列表                              │
+│ 腾讯控股  00700 · HKEX       [2026-07-16 ▼]│
+│ 实际披露数据与直接运算 · 不构成投资建议       │
+├───────────────────────────────┬─────────────┤
+│ 价格  PE  PB  股息率  市值     │ 快照扫描轨   │
+│ 【进入第二轮】一句话结论         │ ①长期记录 ✓ │
+│                               │ ②ROE杠杆 △ │
+│ Markdown 正文                 │ ③股本变化 ✓ │
+│ 财务表格                       │ ④利润率  ✓ │
+│ 五问清单                       │ ⑤估值锚  △ │
+│                               │ 页面目录     │
+└───────────────────────────────┴─────────────┘
+```
+
+- 顶部元数据区显示公司、代码、交易所、数据日期和日期切换。
+- 关键指标条读取 frontmatter 的 `metrics`；缺失的单项直接隐藏，不解析正文表格。
+- `verdict` 使用低饱和实色印章，不使用闪烁或渐变。
+- 右侧目录随滚动高亮当前章节；手机端变为标题下方的“本页目录”折叠面板。
+- 正文保留 Markdown 标题层级；H2 之间至少 48px 间距。
+- 来源链接集中显示在页尾，同时保留正文中的上下文链接。
+- 多期快照通过日期下拉切换，不做趋势图和自动差异比较。
 
 ### 7.3 后台登录
 
-- 用户名和密码。
-- 不提供注册、找回密码和第三方登录。
-- 登录失败使用统一错误信息，避免泄漏账号是否存在。
+- 页面为单列登录面板，桌面宽 400px，手机占满可用宽度。
+- 字段只有用户名、密码和“登录”按钮。
+- 密码支持显隐切换；按 Enter 提交。
+- 提交中禁用按钮并显示进度文字“正在登录”。
+- 登录失败在表单顶部显示统一错误“用户名或密码不正确”。
+- 不提供注册、找回密码、第三方登录或宣传内容。
 
 ### 7.4 快照管理
 
-- 草稿、已发布两个标签页。
-- 上传 Markdown。
-- 扫描 `content/inbox/`。
-- 显示校验错误和警告。
-- Markdown 预览。
-- 发布、撤回和删除草稿。
-- 按名称、代码和市场筛选。
+桌面采用 220px 左侧导航和主内容区；手机导航折叠为顶部菜单。左侧只有“快照”和“退出登录”，不预留空模块。
+
+列表工具栏：
+
+- 页面标题和草稿/已发布数量。
+- “上传 Markdown”主按钮。
+- “扫描 inbox”次按钮。
+- 搜索、市场筛选、状态筛选。
+
+桌面列表采用表格，列为公司、代码、市场、数据日期、状态、导入时间和操作。手机改为卡片，不使用横向滚动的管理表格。
+
+审核页采用明确的三段结构：
+
+```text
+┌─────────────────────────────────────────────┐
+│ ← 返回快照    腾讯控股 00700     [发布]      │
+├───────────────┬─────────────────────────────┤
+│ 元数据         │ Markdown 最终预览            │
+│ ✓ schema       │                             │
+│ ✓ 市场/代码     │ 与公开页面相同的渲染结果       │
+│ △ 1 条警告      │                             │
+│ 来源链接        │                             │
+├───────────────┴─────────────────────────────┤
+│ 错误必须修复；警告确认后才可发布               │
+└─────────────────────────────────────────────┘
+```
+
+- 错误使用红色并阻止发布；警告使用琥珀色，可确认后发布。
+- 上传文件先在浏览器显示文件名和大小，再提交 API；不提供在线 Markdown 编辑器。
+- 发布前使用确认对话框，明确公司、市场和数据日期。
+- 撤回不会删除文件；删除只对草稿开放，并要求二次确认。
+- 管理端右上角账号菜单提供“修改密码”和“退出登录”；不增加独立设置模块。
+
+### 7.5 通用状态与可访问性
+
+- 加载使用与最终布局一致的骨架屏，避免页面跳动。
+- API 错误显示可执行的信息，例如“文件缺少 `data_as_of`”，不使用“发生错误”。
+- 所有交互元素有可见键盘焦点。
+- 颜色不作为唯一状态表达，印章同时包含文字和符号。
+- 正文与背景对比度符合 WCAG AA。
+- 遵守 `prefers-reduced-motion`。
+- 空状态提供下一步操作：公开端清除筛选，管理端上传 Markdown。
 
 ## 8. API 边界
+
+FastAPI 统一使用 `/api` 前缀和 JSON 响应。成功响应返回资源本身；错误响应固定为：
+
+```json
+{
+  "error": {
+    "code": "SNAPSHOT_VALIDATION_FAILED",
+    "message": "Markdown 校验失败",
+    "details": [
+      {"field": "data_as_of", "message": "缺少必填字段"}
+    ]
+  }
+}
+```
+
+公开列表使用游标分页，首版默认 24 条；查询参数为 `q`、`market`、`cursor`。管理列表额外支持 `status`。
 
 ### 8.1 认证
 
 ```text
 POST /api/auth/login
 POST /api/auth/logout
+POST /api/auth/change-password
 GET  /api/auth/me
 ```
 
@@ -287,19 +554,28 @@ GET /api/public/snapshots/{market}/{ticker}
 GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 ```
 
-公开列表只返回元数据和摘要，不返回全部 Markdown。详情接口返回经过解析的元数据与原始 Markdown 正文。
+公开列表只返回元数据和摘要，不返回正文。详情接口返回解析后的元数据与经过白名单清理的 `content_html`；原始 Markdown 只通过已认证的管理详情接口返回。
 
 ## 9. 数据库
 
-首版仅包含三类表：
+首版仅包含四类表：
 
 - `admin_users`：管理员用户名、密码哈希、创建时间和状态。
+- `admin_sessions`：随机会话令牌哈希、CSRF 令牌哈希、过期时间和最后使用时间。
 - `snapshot_index`：文件路径、公司、代码、市场、数据日期、状态、标题、摘要和更新时间。
 - `audit_logs`：导入、发布、撤回和删除草稿记录。
 
 `snapshot_index` 是派生索引，必须能通过扫描 `content/drafts/` 和 `content/published/` 完整重建。
 
 首个管理员不通过公开接口创建。API 第一次启动时读取环境变量 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD`：数据库尚无管理员时创建账号，已经存在时忽略这两个值。部署完成后应从环境配置中移除明文初始密码，并通过受保护的管理接口修改密码。
+
+关键约束：
+
+- `snapshot_index` 唯一键为 `(market, ticker, data_as_of)`。
+- `ticker` 使用字符串类型。
+- `file_path` 必须是相对 `content/` 的规范化路径且唯一。
+- 删除或撤回文件和更新索引必须在 service 中作为一个应用事务执行；数据库失败时回滚文件移动。
+- `audit_logs` 只追加，不提供修改接口。
 
 ## 10. 安全与错误处理
 
@@ -325,6 +601,16 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 - `api`
 - `postgres`
 
+容器职责：
+
+- `nginx`：基于稳定版 Nginx 镜像，挂载只读配置；对静态资源设置长缓存，对 HTML 和 API 禁止错误缓存。
+- `web`：Nuxt 多阶段构建后的 Node 服务，只运行生产输出。
+- `admin`：Vite 多阶段构建，最终使用轻量 Nginx 容器提供静态文件和 SPA fallback。
+- `api`：Python slim 多阶段镜像，以非 root 用户运行 Uvicorn；启动前执行 Alembic migration。
+- `postgres`：命名卷持久化，数据库只暴露给 Compose 内部网络。
+
+所有应用容器设置 CPU/内存友好的默认值、日志轮转和 `restart: unless-stopped`。只有顶层 Nginx 暴露宿主机端口。
+
 持久化：
 
 - PostgreSQL 使用命名卷。
@@ -346,6 +632,33 @@ GET /api/public/snapshots/{market}/{ticker}/{data_as_of}
 - 其他路径 → Nuxt Web
 
 本地 Docker 环境默认使用 HTTP。生产环境由 Nginx 加载宿主机挂载的 TLS 证书；证书申请与自动续期不纳入首版应用代码。
+
+### 11.1 环境配置
+
+`.env.example` 至少包含：
+
+```text
+APP_ENV=development
+APP_BASE_URL=http://localhost
+POSTGRES_DB=company
+POSTGRES_USER=company
+POSTGRES_PASSWORD=change-me
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me
+SESSION_SECRET=change-me
+CONTENT_ROOT=/data/content
+```
+
+真实 `.env` 不进入 Git。生产环境必须替换所有 `change-me` 值。
+
+### 11.2 启动依赖
+
+1. PostgreSQL 健康。
+2. API 执行迁移、创建首个管理员、扫描内容索引并就绪。
+3. Nuxt 和管理端启动。
+4. Nginx 开始对外提供服务。
+
+API 就绪检查同时验证数据库连接和 `content/` 目录可读写；任一失败时返回非 200 状态。
 
 ## 12. 测试与验收
 
