@@ -161,6 +161,27 @@ async function connectCdp(endpoint) {
   };
 }
 
+async function stopChrome(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolve) => {
+    const forceKill = setTimeout(() => child.kill('SIGKILL'), 2000);
+    child.once('exit', () => {
+      clearTimeout(forceKill);
+      resolve();
+    });
+    child.kill('SIGTERM');
+  });
+}
+
+async function cleanBrowserResources(child, cdp, userDataDirectory) {
+  try {
+    cdp?.close();
+  } finally {
+    await stopChrome(child);
+    rmSync(userDataDirectory, { recursive: true, force: true });
+  }
+}
+
 async function startBrowser(url) {
   assert.ok(chromePath, 'Chrome or Chromium is required for runtime prototype tests');
   const userDataDirectory = mkdtempSync(join(tmpdir(), 'company-prototype-chrome-'));
@@ -174,13 +195,15 @@ async function startBrowser(url) {
     '--no-default-browser-check',
     'about:blank'
   ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  let cdp = null;
   try {
     const browserEndpoint = await waitForChromeEndpoint(child);
     const pageEndpoint = await waitForPageEndpoint(browserEndpoint);
-    const cdp = await connectCdp(pageEndpoint);
+    cdp = await connectCdp(pageEndpoint);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Page.navigate', { url });
+    let closed = false;
     return {
       async evaluate(expression) {
         const response = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
@@ -205,19 +228,13 @@ async function startBrowser(url) {
         assert.equal(clicked, true, `missing clickable ${selector}`);
       },
       async close() {
-        cdp.close();
-        child.kill('SIGTERM');
-        await new Promise((resolve) => {
-          if (child.exitCode !== null) return resolve();
-          child.once('exit', resolve);
-          setTimeout(() => { child.kill('SIGKILL'); resolve(); }, 2000).unref();
-        });
-        rmSync(userDataDirectory, { recursive: true, force: true });
+        if (closed) return;
+        closed = true;
+        await cleanBrowserResources(child, cdp, userDataDirectory);
       }
     };
   } catch (error) {
-    child.kill('SIGKILL');
-    rmSync(userDataDirectory, { recursive: true, force: true });
+    await cleanBrowserResources(child, cdp, userDataDirectory);
     throw error;
   }
 }
@@ -462,8 +479,9 @@ test('mobile company drawer has complete dismissal and focus contracts', () => {
 
 test('administrator publication and HTML validation execute as runtime state transitions', async (t) => {
   const server = await startPrototypeServer();
-  const browser = await startBrowser(server.url);
+  let browser = null;
   try {
+    browser = await startBrowser(server.url);
     await browser.waitFor(
       "Boolean(window.prototypeApp) && document.querySelectorAll('[data-action=\"select-company\"]').length === 2",
       'initial public company directory'
@@ -566,8 +584,11 @@ test('administrator publication and HTML validation execute as runtime state tra
       assert.ok(server.requests.some((request) => request.snapshotId === 'cn-600519-html' && request.method === 'GET' && request.status === 200));
     });
   } finally {
-    await browser.close();
-    await server.close();
+    try {
+      await browser?.close();
+    } finally {
+      await server.close();
+    }
   }
 });
 
