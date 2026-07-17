@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
-    status: Literal["ok", "unavailable"]
+    status: Literal["ok", "not_ready"]
 
 
 def create_app(
@@ -60,7 +60,7 @@ def create_app(
             logger.exception("Readiness probe failed")
             return JSONResponse(
                 status_code=503,
-                content=HealthResponse(status="unavailable").model_dump(),
+                content=HealthResponse(status="not_ready").model_dump(),
             )
         return HealthResponse(status="ok")
 

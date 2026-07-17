@@ -27,3 +27,23 @@ def test_cors_origins_are_split_and_trimmed() -> None:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
+
+
+def test_wildcard_cors_origin_is_rejected_without_leaking_database_url() -> None:
+    database_url = "postgresql+psycopg://company:topsecret@postgres/company"
+
+    with pytest.raises(ValidationError) as error:
+        Settings(database_url=database_url, cors_origins="*")
+
+    assert database_url not in str(error.value)
+    assert "topsecret" not in str(error.value)
+
+
+def test_external_cors_origin_is_rejected_without_leaking_database_url() -> None:
+    database_url = "postgresql+psycopg://company:topsecret@postgres/company"
+
+    with pytest.raises(ValidationError) as error:
+        Settings(database_url=database_url, cors_origins="https://example.com")
+
+    assert database_url not in str(error.value)
+    assert "topsecret" not in str(error.value)

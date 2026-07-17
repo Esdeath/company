@@ -37,12 +37,12 @@ def test_ready_returns_ok_when_probe_succeeds() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_ready_returns_safe_unavailable_response_when_probe_fails() -> None:
+def test_ready_returns_safe_not_ready_response_when_probe_fails() -> None:
     with TestClient(create_app(settings(), FailingProbe())) as client:
         response = client.get("/api/health/ready")
 
     assert response.status_code == 503
-    assert response.json() == {"status": "unavailable"}
+    assert response.json() == {"status": "not_ready"}
     response_text = response.text.lower()
     for secret in (
         "postgres",
