@@ -29,7 +29,7 @@
 | 组件 | 固定版本或系列 | 说明 |
 |---|---:|---|
 | Node.js | `24.18.0` | Active/Maintenance LTS 系列，写入 `.nvmrc` 和 Docker 基础镜像 |
-| pnpm | `10.29.0` | 保守使用 pnpm 10，写入根 `packageManager` |
+| pnpm | `10.34.5` | 保守使用 pnpm 10，写入根 `packageManager` |
 | TypeScript | `5.9.3` | 暂不采用新发布的 TypeScript 7 |
 | Nuxt | `4.4.8` | Nuxt 4 稳定版 |
 | Vue | `3.5.40` | Vue 3 稳定版 |

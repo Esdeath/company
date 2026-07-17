@@ -6,7 +6,7 @@
 
 **Architecture:** 根目录使用 pnpm workspace 管理两个 TypeScript 应用，FastAPI 在独立 uv 项目中管理。混合开发模式在宿主机运行前端和 API，只用 Docker 运行 PostgreSQL；完整验收模式由 Compose 启动五个服务，并只通过 loopback 上的 Nginx edge 暴露应用入口。
 
-**Tech Stack:** Node.js 24.18.0、pnpm 10.29.0、TypeScript 5.9.3、Nuxt 4.4.8、Vue 3.5.40、Vite 8.1.5、Python 3.13、uv 0.11.29、FastAPI 0.139.2、SQLAlchemy 2.0.51、psycopg 3.3.4、PostgreSQL 18.4、Nginx 1.30.4、Vitest、pytest、Ruff、mypy、Docker Compose。
+**Tech Stack:** Node.js 24.18.0、pnpm 10.34.5、TypeScript 5.9.3、Nuxt 4.4.8、Vue 3.5.40、Vite 8.1.5、Python 3.13、uv 0.11.29、FastAPI 0.139.2、SQLAlchemy 2.0.51、psycopg 3.3.4、PostgreSQL 18.4、Nginx 1.30.4、Vitest、pytest、Ruff、mypy、Docker Compose。
 
 ---
 
@@ -84,7 +84,7 @@ test('locks the agreed toolchain versions', async () => {
 
   const rootPackage = JSON.parse(await read('package.json'))
   assert.equal(rootPackage.private, true)
-  assert.equal(rootPackage.packageManager, 'pnpm@10.29.0')
+  assert.equal(rootPackage.packageManager, 'pnpm@10.34.5')
   assert.equal(rootPackage.engines.node, '>=24.18.0 <25')
 })
 
@@ -131,7 +131,7 @@ Expected: FAIL，至少提示 `package.json` 或 `.nvmrc` 不存在。
 {
   "name": "company-research-library",
   "private": true,
-  "packageManager": "pnpm@10.29.0",
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=24.18.0 <25"
   },

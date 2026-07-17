@@ -10,7 +10,7 @@ test('locks the agreed toolchain versions', async () => {
 
   const rootPackage = JSON.parse(await read('package.json'))
   assert.equal(rootPackage.private, true)
-  assert.equal(rootPackage.packageManager, 'pnpm@10.29.0')
+  assert.equal(rootPackage.packageManager, 'pnpm@10.34.5')
   assert.equal(rootPackage.engines.node, '>=24.18.0 <25')
 })
 
