@@ -90,6 +90,20 @@ function collectSemanticSnapshotViolations(html) {
       });
     }
   };
+  const inspectCssResourceFallback = (styleText) => {
+    if (!styleText) return;
+    const compact = styleText.replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+    if (/(?:^|[^\w-])(?:(?:-webkit-)?image-set|cross-fade|image)\(/.test(compact)) {
+      add('style-resource-function');
+      return;
+    }
+    if (compact.includes('javascript:')) add('style-resource-javascript');
+    else if (compact.includes('vbscript:')) add('style-resource-vbscript');
+    else if (/(?:https?:)?\/\//.test(compact)) add('style-resource-remote');
+    else if (/data:(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/javascript|application\/javascript)(?:[;,]|$)/.test(compact)) {
+      add('style-resource-dangerous-data');
+    }
+  };
   const inspectStyleSources = (styleSources) => {
     for (const styleSource of styleSources) {
       if (!styleSource) continue;
@@ -103,6 +117,10 @@ function collectSemanticSnapshotViolations(html) {
           external: 'style-url-external'
         }, 'style');
       }
+      inspectCssResourceFallback(styleSource.replace(
+        /url\(\s*(?:(["'])([\s\S]*?)\1|([^)]*))\s*\)/gi,
+        ''
+      ));
     }
   };
   const inspectStyleDeclaration = (style) => {
@@ -111,21 +129,26 @@ function collectSemanticSnapshotViolations(html) {
     inspectStyleSources(propertyValues);
   };
   const inspectInlineStyle = (element) => {
-    inspectStyleSources([element.getAttribute('style')]);
+    const styleAttribute = element.getAttribute('style');
+    if (styleAttribute.includes('\\')) add('style-css-escape');
+    inspectStyleSources([styleAttribute]);
     inspectStyleDeclaration(element.style);
   };
   const inspectRuleList = (rules) => {
     for (const rule of rules) {
       if (rule.type === CSSRule.IMPORT_RULE) {
-        inspectUrlCandidate(rule.href, {
-          javascript: 'style-import-javascript',
-          vbscript: 'style-import-vbscript',
-          dangerousData: 'style-import-dangerous-data',
-          remote: 'style-import-remote',
-          external: 'style-import-external'
-        }, 'import');
+        add('style-import');
+        continue;
+      }
+      if (rule.constructor?.name === 'CSSPropertyRule') {
+        add('style-property-rule');
+        continue;
       }
       if (rule.style) inspectStyleDeclaration(rule.style);
+      if (rule.style) inspectCssResourceFallback(rule.cssText.replace(
+        /url\(\s*(?:(["'])([\s\S]*?)\1|([^)]*))\s*\)/gi,
+        ''
+      ));
       if ('cssRules' in rule) {
         try {
           inspectRuleList(rule.cssRules);
@@ -136,6 +159,7 @@ function collectSemanticSnapshotViolations(html) {
     }
   };
   const inspectStyleBlock = (element) => {
+    if (element.textContent.includes('\\')) add('style-block-css-escape');
     try {
       if (!element.sheet) {
         add('style-block-parse-error');
@@ -214,8 +238,10 @@ async function startPrototypeServer() {
   ]));
   const controls = new Map(manifest.map((snapshot) => [snapshot.id, { headStatus: 200, getStatus: 200, getDelayMs: 0 }]));
   const requests = [];
+  const networkRequests = [];
   const server = createServer((request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
+    networkRequests.push({ method: request.method, pathname });
     if (pathname === '/doc/prototype.html') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(readPrototype());
@@ -242,8 +268,10 @@ async function startPrototypeServer() {
   return {
     url: `http://127.0.0.1:${address.port}/doc/prototype.html`,
     requests,
+    networkRequests,
     setSnapshot(snapshotId, patch) { Object.assign(controls.get(snapshotId), patch); },
     clearRequests() { requests.length = 0; },
+    clearNetworkRequests() { networkRequests.length = 0; },
     close() { return closeServer(server); }
   };
 }
@@ -703,6 +731,27 @@ test('administrator publication and HTML validation execute as runtime state tra
       assert.match(detachedCssom.importRuleCssText, /http:\/\/example\.com\/x\.css/);
       assert.equal(detachedCssom.importHref, 'http://example.com/x.css');
 
+      const escapedCustomPropertyBlock = '<style>#app{--bg:u\\72l(/semantic-css-probe.png);background-image:var(--bg)}</style>';
+      server.clearNetworkRequests();
+      try {
+        await browser.evaluate(`(() => {
+          const style = document.createElement('style');
+          style.id = 'semantic-css-load-probe';
+          style.textContent = ${JSON.stringify('#app{--bg:u\\72l(/semantic-css-probe.png);background-image:var(--bg)}')};
+          document.head.append(style);
+        })()`);
+        const deadline = Date.now() + 2000;
+        while (!server.networkRequests.some((request) => request.pathname === '/semantic-css-probe.png') && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        assert.ok(
+          server.networkRequests.some((request) => request.pathname === '/semantic-css-probe.png'),
+          'escaped custom property did not trigger the active-page resource request'
+        );
+      } finally {
+        await browser.evaluate("document.querySelector('#semantic-css-load-probe')?.remove()");
+      }
+
       const dangerousFixtures = [
         ['script element', '<script>alert(1)</script>', ['script-element']],
         ['iframe element', '<iframe src="/safe"></iframe>', ['iframe-element']],
@@ -734,13 +783,20 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['named entity remote SVG href', '<svg><a xlink:href="&sol;&sol;example.com/x">x</a></svg>', ['url-remote:xlink:href']],
         ['javascript SVG href', '<svg><a xlink:href="java&#x73;cript:alert(1)">x</a></svg>', ['url-javascript:xlink:href']],
         ['relative style block URL', '<style>body{background:url(./local.png)}</style>', ['style-url-external']],
-        ['CSS escape remote style block URL', cssEscapeBlock, ['style-url-remote']],
-        ['CSS escape import', cssImportBlock, ['style-import-remote']],
-        ['relative import', '<style>@import "./local.css";</style>', ['style-import-external']],
+        ['CSS escape remote style block URL', cssEscapeBlock, ['style-block-css-escape', 'style-url-remote']],
+        ['CSS escape import', cssImportBlock, ['style-block-css-escape', 'style-import']],
+        ['relative import', '<style>@import "./local.css";</style>', ['style-import']],
+        ['empty import', '<style>@import "";</style>', ['style-import']],
         ['nested media remote URL', '<style>@media (min-width:1px){body{background:url(https://example.com/x.png)}}</style>', ['style-url-remote']],
         ['font face relative URL', '<style>@font-face{font-family:test;src:url(./font.woff2)}</style>', ['style-url-external']],
         ['keyframes remote URL', '<style>@keyframes pulse{from{background:url(https://example.com/x.png)}to{color:#123456}}</style>', ['style-url-remote']],
         ['unavailable style sheet', '<style type="text/plain">body{color:#123456}</style>', ['style-block-parse-error']],
+        ['escaped custom property block', escapedCustomPropertyBlock, ['style-block-css-escape']],
+        ['escaped custom property inline', '<div style="--bg:u\\72l(http://example.com/x.png);background:var(--bg)"></div>', ['style-css-escape', 'style-resource-remote']],
+        ['literal custom property URL', '<style>:root{--bg:url(https://example.com/x.png)}body{background:var(--bg)}</style>', ['style-url-remote']],
+        ['property registration', '<style>@property --bg{syntax:"<image>";inherits:false;initial-value:url(https://example.com/x.png)}</style>', ['style-property-rule']],
+        ['image set remote', '<style>body{background-image:image-set("https://example.com/x.png" 1x)}</style>', ['style-url-remote', 'style-resource-function']],
+        ['custom property protocol fallback', '<style>:root{--endpoint:"https://example.com/x"}</style>', ['style-resource-remote']],
         ['event handler', '<div onclick="alert(1)"></div>', ['event-handler:onclick']],
         ['object element', '<object data="/safe"></object>', ['legacy-object']],
         ['embed element', '<embed src="/safe">', ['legacy-embed']],
@@ -770,6 +826,8 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['style block fragment', '<style>body{filter:url(#shadow)}</style>'],
         ['style block color', '<style>body{color:#123456}</style>'],
         ['nested rule without URL', '<style>@media (min-width:1px){body{color:#123456}}</style>'],
+        ['custom property colors and dimensions', '<style>:root{--color:#fff;--space:8px}body{color:var(--color);margin:var(--space)}</style>'],
+        ['inline custom property color', '<div style="--color:#fff;color:var(--color)"></div>'],
         ['relative URL attributes', '<img src="/safe.png" srcset="/safe.png 1x"><video poster="/safe.png"></video>']
       ];
 
