@@ -193,6 +193,64 @@ test('ignores local secrets and generated files while keeping the environment te
   ]) assert.ok(rules.includes(rule), `missing .gitignore rule: ${rule}`)
 })
 
+test('documents the learning path and exposes every Make target command', async () => {
+  const readme = await read('README.md')
+
+  for (const target of [
+    'make setup',
+    'make dev-infra',
+    'make dev',
+    'make check',
+    'make compose-up',
+    'make compose-smoke',
+    'make compose-down',
+  ]) assert.ok(readme.includes(target), `README must document ${target}`)
+
+  for (const command of [
+    'corepack pnpm install --frozen-lockfile',
+    'cd apps/api && uv sync --frozen',
+    'docker compose --env-file .env up -d postgres',
+    'corepack pnpm --filter @company/web dev',
+    'corepack pnpm --filter @company/admin dev',
+    'uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000',
+    'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
+    'docker compose --env-file .env up --build -d',
+    './scripts/compose-smoke.sh',
+    'docker compose --env-file .env down',
+  ]) assert.ok(readme.includes(command), `README must expose underlying command: ${command}`)
+
+  for (const heading of ['工程骨架', '混合开发', '完整 Compose', '五个服务', '当前不包含']) {
+    assert.ok(readme.includes(heading), `README must explain ${heading}`)
+  }
+  for (const path of ['apps/web', 'apps/admin', 'apps/api', 'infra/nginx', 'compose.yaml']) {
+    assert.ok(readme.includes(path), `README must navigate to ${path}`)
+  }
+  for (const command of ['node --version', 'corepack pnpm --version', 'uv --version', 'python3 --version', 'docker --version', 'docker compose version']) {
+    assert.ok(readme.includes(command), `README must show version check: ${command}`)
+  }
+  assert.match(readme, /\.env\.example[^\n]*(?:本地|开发)[^\n]*(?:弱凭据|弱密码)/)
+  assert.match(readme, /真实环境[^\n]*(?:不得|不要)[^\n]*复用/)
+})
+
+test('provides the final Make interface without coupling checks to Compose', async () => {
+  const makefile = await read('Makefile')
+
+  assert.match(makefile, /^\.PHONY:.*\bsetup\b.*\bdev-infra\b.*\bdev\b.*\bcheck\b.*\bcompose-up\b.*\bcompose-smoke\b.*\bcompose-down\b/m)
+  for (const target of ['setup', 'dev-infra', 'dev', 'check', 'compose-up', 'compose-smoke', 'compose-down', 'dev-web', 'dev-admin', 'dev-api']) {
+    assert.match(makefile, new RegExp(`^${target}:`, 'm'), `Makefile must provide ${target}`)
+  }
+  assert.match(makefile, /\$\(MAKE\)\s+-j3\s+dev-web\s+dev-admin\s+dev-api/)
+  assert.match(makefile, /(?:uv|\$\(UV\)) run --env-file \.\.\/\.\.\/\.env uvicorn --factory company_api\.main:create_app --reload --host 0\.0\.0\.0 --port 8000/)
+  assert.match(makefile, /docker compose --env-file \.env up --build -d/)
+  assert.match(makefile, /docker compose --env-file \.env down/)
+  assert.doesNotMatch(makefile, /docker compose[^\n]*down[^\n]*\s-v(?:\s|$)/)
+
+  const checkRecipe = makefile.match(/^check:[^\n]*\n((?:\t[^\n]*\n)+)/m)?.[1]
+  assert.ok(checkRecipe, 'Makefile must provide a check recipe')
+  assert.doesNotMatch(checkRecipe, /docker|compose/i)
+  assert.match(checkRecipe, /tests\/docs\.test\.mjs tests\/prototype\.test\.mjs tests\/scaffold\.test\.mjs/)
+})
+
 test('keeps local and generated files out of Docker build contexts', async () => {
   const rules = (await read('.dockerignore')).split(/\r?\n/)
   for (const rule of [
