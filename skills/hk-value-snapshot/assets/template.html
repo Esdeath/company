@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>价值线企业快照版 — {{公司简称}} ({{代码}}.HK) · 只寻找事实，不寻求意见</title>
+<style>
+:root{
+  --ink:#111; --muted:#6b7280; --border:#e5e0d8; --bg:#f7f5f1; --card:#fff;
+  --eye:#b7791f; --eyebg:#fff8e8; --eyeline:#f0c869;
+  --skip:#c53030; --pass:#2f855a; --watch:#b7791f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+
+.head{background:#111;color:#fff;border-radius:10px;padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px}
+.head h1{font-size:1.35rem;letter-spacing:-0.5px}
+.head h1 small{font-weight:400;font-size:0.8rem;opacity:.65;margin-left:8px}
+.head .kv{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.head .kv div{text-align:center}
+.head .kv .l{font-size:0.66rem;opacity:.6}
+.head .kv .v{font-size:1.25rem;font-weight:700}
+.head .kv .s{font-size:0.62rem;opacity:.55}
+
+.verdict-bar{margin-top:14px;background:var(--eyebg);border:2px solid var(--eyeline);border-radius:10px;padding:14px 18px}
+.verdict-bar .vhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-bar .vhead h2{font-size:1rem;color:var(--eye)}
+/* 印章:通过=--pass绿色"进入第二轮";否决=--skip红色"翻 页"(border/color同步改) */
+.verdict-bar .stamp{margin-left:auto;border:3px solid var(--pass);color:var(--pass);font-weight:800;font-size:1rem;padding:2px 14px;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.verdict-bar p{font-size:0.86rem}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps a{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--eyeline);border-radius:16px;padding:4px 12px;font-size:0.76rem}
+.steps a b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.7rem}
+.steps a .r{font-weight:700}
+.r.pass{color:var(--pass)} .r.fail{color:var(--skip)} .r.watch{color:var(--watch)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px}
+.card-title{display:flex;align-items:baseline;gap:10px;font-size:1rem;font-weight:700;padding-bottom:8px;margin-bottom:6px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.card-title .q{font-size:0.78rem;font-weight:400;color:var(--muted)}
+.snapshot-card{border:3px solid var(--eye);box-shadow:0 4px 16px rgba(183,121,31,.12)}
+.snapshot-card>.card-title{border-bottom-color:var(--eye);color:var(--eye)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:0.74rem;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:3px 5px;text-align:center}
+th{background:#f3efe8;font-size:0.68rem;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
+th:first-child{background:#f3efe8}
+tr.hl td{background:var(--eyebg);font-weight:700}
+tr.hl td:first-child{border-left:4px solid var(--eye);background:var(--eyebg)}
+td.neg{color:var(--skip)}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.66rem;font-style:normal;margin-right:5px;vertical-align:1px}
+.note{margin-top:10px;background:var(--eyebg);border:1px dashed var(--eyeline);border-radius:8px;padding:10px 14px;font-size:0.82rem}
+.note b{color:var(--eye)}
+.note .badge{vertical-align:-3px}
+.tag{font-weight:800}
+.tag.pass{color:var(--pass)} .tag.fail{color:var(--skip)} .tag.watch{color:var(--watch)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0}
+@media(max-width:820px){.duo{grid-template-columns:1fr}.head .kv{margin-left:0}}
+
+.capital p{font-size:0.82rem;margin:3px 0}
+.biz{font-size:0.85rem}
+
+/* 五问表：允许换行 */
+table.qa{white-space:normal;table-layout:auto}
+table.qa th{text-align:center}
+table.qa td{white-space:normal;text-align:left;line-height:1.55;padding:6px 8px}
+table.qa th:first-child,table.qa td:first-child{width:28px;text-align:center;position:static}
+table.qa td:nth-child(2){min-width:130px;font-weight:600}
+table.qa td:nth-child(3){white-space:nowrap;text-align:center}
+
+.foot{margin-top:18px;font-size:0.7rem;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 头部:价格与估值事实。数据日期取行情时间戳,如实标注 -->
+  <div class="head">
+    <h1>{{公司中文名}} {{英文名}}<small>{{行情数据日期}}</small></h1>
+    <div class="kv">
+      <div><div class="l">近期股价</div><div class="v">HK${{现价}}</div><div class="s">52周区间 {{52周低}} – {{52周高}}</div></div>
+      <div><div class="l">市盈率 (TTM)</div><div class="v">{{PE_TTM}}</div><div class="s">历史曾 {{历史PE参照}}</div></div>
+      <div><div class="l">市净率</div><div class="v">{{PB}}</div><div class="s">历史曾 {{历史PB参照}}</div></div>
+      <div><div class="l">股息率</div><div class="v">{{股息率或"无"}}</div><div class="s">{{最新年度股息说明}}</div></div>
+      <div><div class="l">总市值</div><div class="v">HK${{市值亿港元}}亿</div><div class="s">≈{{市值亿人民币}}亿人民币</div></div>
+    </div>
+  </div>
+
+  <!-- 30秒结论:印章二选一(进入第二轮/翻页,同步改stamp配色) -->
+  <div class="verdict-bar">
+    <div class="vhead">
+      <h2>30 秒结论（先看这里，再往下核对证据）</h2>
+      <span class="stamp">{{进入第二轮 | 翻 页}}</span>
+    </div>
+    <p><b>{{进入渔场: | 未进渔场:}}</b>{{入口检验判词:距52周低/高百分比、PE/PB处自身历史什么位置}}</p>
+    <p style="margin-top:6px"><b>30 秒结论：</b>{{这家公司的具体结论:生意质地要点 + 主要疑点 + 本页回答不了的那个核心问题}}</p>
+    <div class="steps">
+      <a href="#m-snapshot"><b>1</b>长期记录 <span class="r {{pass|watch|fail}}">{{✓|△|✕}} {{四字判词}}</span></a>
+      <a href="#m-operating"><b>2</b>ROE与杠杆 <span class="r {{...}}">{{...}}</span></a>
+      <a href="#m-snapshot"><b>3</b>股本变化 <span class="r {{...}}">{{...}}</span></a>
+      <a href="#m-operating"><b>4</b>利润率 <span class="r {{...}}">{{...}}</span></a>
+      <a href="#m-snapshot"><b>5</b>估值锚 <span class="r {{...}}">{{...}}</span></a>
+    </div>
+  </div>
+
+  <!-- 商业模式 -->
+  <div class="card">
+    <div class="card-title">公司业务与商业模式<span class="q">先建立商业认知,快照才能在脑中呈现"商业特性"</span></div>
+    <p class="biz">{{公司业务描述:分部结构、商业模式本质、上市时间、创始人/CEO、当前战略要点。只写事实}}</p>
+    <div class="note"><b>读快照前先在脑中放一句话：</b>{{一句话商业模式:这是一门"__"的生意——上限由__决定,下限由__决定。带着"__"这个问题看下面每一行}}</div>
+  </div>
+
+  <!-- ★ 快照上半部:每股数据(上市后年份) -->
+  <div class="card snapshot-card" id="m-snapshot">
+    <div class="card-title">★ 企业快照 · 上半部（每股数据，人民币元{{;股息为港元}}）<span class="q">{{口径说明,如:上市后口径;上市前股本口径不可比,不列}}</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>指标</th>{{<th>各年份</th>}}</tr></thead>
+      <tbody>
+        <tr class="hl"><td><span class="badge">1</span>每股营收</td>{{...}}</tr>
+        <tr class="hl"><td><span class="badge">1</span>每股收益（基本）</td>{{负值/深蹲年份加 class="neg"}}</tr>
+        <tr><td>每股经营现金流</td>{{...}}</tr>
+        <tr><td>每股股息{{ HK$}}</td>{{无派息则整行 colspan 说明}}</tr>
+        <tr><td>每股净资产</td>{{...}}</tr>
+        <tr class="hl"><td><span class="badge">3</span>加权平均股本（亿股）</td>{{净利÷EPS推算;拐点年加neg}}</tr>
+        <tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）</td>{{...}}</tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b><span class="badge">1</span>长期记录 ——</b> {{判词:序列形状、深蹲年份及原因、记录长度}}<span class="tag {{pass|watch|fail}}">{{✓|△|✕}} {{一句定性}}</span></div>
+    <div class="note"><b><span class="badge">3</span>股本变化 ——</b> {{判词:缩/胀、回购/增发/配售证据、分红趋势}}<span class="tag {{...}}">{{...}}</span></div>
+    <div class="note"><b><span class="badge">5</span>估值锚 ——</b> {{判词:与自身历史比的位置 + 分母(当前利润)处于什么状态;若低PB/破净则改为拆资产包:市值买到什么、商誉占比、下行保护}}<span class="tag {{...}}">{{...}}</span></div>
+  </div>
+
+  <!-- ★ 快照下半部:经营数据(全部年份,含上市前;失真指标标"–") -->
+  <div class="card snapshot-card" id="m-operating">
+    <div class="card-title">★ 企业快照 · 下半部（年度经营数据，人民币）<span class="q">全部{{N}}年历史{{,含上市前}}</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>指标</th>{{<th>各年份</th>}}</tr></thead>
+      <tbody>
+        <tr><td>营业收入（亿元）</td>{{...}}</tr>
+        <tr><td>营收同比</td>{{负增长年加neg}}</tr>
+        <tr><td>归母净利润（亿元）{{(A)}}</td>{{...}}</tr>
+        <tr><td>净利润同比</td>{{...}}</tr>
+        <tr class="hl"><td><span class="badge">4</span>毛利率</td>{{...}}</tr>
+        <tr class="hl"><td><span class="badge">4</span>净利率</td>{{...}}</tr>
+        <tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）{{(A)}}</td>{{失真年标–}}</tr>
+        <tr class="hl"><td><span class="badge">2</span>投入资本回报率</td>{{...}}</tr>
+        <tr><td>资产负债率{{(A)}}</td>{{...}}</tr>
+        <tr><td>经营现金流（亿元）</td>{{...}}</tr>
+        <tr><td>存货周转天数</td>{{或其他有信息量的周转指标}}</tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b><span class="badge">2</span>ROE 与杠杆 ——</b> {{判词:ROE水平、负债结构、ROIC对照 → 真回报还是杠杆水分;卓越/合格/不合格}}<span class="tag {{...}}">{{...}}</span></div>
+    <div class="note"><b><span class="badge">4</span>利润率 ——</b> {{判词:平线/上行线/周期函数 + 净利率对费用的敏感度证据}}<span class="tag {{...}}">{{...}}</span></div>
+  </div>
+
+  <!-- 5秒心算:只用本页数据的四则运算 -->
+  <div class="card">
+    <div class="card-title">5 秒心算<span class="q">禁用计算器,不用"每股"概念——每个数字都取自本页</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td>市值(所有者视角)</td><td>HK${{现价}} × {{股本}}亿股 ≈ {{}}亿港元</td><td>≈ {{}}亿元人民币</td></tr>
+        <tr><td>息税前利润</td><td>{{推导口径,如:税前利润+利息 / 几乎无有息负债直接用税前}}</td><td>≈ {{}}亿元</td></tr>
+        <tr><td>你付的价格</td><td>EV = 市值 − 现金 = {{}},÷ EBIT</td><td>EV/EBIT ≈ {{}}×</td></tr>
+        <tr class="hl"><td>生意本身的回报</td><td>{{EBIT÷经营占用资本 或 披露ROIC}}</td><td>≈ {{}}%</td></tr>
+        <tr class="hl"><td>回报的历史区间</td><td>{{历年ROIC区间}}</td><td>{{}}</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b>心算的结论：</b>{{价格与质地是否匹配 + 算式的软肋(分母/分子在什么状态) + 市场价格隐含的判断是什么}}<span class="tag watch">{{点出分歧点该落在哪}}</span></div>
+  </div>
+
+  <div class="duo">
+    <div class="card">
+      <div class="card-title">资本结构与流动性（人民币）<span class="q">②的杠杆证据</span></div>
+      <div class="capital">
+        <p><b>已发行股本：</b>{{}}（每手{{}}股{{,同股不同权则注明}}）。</p>
+        <p><b>负债结构：</b>{{经营性/有息构成}}。</p>
+        <p><b>股息：</b>{{政策事实}}。</p>
+        <p><b>市值：</b>约 {{}} 亿港元。</p>
+      </div>
+      <div style="height:8px"></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>项目</th><th>{{近三年}}</th><th></th><th></th></tr></thead>
+        <tbody>
+          <tr><td>总资产（亿元）</td>{{...}}</tr>
+          <tr><td>总负债（亿元）</td>{{...}}</tr>
+          <tr class="hl"><td>资产负债率</td>{{...}}</tr>
+          <tr><td>流动比率</td>{{...}}</tr>
+          <tr class="hl"><td>期末现金（亿元）</td>{{...}}</tr>
+          <tr><td>归母净资产（亿元）</td>{{...}}</tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><b><span class="badge">2</span>怎么读：</b>{{资产负债表的方向性变化 + "流动性是安全带,不是护城河"式的定性}}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">年均变化率（{{上市后 XXXX→XXXX}}）<span class="q">①的量化版,由快照实际值直接计算</span></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>指标</th><th>{{N}}年复合</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td><span class="badge">1</span>营收</td><td>{{}}</td></tr>
+          <tr class="hl"><td><span class="badge">1</span>净利润</td><td>{{}}</td></tr>
+          <tr><td>每股营收</td><td>{{}}</td></tr>
+          <tr><td>每股净资产</td><td>{{}}</td></tr>
+          <tr><td>每股股息</td><td>{{}}</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><b><span class="badge">1</span>怎么读：</b>{{公司口径vs每股口径的落差含义 + 起点/终点落在什么年份对CAGR的系统性影响}}</div>
+    </div>
+  </div>
+
+  <!-- 五问 -->
+  <div class="card">
+    <div class="card-title">五问检查清单<span class="q">本页只能回答前两问;后三问从合上这页开始,自己去挣</span></div>
+    <table class="qa">
+      <thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>{{公司简称}}的答案 / 去处</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>价格是否便宜?</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td>{{带证据作答}}</td></tr>
+        <tr><td>2</td><td>这是不是一桩好生意?</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td>{{最强证据+最弱证据}}</td></tr>
+        <tr><td>3</td><td>管理层是否值得信任?<br>(须基于外部验证)</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>{{页面线索(加分/减分项) + 页面外该查什么}}</td></tr>
+        <tr><td>4</td><td>我还遗漏了什么?</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>{{这家公司特有的盲区清单}}</td></tr>
+        <tr><td>5</td><td>为什么这个机会被我发现?</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>{{错价理由:无人知晓/全市场分歧/不成立 + 你的优势必须来自哪}}</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>交接棒规则：</b>{{前两问结论 → 翻页或进入第二轮;第二轮的核心问题是什么、去哪找答案}}准确的信息、完整的信息——逆势重仓的底气只能来自这里。</div>
+  </div>
+
+  <div class="foot">
+    本页为按"企业快照"框架重排的极简筛选版,保留:价格、商业模式、快照(每股数据+经营数据)、资本结构与流动性、年均变化率;评级、预测、机构动向、季度数据、分析师观点等模块未采用。财报数据为人民币(来自东方财富港股F10公开接口,{{年份区间}}年报),股价{{与股息}}为港元,汇率按1人民币=1.09港元折算;心算与增长率均为实际披露数据的直接运算,无估算与预测。{{(A) 口径注释:上市前优先股会计、IPO当年加权股本等}}判词为方法论演示,不构成任何投资建议。
+  </div>
+
+</div>
+</body>
+</html>
