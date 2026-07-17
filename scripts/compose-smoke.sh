@@ -31,14 +31,24 @@ restore_postgres() {
 }
 trap restore_postgres EXIT
 
+request_http() {
+  local url=$1 request_timeout=$2
+  local connect_timeout=$request_timeout
+  (( connect_timeout > 3 )) && connect_timeout=3
+  HTTP_CODE=$(
+    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$url" || true
+  )
+}
+
 wait_for_http() {
   local url=$1 expected=$2 timeout=${3:-60}
   local deadline=$((SECONDS + timeout))
-  local code
+  local remaining
   while (( SECONDS < deadline )); do
-    code=$(curl --silent --show-error --output "$BODY_FILE" --write-out '%{http_code}' "$url" || true)
-    [[ "$code" == "$expected" ]] && return 0
-    sleep 1
+    remaining=$((deadline - SECONDS))
+    request_http "$url" "$remaining"
+    [[ "$HTTP_CODE" == "$expected" ]] && return 0
+    (( SECONDS < deadline )) && sleep 1
   done
   printf 'timed out waiting for %s to return %s (last response: %s)\n' "$url" "$expected" "$(cat "$BODY_FILE" 2>/dev/null || true)" >&2
   return 1
@@ -50,7 +60,7 @@ assert_body() {
 }
 
 assert_non_root_uid() {
-  local service=$1 uid container_id configured_user
+  local service=$1 uid container_id configured_user configured_identity
   if uid=$(compose exec -T "$service" id -u 2>/dev/null) && [[ "$uid" =~ ^[0-9]+$ ]]; then
     [[ "$uid" != "0" ]] || fail "$service runs as root"
     printf '%s runtime uid: %s\n' "$service" "$uid"
@@ -60,12 +70,14 @@ assert_non_root_uid() {
   container_id=$(compose ps -q "$service")
   [[ -n "$container_id" ]] || fail "cannot find $service container for UID inspection"
   configured_user=$(docker inspect --format '{{.Config.User}}' "$container_id")
-  [[ -n "$configured_user" && "$configured_user" != "0" && "$configured_user" != "root" ]] || fail "$service has no verifiable non-root user"
+  configured_identity=${configured_user%%:*}
+  [[ -n "$configured_identity" && "$configured_identity" != "0" && "$configured_identity" != "root" ]] || fail "$service has no verifiable non-root user"
   printf '%s configured runtime user: %s (id command unavailable)\n' "$service" "$configured_user"
 }
 
+running_services=$(compose ps --status running --services)
 for service in edge web admin api postgres; do
-  compose ps --status running --services | grep -Fxq "$service" || fail "$service is not running"
+  grep -Fx "$service" <<< "$running_services" >/dev/null || fail "$service is not running"
   [[ "$(compose ps "$service" --format '{{.Health}}')" == "healthy" ]] || fail "$service is not healthy"
 done
 
@@ -74,8 +86,8 @@ wait_for_http "$BASE_URL/healthz" 200 60 || fail 'edge health check failed'
 wait_for_http "$BASE_URL/" 200 60 || fail 'web route failed'
 grep -Fq '企业研究资料库' "$BODY_FILE" || fail 'web marker missing'
 
-redirect_code=$(curl --silent --output /dev/null --dump-header "$HEADERS_FILE" --write-out '%{http_code}' "$BASE_URL/admin")
-[[ "$redirect_code" == "308" ]] || fail "/admin returned $redirect_code instead of 308"
+wait_for_http "$BASE_URL/admin" 308 30 || fail '/admin redirect failed'
+[[ "$HTTP_CODE" == "308" ]] || fail "/admin returned $HTTP_CODE instead of 308"
 redirect_location=$(awk 'tolower($1) == "location:" { sub(/\r$/, "", $2); print $2 }' "$HEADERS_FILE")
 [[ "$redirect_location" == "/admin/" ]] || fail "/admin Location was $redirect_location"
 
@@ -89,8 +101,6 @@ while IFS= read -r asset_path; do
   [[ -n "$asset_path" ]] || continue
   wait_for_http "$BASE_URL$asset_path" 200 30 || fail "admin asset failed: $asset_path"
   [[ -s "$BODY_FILE" ]] || fail "admin asset was empty: $asset_path"
-  asset_code=$(curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --write-out '%{http_code}' "$BASE_URL$asset_path")
-  [[ "$asset_code" == "200" ]] || fail "admin asset returned $asset_code: $asset_path"
   content_type=$(awk 'tolower($1) == "content-type:" { sub(/\r$/, "", $2); print tolower($2) }' "$HEADERS_FILE")
   case "$asset_path" in
     *.js)
