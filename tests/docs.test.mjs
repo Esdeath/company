@@ -128,3 +128,25 @@ test('superseded current documents are removed', () => {
     assert.equal(existsSync(currentDocUrl(name)), false, `retired document remains: doc/${name}`);
   }
 });
+
+test('deployment targets Aliyun with persistent HTML content', () => {
+  const markdown = readCurrentDoc('DEPLOYMENT.md');
+  for (const phrase of ['Docker Compose', 'Nginx', '阿里云', 'www.ayaseeri.com', 'HTTPS', 'HTML 内容卷', '备份', '回滚']) {
+    assert.match(markdown, new RegExp(phrase));
+  }
+  assert.doesNotMatch(markdown, /Markdown 正文|恢复.*Markdown|content\/inbox/);
+  assert.match(markdown, /维护模式.+阻断并排空所有会修改索引或 HTML 内容卷的操作/s);
+  assert.match(markdown, /删除并重新创建空数据库/);
+  assert.equal(existsSync(currentDocUrl('DOCKER.md')), false, 'retired doc/DOCKER.md remains');
+});
+
+test('SEO indexes standalone published HTML instead of iframe contents', () => {
+  const markdown = readCurrentDoc('SEO.md');
+  assert.match(markdown, /iframe 外壳.+不能.+索引正文/s);
+  assert.match(markdown, /独立 HTML 发布地址/);
+  assert.match(markdown, /canonical/);
+  assert.match(markdown, /noindex/);
+  assert.match(markdown, /sitemap 只包含已发布的独立 HTML/);
+  assert.doesNotMatch(markdown, /sitemap[^。]+公开入口页/);
+  assert.doesNotMatch(markdown, /完整 Markdown 正文|Markdown 标记/);
+});

@@ -1,166 +1,112 @@
 # SEO 设计
 
-## 目标
+## 当前原型限制
 
-让公司快照详情页可被搜索引擎稳定抓取，同时不牺牲真实用户的阅读体验。公开页面由 Nuxt SSR 输出完整 HTML，不根据 User-Agent 返回两套内容。
+当前 `doc/prototype.html` 是交互原型：公开工作区用 iframe 展示本地快照样本。iframe 外壳可以说明产品、公司目录和阅读入口，但不能让搜索引擎把嵌入的快照文本可靠地当作外壳页面的可索引正文。原型也没有真实路由、发布状态、服务端元数据、sitemap 或撤回同步。
 
-## 页面策略
+生产目标因此不把 iframe 当作 SEO 正文载体。iframe 只用于隔离阅读和管理预览；每个通过校验并处于已发布状态的快照都必须另有稳定、可直接请求的独立页面。
 
-| 页面 | 索引策略 | 说明 |
+## 可索引页面
+
+| 页面 | 目标策略 | 说明 |
 |---|---|---|
-| `/` | `index,follow` | 产品入口和最新快照 |
-| `/search` | 默认 `noindex,follow` | 查询组合多，避免低价值重复页 |
-| `/snapshots/:market/:ticker` | `index,follow` | 公司最新快照规范页 |
-| `/snapshots/:market/:ticker/:date` | `index,follow` | 有独立研究价值的历史版本 |
-| `/admin/*` | `noindex,nofollow` | 管理页面 |
-| `/api/*` | 不生成 HTML | API |
+| `/` | `index,follow` | 产品与公开目录入口，只索引外壳自身可见说明 |
+| 独立历史 HTML | `index,follow` | 某公司某数据截止日的稳定发布物 |
+| 最新公司捷径 | 跳转或显式 canonical | 解析到当前最新已发布版本 |
+| 搜索结果和带查询参数页面 | 默认 `noindex,follow` | 避免大量重复组合 |
+| iframe 工作区外壳 | `noindex,follow` 或 canonical 到独立页面 | 不声称包含可索引快照正文 |
+| 草稿、撤回、无效内容 | `noindex,nofollow` 且不公开 | 公开请求返回 404 或 410 |
+| `/admin/*`、受控预览 | `noindex,nofollow` | 同时要求认证和 `no-store` |
+| `/api/*` | robots 阻止抓取 | API 不是搜索落地页 |
 
-## 页面元数据
+只有已发布内容可以出现在公开索引、站内目录和 sitemap。robots 或 `noindex` 不能替代认证与状态检查。
 
-### 首页
+## 独立 HTML 发布地址
 
-```text
-title: 企业快照库｜A股与港股财务快照
-description: 基于公开财报与行情整理的 A 股、港股企业价值快照，用于快速筛选和长期研究。
-canonical: https://www.ayaseeri.com/
-```
-
-### 最新快照
+每条已发布快照获得稳定的独立 HTML 发布地址：
 
 ```text
-title: 腾讯控股（00700）企业价值快照｜数据截至 2025-12-31
-description: {summary}
-canonical: https://www.ayaseeri.com/snapshots/HK/00700
+https://www.ayaseeri.com/snapshots/{market}/{ticker}/{data_as_of}.html
 ```
 
-### 历史版本
+例如：
+
+```text
+https://www.ayaseeri.com/snapshots/HK/00700/2025-12-31.html
+```
+
+该地址直接返回经验证的 HTML 发布物和真实 HTTP 状态，不要求先执行客户端脚本，也不依赖 iframe 才能读到内容。历史地址发布后保持稳定；撤回后从公开目录移除并返回 404 或按保留政策返回 410。
+
+最新公司路由 `/snapshots/{market}/{ticker}` 是便利入口。它应 302/307 到当前最新独立 HTML；若产品决定直接返回内容，也必须把 canonical 指向当前版本的独立 HTML。市场和代码先规范化，非规范地址再跳转。
+
+## 工作区与 canonical
+
+- 根域 `ayaseeri.com` 301 到 `www.ayaseeri.com`。
+- 每个历史独立 HTML 的 canonical 指向自身，且不含查询参数。
+- 最新公司路由的 canonical 指向当时最新的独立 HTML；最新版本变化时同步更新。
+- iframe 工作区若只包装某条快照，设置 `noindex` 并把 canonical 指向被展示的独立 HTML，不能把外壳声明为正文规范页。
+- `CN`、`HK` 使用大写规范值；港股代码补足五位，A 股代码补足六位；其他拼写 301 到规范地址。
+- 分页、搜索、筛选、预览 token、游标与跟踪参数不进入 canonical。
+
+canonical 是去重提示，不是访问控制。撤回、草稿和无效记录不能仅靠 canonical 隐藏。
+
+## 元数据
+
+title、description、公司名、市场、证券代码、数据截止日、发布时间、来源摘要和 canonical 来自已通过校验的 HTML/index metadata。发布流程验证这些字段与文件哈希、记录版本一致；不从另一种源文件格式临时解析，也不自动生成原文没有的投资判断。
+
+独立页面示例：
 
 ```text
 title: 腾讯控股（00700）企业价值快照｜2025-12-31
-canonical: https://www.ayaseeri.com/snapshots/HK/00700/2025-12-31
+description: {经过长度与内容校验的摘要}
+canonical: https://www.ayaseeri.com/snapshots/HK/00700/2025-12-31.html
+robots: index,follow
 ```
 
-description 移除 Markdown 标记并限制在约 120 个中文字符。不得自动添加“值得买入”等原文不存在的判断。
+页面显示数据截止日和生成/发布时间，避免把历史财务数据理解为实时行情。不存在或未发布的记录返回真实 404，不能用 `200` 错误页面伪装。
 
-## Canonical 和重定向
+## Open Graph 与结构化数据
 
-- 根域 `ayaseeri.com` 301 到 `www.ayaseeri.com`。
-- 市场使用大写规范值 `CN`、`HK`。
-- 港股代码补足五位，A 股补足六位。
-- 非规范 URL 301 到规范 URL。
-- 不带日期的公司页 canonical 指向自身，不指向当前日期 URL。
-- 历史版本 canonical 指向自身。
-- 查询参数不进入 canonical。
+所有可索引独立 HTML 输出一致的 Open Graph 与 Twitter Card 字段：`og:type=article`、`og:title`、`og:description`、`og:url`、`og:site_name` 和有效分享图。首页使用 `og:type=website`。
 
-## Open Graph
+快照页可以输出 `Article` JSON-LD，包括 `headline`、`datePublished`、`dateModified`、公司 `about`、可靠来源和等于 canonical 的 `mainEntityOfPage`。未确定作者、发布主体或 logo 时不编造字段，也不使用暗示实时证券报价的类型。
 
-所有可索引页面输出：
+结构化数据必须与用户看到的独立 HTML、索引元数据和发布状态一致。禁止按 User-Agent 返回不同正文，禁止 cloaking 或专供爬虫的页面。
 
-- `og:type=article` 用于快照页，首页使用 `website`。
-- `og:title`。
-- `og:description`。
-- `og:url`。
-- `og:site_name=企业快照库`。
-- 默认分享图；后续可以按公司生成，不作为 MVP 阻塞项。
+## Sitemap 与 robots
 
-同时输出 Twitter Card 的 summary large image 字段。
-
-## 结构化数据
-
-详情页使用 `Article`，不能使用暗示实时证券报价的类型：
-
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Article",
-  "headline": "腾讯控股（00700）企业价值快照",
-  "datePublished": "2026-07-16T10:30:00+08:00",
-  "dateModified": "2026-07-16T10:30:00+08:00",
-  "about": {
-    "@type": "Organization",
-    "name": "腾讯控股",
-    "identifier": "HKEX:00700"
-  },
-  "isBasedOn": ["https://example.com/annual-report"],
-  "mainEntityOfPage": "https://www.ayaseeri.com/snapshots/HK/00700/2025-12-31"
-}
-```
-
-如果作者和站点主体尚未确定，不输出虚假的 `author` 或 `publisher.logo`。
-
-## Sitemap
-
-提供 `/sitemap.xml`：
-
-- 包含首页。
-- 包含所有已发布的最新公司页。
-- 包含所有仍公开的历史版本。
-- 撤回后从 sitemap 删除。
-- `lastmod` 使用发布时间或最后一次公开内容变更时间，不使用每次请求时间。
-- 单个 sitemap 超过 50,000 URL 时拆分，MVP 暂不需要。
-
-Nuxt 通过公开 API 或构建时服务生成 sitemap，不直接读取数据库和磁盘。
-
-## robots.txt
+sitemap 只包含已发布的独立 HTML；`/sitemap.xml` 不包含首页、iframe 工作区、搜索参数页、管理员、API、草稿、预览、无效或撤回记录。发布成功后加入；撤回事务完成后立即移除。`lastmod` 使用真实发布时间或最后一次公开内容变更时间。
 
 ```text
 User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
+Disallow: /preview/
 Sitemap: https://www.ayaseeri.com/sitemap.xml
 ```
 
-robots.txt 不是权限控制。管理端和 API 仍必须正常认证。
+robots.txt 只是抓取提示。管理端、API、预览和检查器端点仍必须通过网络边界、认证和授权保护；敏感 URL 还要返回 `X-Robots-Tag: noindex, nofollow`。
 
-## 内容输出
+## 管理端、草稿与撤回
 
-- 首次 HTML 已包含公司名称、摘要、指标和完整 Markdown 正文。
-- 标题层级从一个 `h1` 开始，主章节使用 `h2`。
-- 来源链接保留可读名称。
-- 表格在 HTML 中有表头语义。
-- 图片后续启用时必须有 alt；MVP 不接收图片。
-- 页面包含数据截止日和生成时间，避免把历史数据误解为实时数据。
+- 管理端页面始终输出 `noindex,nofollow` 和 `Cache-Control: no-store`，并要求有效 Session。
+- 草稿和受控预览输出 `X-Robots-Tag: noindex, nofollow`，使用短时绑定 URL，不能出现在公开导航或 sitemap。
+- 静态校验失败、可信加载检查失败或元数据无效的记录不得发布，公开请求返回 404。
+- 撤回事务同时更新 PostgreSQL 状态、移出公开 HTML、使缓存失效并从 sitemap 删除；搜索引擎随后看到 404 或 410。
+- API 响应不是落地页，不进入搜索索引；公开 API 只暴露已发布记录。
 
-## 搜索页
+## 性能与发布检查
 
-搜索页默认 `noindex,follow`。以下参数不生成可索引落地页：
+独立 HTML 首次响应就包含用户可读内容、标题层级、表格语义、来源链接和必要元数据。目标 LCP 小于 2.5 秒、CLS 小于 0.1；带哈希静态资源长期缓存，HTML 使用可撤回的明确缓存策略。
 
-- 任意关键词 `q`。
-- 游标 `cursor`。
-- 排序 `sort`。
-- 市场筛选 `market`。
+每次发布至少自动或人工检查：
 
-如果未来市场分类页内容充足，可以新增 `/markets/cn` 和 `/markets/hk`，而不是开放查询参数索引。
-
-## 性能要求
-
-SEO 与性能共用目标：
-
-- 服务端尽量在 800 ms 内返回首字节。
-- LCP 目标小于 2.5 秒。
-- CLS 目标小于 0.1。
-- 首屏不依赖客户端请求才能看到正文。
-- 字体优先使用系统字体，避免阻塞下载。
-- 静态资源使用内容哈希和长期缓存。
-
-## 发布检查
-
-每次发布至少检查：
-
-1. 查看页面源代码，确认正文已 SSR。
-2. title、description、canonical 与页面版本一致。
-3. JSON-LD 可解析且不包含草稿数据。
-4. sitemap 只含已发布内容。
-5. 管理端带 `noindex`。
-6. 非规范代码和根域跳转使用 301。
-7. 404 页面返回真实 404 状态码。
-8. TLS 证书有效且覆盖根域和 www。
-
-## 内容边界
-
-网站是研究资料库，不宣称提供投资建议。页脚和快照详情显示简短声明：
-
-> 内容基于公开资料整理，仅供研究参考，不构成投资建议。财务数据以公司正式披露为准。
-
-声明不能替代准确引用和数据日期，也不能用于掩盖未经核实的内容。
+1. 独立 HTML 地址无需脚本和 iframe 即可返回内容，状态码与 `Content-Type` 正确。
+2. title、description、canonical、robots、Open Graph 与 JSON-LD 对应同一记录和版本。
+3. 最新路由解析到正确历史版本，历史 canonical 指向自身。
+4. sitemap 只含已发布独立 HTML，撤回记录已移除。
+5. 管理端、草稿、预览、无效内容和 API 不可索引且不可被公开缓存。
+6. 非规范域名、市场和代码按规则跳转；404/410 返回真实状态。
+7. 页面没有 User-Agent 特供内容或 cloaking。
+8. HTTPS 证书有效，移动端加载和核心性能指标符合目标。
