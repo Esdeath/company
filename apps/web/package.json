@@ -1,0 +1,28 @@
+{
+  "name": "@company/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 0.0.0.0 --port 3000",
+    "build": "nuxt build",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "4.4.8",
+    "vue": "3.5.40"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "1.16.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vue/test-utils": "2.4.11",
+    "eslint": "10.7.0",
+    "happy-dom": "20.10.6",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "vue-tsc": "3.3.7"
+  }
+}
