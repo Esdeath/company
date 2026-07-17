@@ -37,3 +37,37 @@ test('DEVELOPMENT describes one HTML publication mainline', () => {
   }
   assert.doesNotMatch(markdown, /上传 Markdown|扫描 `?content\/inbox|Markdown 是.+唯一事实来源/);
 });
+
+const retiredCurrentDocs = [
+  'PAGE_MAIN.md',
+  'PAGE_SEARCH.md',
+  'PAGE_SNAPSHOT.md',
+  'PAGE_ADMIN.md',
+  'API_DESIGN.md',
+  'DATABASE_DESIGN.md',
+  'MARKDOWN_SPEC.md'
+];
+
+test('product UI has one public and administrator interaction contract', () => {
+  const markdown = readCurrentDoc('PRODUCT_UI.md');
+  for (const phrase of ['公司目录', 'HTML 阅读', '移动端', '抽屉', '登录', '上传', '审核', '发布', '撤回', 'sandbox']) {
+    assert.match(markdown, new RegExp(phrase));
+  }
+  assert.doesNotMatch(markdown, /MarkdownPreview|上传 Markdown|Markdown 正文/);
+});
+
+test('backend contract indexes HTML without storing its body', () => {
+  const markdown = readCurrentDoc('BACKEND.md');
+  for (const phrase of ['FastAPI', 'PostgreSQL', 'SHA-256', '草稿', '已发布', '已撤回', '审计', 'OpenAPI']) {
+    assert.match(markdown, new RegExp(phrase));
+  }
+  assert.match(markdown, /不保存 HTML 正文/);
+  assert.match(markdown, /MD 不进入后端/);
+  assert.doesNotMatch(markdown, /上传 Markdown|scan-inbox|解析 Markdown/);
+});
+
+test('superseded current documents are removed', () => {
+  for (const name of retiredCurrentDocs) {
+    assert.equal(existsSync(currentDocUrl(name)), false, `retired document remains: doc/${name}`);
+  }
+});
