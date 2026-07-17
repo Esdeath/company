@@ -1,0 +1,47 @@
+[project]
+name = "company-api"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi==0.139.2",
+  "pydantic==2.13.4",
+  "pydantic-settings==2.14.2",
+  "psycopg[binary]==3.3.4",
+  "sqlalchemy==2.0.51",
+  "uvicorn[standard]==0.51.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.29,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<0.29",
+  "mypy==2.3.0",
+  "pytest==9.1.1",
+  "ruff==0.15.22",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+filterwarnings = [
+  'ignore:Using `httpx` with `starlette\.testclient` is deprecated; install `httpx2` instead\.:starlette.exceptions.StarletteDeprecationWarning:fastapi\.testclient',
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["company_api"]
+mypy_path = "src"
