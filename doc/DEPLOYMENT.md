@@ -220,7 +220,7 @@ export BACKUP_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 docker compose -f compose.yaml -f compose.prod.yaml exec -T api \
   company-api maintenance enable --wait
 docker compose -f compose.yaml -f compose.prod.yaml exec -T postgres \
-  sh -c 'pg_dump --format=custom --dbname="$POSTGRES_DB"' \
+  sh -c 'pg_dump --format=custom --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
   > "/srv/company/backups/$BACKUP_ID.postgres.dump"
 tar -C /srv/company/data -czf "/srv/company/backups/$BACKUP_ID.html.tar.gz" html
 sha256sum "/srv/company/backups/$BACKUP_ID.postgres.dump" \
@@ -241,7 +241,7 @@ docker compose -f compose.yaml -f compose.prod.yaml exec -T postgres \
   sh -ceu 'dropdb --if-exists --force --username="$POSTGRES_USER" "$POSTGRES_DB"; \
     createdb --username="$POSTGRES_USER" --owner="$POSTGRES_USER" "$POSTGRES_DB"'
 docker compose -f compose.yaml -f compose.prod.yaml exec -T postgres \
-  sh -c 'pg_restore --exit-on-error --no-owner --dbname="$POSTGRES_DB"' \
+  sh -c 'pg_restore --exit-on-error --no-owner --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
   < "/srv/company/backups/$BACKUP_ID.postgres.dump"
 tar -C /srv/company/data -xzf "/srv/company/backups/$BACKUP_ID.html.tar.gz"
 docker compose -f compose.yaml -f compose.prod.yaml up -d api load-checker nginx
