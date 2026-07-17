@@ -11,6 +11,13 @@ const prototypePath = new URL('../doc/prototype.html', import.meta.url);
 const REMOTE_ATTRIBUTE_PATTERN = /\b(?:src|href|srcset|poster|action|formaction)\s*=\s*(?:"[^"]*(?:https?:)?\/\/[^"]*"|'[^']*(?:https?:)?\/\/[^']*'|[^\s>"']*(?:https?:)?\/\/[^\s>]+)/i;
 const REMOTE_CSS_URL_PATTERN = /url\(\s*["']?(?:https?:)?\/\//i;
 const REMOTE_IMPORT_PATTERN = /@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//i;
+const FORM_TAG_PATTERN = /<\s*form\b/i;
+const META_REFRESH_PATTERN = /<\s*meta\b[^>]*\bhttp-equiv\s*=\s*(?:"\s*refresh\s*"|'\s*refresh\s*'|refresh(?=[\s/>]))/i;
+const JAVASCRIPT_URL_PATTERN = /\b(?:href|src|action|formaction)\s*=\s*(?:["']\s*javascript\s*:|javascript\s*:)/i;
+const EVENT_ATTRIBUTE_PATTERN = /\bon[a-z][\w:-]*\s*=/i;
+const LEGACY_EMBED_PATTERN = /<\s*(?:object|embed|applet)\b/i;
+const TOP_NAVIGATION_TARGET_PATTERN = /\btarget\s*=\s*(?:"\s*_(?:top|parent)\s*"|'\s*_(?:top|parent)\s*'|_(?:top|parent)(?=[\s/>]))/i;
+const BASE_TAG_PATTERN = /<\s*base\b/i;
 
 const chromePath = [
   process.env.CHROME_PATH,
@@ -29,6 +36,21 @@ function readSnapshotAsset(htmlPath) {
 
 function readPrototype() {
   return readFileSync(prototypePath, 'utf8');
+}
+
+function assertSafeSnapshotHtml(html, label) {
+  assert.doesNotMatch(html, /<script\b/i, `${label} contains script`);
+  assert.doesNotMatch(html, /<iframe\b/i, `${label} contains iframe`);
+  assert.doesNotMatch(html, FORM_TAG_PATTERN, `${label} contains form`);
+  assert.doesNotMatch(html, META_REFRESH_PATTERN, `${label} contains meta refresh`);
+  assert.doesNotMatch(html, JAVASCRIPT_URL_PATTERN, `${label} contains javascript URL`);
+  assert.doesNotMatch(html, EVENT_ATTRIBUTE_PATTERN, `${label} contains event handler`);
+  assert.doesNotMatch(html, LEGACY_EMBED_PATTERN, `${label} contains object, embed, or applet`);
+  assert.doesNotMatch(html, TOP_NAVIGATION_TARGET_PATTERN, `${label} contains top-level navigation target`);
+  assert.doesNotMatch(html, BASE_TAG_PATTERN, `${label} contains base element`);
+  assert.doesNotMatch(html, REMOTE_ATTRIBUTE_PATTERN, `${label} contains remote asset`);
+  assert.doesNotMatch(html, REMOTE_CSS_URL_PATTERN, `${label} contains remote CSS URL`);
+  assert.doesNotMatch(html, REMOTE_IMPORT_PATTERN, `${label} contains remote import`);
 }
 
 function inlineScript(html) {
@@ -626,6 +648,40 @@ test('remote snapshot resource detection covers quoted and unquoted HTML and CSS
   ]) assert.match(css, REMOTE_IMPORT_PATTERN);
 });
 
+test('snapshot safety scan rejects every dangerous capability injected into a safe asset', () => {
+  const [safeSnapshot] = embeddedJson(readPrototype(), 'html-snapshot-manifest');
+  const safeHtml = readSnapshotAsset(safeSnapshot.htmlPath);
+  const dangerousFixtures = [
+    ['form element', '<form></form>', /contains form/],
+    ['meta refresh quoted', '<meta http-equiv="refresh" content="0;url=/admin">', /contains meta refresh/],
+    ['meta refresh unquoted', '<meta http-equiv=refresh content=0>', /contains meta refresh/],
+    ['javascript href quoted', '<a href="javascript:alert(1)">x</a>', /contains javascript URL/],
+    ['javascript href unquoted', '<a href=javascript:alert(1)>x</a>', /contains javascript URL/],
+    ['javascript src quoted', "<img src='javascript:alert(1)'>", /contains javascript URL/],
+    ['javascript src unquoted', '<img src=javascript:alert(1)>', /contains javascript URL/],
+    ['javascript action quoted', "<div action='javascript:alert(1)'></div>", /contains javascript URL/],
+    ['javascript action unquoted', '<div action=javascript:alert(1)></div>', /contains javascript URL/],
+    ['javascript formaction quoted', '<button formaction="javascript:alert(1)">x</button>', /contains javascript URL/],
+    ['javascript formaction unquoted', '<button formaction=javascript:alert(1)>x</button>', /contains javascript URL/],
+    ['event attribute quoted', '<div onclick="alert(1)">x</div>', /contains event handler/],
+    ['event attribute unquoted', '<img onerror=alert(1)>', /contains event handler/],
+    ['object element', '<object data="/file"></object>', /contains object, embed, or applet/],
+    ['embed element', '<embed src="/file">', /contains object, embed, or applet/],
+    ['applet element', '<applet></applet>', /contains object, embed, or applet/],
+    ['top target quoted', '<a target="_top" href="/">x</a>', /contains top-level navigation target/],
+    ['top target unquoted self-closing', '<a target=_top/>', /contains top-level navigation target/],
+    ['parent target quoted', "<a target='_parent' href='/'>x</a>", /contains top-level navigation target/],
+    ['parent target unquoted', '<a target=_parent href=/>x</a>', /contains top-level navigation target/],
+    ['base element', '<base href="/">', /contains base element/]
+  ];
+
+  for (const [label, fixture, expectedError] of dangerousFixtures) {
+    const mutatedHtml = safeHtml.replace('</body>', `${fixture}</body>`);
+    assert.notEqual(mutatedHtml, safeHtml, `${label} mutation was not applied`);
+    assert.throws(() => assertSafeSnapshotHtml(mutatedHtml, label), expectedError, label);
+  }
+});
+
 test('generated HTML snapshots are self-contained safe documents', () => {
   const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
   for (const snapshot of manifest) {
@@ -640,11 +696,7 @@ test('generated HTML snapshots are self-contained safe documents', () => {
     assert.ok(titleMatch[1].includes(snapshot.titleTicker), `${snapshot.fileName} title missing ticker`);
     assert.match(html, /<style>[\s\S]+<\/style>/i, `${snapshot.fileName} missing style`);
     assert.match(html, /<body>[\s\S]+<\/body>/i, `${snapshot.fileName} missing body`);
-    assert.doesNotMatch(html, /<script\b/i, `${snapshot.fileName} contains script`);
-    assert.doesNotMatch(html, /<iframe\b/i, `${snapshot.fileName} contains iframe`);
-    assert.doesNotMatch(html, REMOTE_ATTRIBUTE_PATTERN, `${snapshot.fileName} contains remote asset`);
-    assert.doesNotMatch(html, REMOTE_CSS_URL_PATTERN, `${snapshot.fileName} contains remote CSS URL`);
-    assert.doesNotMatch(html, REMOTE_IMPORT_PATTERN, `${snapshot.fileName} contains remote import`);
+    assertSafeSnapshotHtml(html, snapshot.fileName);
   }
 });
 

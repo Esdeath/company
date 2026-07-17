@@ -48,6 +48,48 @@ function assertSeoRobotsRules(robotsSection, indexableSection, privatePagesSecti
   assert.match(privatePagesSection, /静态校验失败、可信加载检查失败或元数据无效的记录不得发布，公开请求返回 404/);
 }
 
+function healthRoutes(markdown) {
+  return [...new Set(markdown.match(/\/api\/health\/(?:live|ready)/g) || [])].sort();
+}
+
+function assertInfrastructureHealthContract(backend, deployment) {
+  assert.deepEqual(healthRoutes(backend), ['/api/health/live', '/api/health/ready']);
+  assert.deepEqual(healthRoutes(deployment), healthRoutes(backend));
+  assert.match(backend, /除 `\/api\/health\/live` 与 `\/api\/health\/ready` 外，所有业务 API 都使用 `\/api\/v1` 前缀/);
+  assert.match(backend, /这两个基础设施端点是唯一不版本化例外，不要求管理员认证，只返回最小状态且不泄露内部信息/);
+  assert.match(deployment, /`\/api\/health\/live` 与 `\/api\/health\/ready` 是唯一不版本化的基础设施例外/);
+  assert.match(deployment, /不要求管理员认证，只返回最小状态且不泄露内部信息/);
+}
+
+function assertAuthoritativePublicationGate(productUi, backend) {
+  const reading = h2Section(productUi, 'HTML 阅读区');
+  const review = h2Section(productUi, '审核、预览与发布');
+  const managementApi = h2Section(backend, '管理 API');
+  const transaction = h2Section(backend, '发布与撤回事务');
+
+  assert.match(reading, /管理员浏览器本地 `HEAD` 与 iframe `load` 只控制本地预览的 loading\/error UI/);
+  assert.match(reading, /本地失败继续禁用发布按钮，并触发和显示本地错误状态；本地成功绝不能解锁发布/);
+  assert.match(review, /管理端触发可信 load-check 后只轮询权威结果，不提交或决定 `passed`/);
+  assert.match(review, /发布按钮与 publish API 必须等待当前 `record id`、`version`、`content_sha256`、`nonce` 对应的权威 checker 结果为 `passed`/);
+  assert.match(managementApi, /load-check 的 POST 只触发可信检查任务，不接受状态字段；GET 只供管理端轮询/);
+  assert.match(transaction, /发布 API[^。]+当前 `record id`、`version`、`content_sha256` 与 `nonce`[^。]+可信 load-check[^。]+`passed`/);
+  assert.doesNotMatch(productUi, /本地成功(?:可以|可|会|将)[^。；]*(?:解锁|启用|恢复)[^。；]*发布/);
+}
+
+function assertRateLimitAndQueueContract(backend) {
+  const section = h2Section(backend, '限流与任务队列');
+  assert.match(section, /登录按 IP：15 分钟最多 10 次/);
+  assert.match(section, /公开列表与详情按 IP：每分钟最多 120 次/);
+  assert.match(section, /上传与扫描合并按管理员：每分钟最多 20 次/);
+  assert.match(section, /load-check 触发按管理员：每分钟最多 6 次/);
+  assert.match(section, /每个快照最多 1 个 `queued` 或 `running` 任务/);
+  assert.match(section, /每个管理员最多 2 个 `queued` 或 `running` 任务/);
+  assert.match(section, /全局最多 4 个并发 headless Chromium/);
+  assert.match(section, /等待队列最多 100 个任务/);
+  assert.match(section, /重复触发返回现有 task id 或已保存的幂等结果，不重复排队或占用新容量；新任务超出限流或遇到队列已满时返回 429，并设置 `Retry-After`/);
+  assert.match(section, /单机内存计数只允许首版单进程部署；横向扩展必须改用共享限流存储与共享任务队列/);
+}
+
 test('README is the current documentation entry point', () => {
   const markdown = readCurrentDoc('README.md');
   assert.match(markdown, /^# 企业快照库文档/m);
@@ -70,6 +112,13 @@ test('DEVELOPMENT describes one HTML publication mainline', () => {
     assert.match(markdown, new RegExp(term));
   }
   assert.doesNotMatch(markdown, /上传 Markdown|扫描 `?content\/inbox|Markdown 是.+唯一事实来源/);
+});
+
+test('DEVELOPMENT document map uses clickable relative links', () => {
+  const map = h2Section(readCurrentDoc('DEVELOPMENT.md'), '文档地图');
+  for (const name of ['PRODUCT_UI.md', 'BACKEND.md', 'DEPLOYMENT.md', 'SEO.md']) {
+    assert.match(map, new RegExp(`\\[${name.replace('.', '\\.')}\\]\\(\\./${name.replace('.', '\\.')}\\)`));
+  }
 });
 
 const retiredCurrentDocs = [
@@ -157,6 +206,33 @@ test('backend assigns authoritative load-check to a trusted internal checker', (
   assert.doesNotMatch(markdown, /客户端调用[^。]+load-check[^。]+回报 `passed`/);
 });
 
+test('backend and deployment share the unversioned infrastructure health exception', () => {
+  const backend = readCurrentDoc('BACKEND.md');
+  const deployment = readCurrentDoc('DEPLOYMENT.md');
+  assertInfrastructureHealthContract(backend, deployment);
+
+  const mismatchedDeployment = deployment.replaceAll('/api/health/live', '/api/v1/health/live');
+  assert.notEqual(mismatchedDeployment, deployment, 'health-route mutation was not applied');
+  assert.throws(
+    () => assertInfrastructureHealthContract(backend, mismatchedDeployment),
+    /api\/health\/live|deep-equal/
+  );
+});
+
+test('product UI local preview cannot bypass the backend authoritative publication gate', () => {
+  const productUi = readCurrentDoc('PRODUCT_UI.md');
+  const backend = readCurrentDoc('BACKEND.md');
+  assertAuthoritativePublicationGate(productUi, backend);
+
+  const unsafeUi = productUi.replace('本地成功绝不能解锁发布', '本地成功可以解锁发布');
+  assert.notEqual(unsafeUi, productUi, 'local-success gate mutation was not applied');
+  assert.throws(() => assertAuthoritativePublicationGate(unsafeUi, backend), /本地成功/);
+});
+
+test('backend defines concrete rate limits and bounded load-check queues', () => {
+  assertRateLimitAndQueueContract(readCurrentDoc('BACKEND.md'));
+});
+
 test('superseded current documents are removed', () => {
   for (const name of retiredCurrentDocs) {
     assert.equal(existsSync(currentDocUrl(name)), false, `retired document remains: doc/${name}`);
@@ -200,7 +276,9 @@ test('deployment targets Aliyun with persistent HTML content', () => {
   assert.match(content, /只有 FastAPI 能以读写方式挂载完整 HTML 内容卷/);
 
   const caching = h2Section(markdown, 'Nginx 路由与缓存');
-  assert.match(caching, /已发布的 HTML 响应[^。]+短期 `Cache-Control`[^。]+撤回时必须能及时失效/);
+  assert.match(caching, /独立、已发布的 HTML 响应[^。]+`Cache-Control: public, no-cache`[^。]+ETag[^。]+每次请求都必须重验证/);
+  assert.match(caching, /撤回事务完成后的下一次请求必须返回 404 或 410/);
+  assert.match(caching, /禁止以 `stale-if-error`[^。]+继续返回已撤回正文/);
   assert.match(caching, /`\/admin\/`、`\/api\/`[^。]+使用 `Cache-Control: no-store`，不得进入共享公开缓存/);
 
   const backup = h2Section(markdown, '备份与恢复');

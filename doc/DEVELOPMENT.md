@@ -31,10 +31,10 @@ Skill → HTML 安全与元数据校验 → 草稿 → 人工审核 → 发布 �
 
 ## 文档地图
 
-- `PRODUCT_UI.md`：公开端和管理端交互。
-- `BACKEND.md`：API、索引、状态、校验和审计。
-- `DEPLOYMENT.md`：Docker、Nginx、阿里云、备份和回滚。
-- `SEO.md`：独立 HTML 地址的索引策略。
+- [PRODUCT_UI.md](./PRODUCT_UI.md)：公开端和管理端交互。
+- [BACKEND.md](./BACKEND.md)：API、索引、状态、校验和审计。
+- [DEPLOYMENT.md](./DEPLOYMENT.md)：Docker、Nginx、阿里云、备份和回滚。
+- [SEO.md](./SEO.md)：独立 HTML 地址的索引策略。
 
 ## 开发约定
 

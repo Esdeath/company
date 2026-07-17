@@ -29,7 +29,7 @@ internal only
 | `nginx` | 80、443 | `/healthz` | 证书只读、已发布 HTML 只读、日志 |
 | `web` | 无 | `/healthz` | 无 |
 | `admin` | 无 | 静态入口 | 无 |
-| `api` | 无 | `/api/health/ready` | HTML 内容卷读写 |
+| `api` | 无 | `/api/health/live`、`/api/health/ready` | HTML 内容卷读写 |
 | `load-checker` | 无 | 内部任务探针 | 不直接写内容 |
 | `postgres` | 无 | `pg_isready` | 数据卷 |
 
@@ -133,7 +133,7 @@ Compose 定义两个网络：
 
 Nginx 将根域 301 到 `https://www.ayaseeri.com`，传递 `Host`、`X-Forwarded-For`、`X-Forwarded-Proto` 和请求 ID，并限制上传大小与超时。
 
-- 独立、已发布的 HTML 响应设置明确的 `Content-Type: text/html; charset=utf-8`、ETag 和经过发布验证的短期 `Cache-Control`；撤回时必须能及时失效。
+- 独立、已发布的 HTML 响应设置明确的 `Content-Type: text/html; charset=utf-8`、`Cache-Control: public, no-cache` 与 ETag；共享缓存可以保存响应，但每次请求都必须重验证。撤回事务完成后的下一次请求必须返回 404 或 410，禁止以 `stale-if-error` 或其他过期回退继续返回已撤回正文。
 - 带内容哈希的前端静态资源可使用一年缓存和 `immutable`。
 - `/admin/`、`/api/`、登录、草稿、预览和检查响应使用 `Cache-Control: no-store`，不得进入共享公开缓存。
 - 受控预览附带 `X-Robots-Tag: noindex, nofollow`，且不能通过 Nginx 公网路由绕过认证。
@@ -251,7 +251,7 @@ docker compose -f compose.yaml -f compose.prod.yaml up -d api load-checker nginx
 
 ## 健康检查、日志与告警
 
-- Nginx `/healthz` 只证明入口存活；FastAPI readiness 还要检查数据库、HTML 根目录权限和内部检查任务队列。
+- `/api/health/live` 与 `/api/health/ready` 是唯一不版本化的基础设施例外；它们不要求管理员认证，只返回最小状态且不泄露内部信息。Nginx `/healthz` 只证明入口存活；FastAPI 在服务端计算 readiness 时还要检查数据库、HTML 根目录权限和内部检查任务队列，但公开响应只给出能否接收请求的最小结果。
 - load-checker 健康检查验证 worker 可接任务、Chromium 可启动和内部认证可用，但不暴露公网详情。
 - Docker 使用 `json-file` 或等价驱动的大小/文件数轮转；Nginx access/error 日志在宿主机轮转。
 - 应用结构化日志包含 `request_id`、任务 ID 和结果摘要，不记录 HTML 正文、密码、Cookie、Session、CSRF、内部令牌或私钥。
