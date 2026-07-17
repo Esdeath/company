@@ -53,6 +53,55 @@ function assertSafeSnapshotHtml(html, label) {
   assert.doesNotMatch(html, REMOTE_IMPORT_PATTERN, `${label} contains remote import`);
 }
 
+function collectSemanticSnapshotViolations(html) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const violations = [];
+  const urlAttributes = new Set(['href', 'src', 'srcset', 'poster', 'action', 'formaction']);
+  const add = (code) => {
+    if (!violations.includes(code)) violations.push(code);
+  };
+  const inspectUrl = (attributeName, value) => {
+    const candidates = attributeName === 'srcset'
+      ? value.split(',').map((candidate) => candidate.trim().split(/\s+/, 1)[0])
+      : [value];
+    for (const candidate of candidates) {
+      const normalized = candidate.trim().replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+      if (normalized.startsWith('javascript:')) add(`url-javascript:${attributeName}`);
+      else if (normalized.startsWith('vbscript:')) add(`url-vbscript:${attributeName}`);
+      else if (/^data:(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/javascript|application\/javascript)(?:[;,]|$)/.test(normalized)) {
+        add(`url-dangerous-data:${attributeName}`);
+      } else if (/^(?:https?:)?\/\//.test(normalized)) add(`url-remote:${attributeName}`);
+    }
+  };
+
+  for (const element of parsed.querySelectorAll('*')) {
+    const tagName = element.localName;
+    if (tagName === 'script') add('script-element');
+    if (tagName === 'iframe') add('iframe-element');
+    if (tagName === 'form') add('form-element');
+    if (tagName === 'object') add('legacy-object');
+    if (tagName === 'embed') add('legacy-embed');
+    if (tagName === 'applet') add('legacy-applet');
+    if (tagName === 'base') add('base-element');
+    if (tagName === 'meta' && element.getAttribute('http-equiv')?.trim().toLowerCase() === 'refresh') {
+      add('meta-refresh');
+    }
+    if (['_top', '_parent'].includes(element.getAttribute('target')?.trim().toLowerCase())) {
+      add('top-navigation-target');
+    }
+    for (const attribute of element.attributes) {
+      const attributeName = attribute.name.toLowerCase();
+      if (attributeName.startsWith('on')) add(`event-handler:${attributeName}`);
+      if (urlAttributes.has(attributeName)) inspectUrl(attributeName, attribute.value);
+    }
+  }
+  return violations;
+}
+
+async function semanticSnapshotViolations(browser, html) {
+  return browser.evaluate(`(${collectSemanticSnapshotViolations.toString()})(${JSON.stringify(html)})`);
+}
+
 function inlineScript(html) {
   const matches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   return matches.map((match) => match[1]).join('\n');
@@ -511,6 +560,74 @@ test('administrator publication and HTML validation execute as runtime state tra
       "Boolean(window.prototypeApp) && document.querySelectorAll('[data-action=\"select-company\"]').length === 2",
       'initial public company directory'
     );
+
+    await t.test('browser semantic scan rejects decoded dangerous HTML without false positives', async () => {
+      const entityBypass = '<a href="javascript&colon;alert(1)">x</a>';
+      assert.doesNotMatch(entityBypass, JAVASCRIPT_URL_PATTERN, 'raw regex unexpectedly caught the entity bypass');
+      const decodedHref = await browser.evaluate(`new DOMParser()
+        .parseFromString(${JSON.stringify(entityBypass)}, 'text/html')
+        .querySelector('a')
+        .getAttribute('href')`);
+      assert.equal(decodedHref, 'javascript:alert(1)');
+
+      const dangerousFixtures = [
+        ['script element', '<script>alert(1)</script>', ['script-element']],
+        ['iframe element', '<iframe src="/safe"></iframe>', ['iframe-element']],
+        ['form element', '<form></form>', ['form-element']],
+        ['meta refresh', '<meta http-equiv="refresh" content="0;url=/admin">', ['meta-refresh']],
+        ['encoded meta refresh', '<meta http-equiv="re&#x66;resh" content="0;url=/admin">', ['meta-refresh']],
+        ['encoded meta refresh without semicolon', '<meta http-equiv="re&#102resh" content="0;url=/admin">', ['meta-refresh']],
+        ['javascript href', '<a href="javascript:alert(1)">x</a>', ['url-javascript:href']],
+        ['javascript named entity', entityBypass, ['url-javascript:href']],
+        ['javascript hex entity', '<a href="java&#x73;cript:alert(1)">x</a>', ['url-javascript:href']],
+        ['javascript decimal entity', '<a href="&#106;avascript:alert(1)">x</a>', ['url-javascript:href']],
+        ['javascript decimal entity without semicolon', '<a href="&#106avascript:alert(1)">x</a>', ['url-javascript:href']],
+        ['vbscript href', '<a href="vbscript:msgbox(1)">x</a>', ['url-vbscript:href']],
+        ['dangerous data href', '<a href="data:text/html,<script>alert(1)</script>">x</a>', ['url-dangerous-data:href']],
+        ['encoded remote href', '<a href="h&#x74;tp://example.com/x">x</a>', ['url-remote:href']],
+        ['encoded remote href without semicolon', '<a href="h&#116tp://example.com/x">x</a>', ['url-remote:href']],
+        ['remote src', '<img src="https://example.com/x.png">', ['url-remote:src']],
+        ['remote srcset', '<img srcset="/safe.png 1x, https://example.com/x.png 2x">', ['url-remote:srcset']],
+        ['remote poster', '<video poster="//example.com/x.png"></video>', ['url-remote:poster']],
+        ['remote action', '<div action="http://example.com/save"></div>', ['url-remote:action']],
+        ['remote formaction', '<button formaction="//example.com/save">x</button>', ['url-remote:formaction']],
+        ['event handler', '<div onclick="alert(1)"></div>', ['event-handler:onclick']],
+        ['object element', '<object data="/safe"></object>', ['legacy-object']],
+        ['embed element', '<embed src="/safe">', ['legacy-embed']],
+        ['applet element', '<applet></applet>', ['legacy-applet']],
+        ['encoded top target', '<a target="&#95;top" href="/safe">x</a>', ['top-navigation-target']],
+        ['encoded parent target', '<a target=&#95;parent href=/safe>x</a>', ['top-navigation-target']],
+        ['encoded parent target without semicolon', '<a target=&#95parent href=/safe>x</a>', ['top-navigation-target']],
+        ['base element', '<base href="/safe">', ['base-element']]
+      ];
+
+      for (const [label, html, expectedCodes] of dangerousFixtures) {
+        assert.deepEqual(await semanticSnapshotViolations(browser, html), expectedCodes, label);
+      }
+
+      const harmlessFixtures = [
+        ['fragment href', '<a href="#section">x</a>'],
+        ['entity in text', '<p>javascript&colon;alert(1)</p>'],
+        ['entity in data attribute', '<div data-example="javascript&colon;alert(1)"></div>'],
+        ['viewport meta', '<meta name="viewport" content="width=device-width">'],
+        ['blank target', '<a target="_blank" href="/safe">x</a>'],
+        ['safe embedded image', '<img src="data:image/png;base64,iVBORw0KGgo=">'],
+        ['relative URL attributes', '<img src="/safe.png" srcset="/safe.png 1x"><video poster="/safe.png"></video>']
+      ];
+
+      for (const [label, html] of harmlessFixtures) {
+        assert.deepEqual(await semanticSnapshotViolations(browser, html), [], label);
+      }
+
+      const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
+      for (const snapshot of manifest) {
+        assert.deepEqual(
+          await semanticSnapshotViolations(browser, readSnapshotAsset(snapshot.htmlPath)),
+          [],
+          snapshot.fileName
+        );
+      }
+    });
 
     await t.test('withdrawing and republishing reconcile the public directory, selection, and iframe', async () => {
       await openAdminRecord(browser, 'published-maotai-html');
