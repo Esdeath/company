@@ -21,20 +21,20 @@ def settings() -> Settings:
     )
 
 
-def test_live_returns_ok_without_calling_failing_probe() -> None:
+def test_live_returns_live_without_calling_failing_probe() -> None:
     with TestClient(create_app(settings(), FailingProbe())) as client:
         response = client.get("/api/health/live")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "live"}
 
 
-def test_ready_returns_ok_when_probe_succeeds() -> None:
+def test_ready_returns_ready_when_probe_succeeds() -> None:
     with TestClient(create_app(settings(), SuccessfulProbe())) as client:
         response = client.get("/api/health/ready")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ready"}
 
 
 def test_ready_returns_safe_not_ready_response_when_probe_fails() -> None:

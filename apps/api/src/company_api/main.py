@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
-    status: Literal["ok", "not_ready"]
+    status: Literal["live", "ready", "not_ready"]
 
 
 def create_app(
@@ -49,7 +49,7 @@ def create_app(
 
     @app.get("/api/health/live", response_model=HealthResponse)
     async def live() -> HealthResponse:
-        return HealthResponse(status="ok")
+        return HealthResponse(status="live")
 
     @app.get("/api/health/ready", response_model=HealthResponse)
     async def ready(request: Request) -> HealthResponse | JSONResponse:
@@ -62,6 +62,6 @@ def create_app(
                 status_code=503,
                 content=HealthResponse(status="not_ready").model_dump(),
             )
-        return HealthResponse(status="ok")
+        return HealthResponse(status="ready")
 
     return app
