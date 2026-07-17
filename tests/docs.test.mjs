@@ -26,6 +26,26 @@ function h2Section(markdown, heading) {
   return markdown.slice(start, next === -1 ? markdown.length : next);
 }
 
+function assertRestoreUsesSameBackupId(backupSection) {
+  assert.match(
+    backupSection,
+    /pg_restore[^\n]+\n\s+< "\/srv\/company\/backups\/\$BACKUP_ID\.postgres\.dump"/
+  );
+  assert.match(
+    backupSection,
+    /tar -C \/srv\/company\/data -xzf "\/srv\/company\/backups\/\$BACKUP_ID\.html\.tar\.gz"/
+  );
+}
+
+function assertSeoRobotsRules(robotsSection, indexableSection, privatePagesSection) {
+  for (const path of ['/admin/', '/api/', '/preview/']) {
+    assert.match(robotsSection, new RegExp(`^Disallow: ${path.replaceAll('/', '\\/')}$`, 'm'));
+  }
+  assert.match(robotsSection, /robots\.txt 只是抓取提示/);
+  assert.match(indexableSection, /\| 草稿、撤回、无效内容 \| `noindex,nofollow` 且不公开 \| 公开请求返回 404 或 410 \|/);
+  assert.match(privatePagesSection, /静态校验失败、可信加载检查失败或元数据无效的记录不得发布，公开请求返回 404/);
+}
+
 test('README is the current documentation entry point', () => {
   const markdown = readCurrentDoc('README.md');
   assert.match(markdown, /^# 企业快照库文档/m);
@@ -190,6 +210,14 @@ test('deployment targets Aliyun with persistent HTML content', () => {
   assert.match(backup, /rm -rf \/srv\/company\/data\/html/);
   assert.match(backup, /dropdb[^\n]+--username="\$POSTGRES_USER"[^\n]+\n\s+createdb --username="\$POSTGRES_USER"/);
   assert.match(backup, /恢复后核对索引路径、文件 SHA-256、发布\/撤回状态和审计记录/);
+  assertRestoreUsesSameBackupId(backup);
+
+  const mismatchedRestore = backup.replace(
+    'tar -C /srv/company/data -xzf "/srv/company/backups/$BACKUP_ID.html.tar.gz"',
+    'tar -C /srv/company/data -xzf "/srv/company/backups/$RESTORE_ID.html.tar.gz"'
+  );
+  assert.notEqual(mismatchedRestore, backup, 'restore mutation was not applied');
+  assert.throws(() => assertRestoreUsesSameBackupId(mismatchedRestore), /BACKUP_ID/);
 
   assert.doesNotMatch(markdown, /Markdown 正文|恢复.*Markdown|content\/inbox/);
   assert.equal(existsSync(currentDocUrl('DOCKER.md')), false, 'retired doc/DOCKER.md remains');
@@ -234,11 +262,17 @@ test('SEO indexes standalone published HTML instead of iframe contents', () => {
   assert.match(sitemap, /撤回事务完成后立即移除/);
   assert.doesNotMatch(sitemap, /公开入口页/);
 
+  const indexable = h2Section(markdown, '可索引页面');
   const privatePages = h2Section(markdown, '管理端、草稿与撤回');
   assert.match(privatePages, /管理端页面始终输出 `noindex,nofollow`/);
   assert.match(privatePages, /草稿和受控预览输出 `X-Robots-Tag: noindex, nofollow`/);
   assert.match(privatePages, /撤回事务[^。]+从 sitemap 删除/);
   assert.match(privatePages, /API 响应不是落地页，不进入搜索索引/);
+  assertSeoRobotsRules(sitemap, indexable, privatePages);
+
+  const missingPreviewRule = sitemap.replace('Disallow: /preview/\n', '');
+  assert.notEqual(missingPreviewRule, sitemap, 'robots mutation was not applied');
+  assert.throws(() => assertSeoRobotsRules(missingPreviewRule, indexable, privatePages), /preview/);
 
   assert.doesNotMatch(markdown, /完整 Markdown 正文|Markdown 标记/);
 });
