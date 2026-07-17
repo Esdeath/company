@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>价值线企业快照版 — 贵州茅台 (600519.SH) · 只寻找事实，不寻求意见</title><style>
+:root{
+  --ink:#111; --muted:#6b7280; --border:#e5e0d8; --bg:#f7f5f1; --card:#fff;
+  --eye:#b7791f; --eyebg:#fff8e8; --eyeline:#f0c869;
+  --skip:#c53030; --pass:#2f855a; --watch:#b7791f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+
+.head{background:#111;color:#fff;border-radius:10px;padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px}
+.head h1{font-size:1.35rem;letter-spacing:-0.5px}
+.head h1 small{font-weight:400;font-size:0.8rem;opacity:.65;margin-left:8px}
+.head .kv{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.head .kv div{text-align:center}
+.head .kv .l{font-size:0.66rem;opacity:.6}
+.head .kv .v{font-size:1.25rem;font-weight:700}
+.head .kv .s{font-size:0.62rem;opacity:.55}
+
+.verdict-bar{margin-top:14px;background:var(--eyebg);border:2px solid var(--eyeline);border-radius:10px;padding:14px 18px}
+.verdict-bar .vhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-bar .vhead h2{font-size:1rem;color:var(--eye)}
+/* 印章:通过=--pass绿色"进入第二轮";否决=--skip红色"翻 页"(border/color同步改) */
+.verdict-bar .stamp{margin-left:auto;border:3px solid var(--pass);color:var(--pass);font-weight:800;font-size:1rem;padding:2px 14px;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.verdict-bar p{font-size:0.86rem}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps a{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--eyeline);border-radius:16px;padding:4px 12px;font-size:0.76rem}
+.steps a b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.7rem}
+.steps a .r{font-weight:700}
+.r.pass{color:var(--pass)} .r.fail{color:var(--skip)} .r.watch{color:var(--watch)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px}
+.card-title{display:flex;align-items:baseline;gap:10px;font-size:1rem;font-weight:700;padding-bottom:8px;margin-bottom:6px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.card-title .q{font-size:0.78rem;font-weight:400;color:var(--muted)}
+.snapshot-card{border:3px solid var(--eye);box-shadow:0 4px 16px rgba(183,121,31,.12)}
+.snapshot-card>.card-title{border-bottom-color:var(--eye);color:var(--eye)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:0.74rem;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:3px 5px;text-align:center}
+th{background:#f3efe8;font-size:0.68rem;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
+th:first-child{background:#f3efe8}
+tr.hl td{background:var(--eyebg);font-weight:700}
+tr.hl td:first-child{border-left:4px solid var(--eye);background:var(--eyebg)}
+td.neg{color:var(--skip)}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.66rem;font-style:normal;margin-right:5px;vertical-align:1px}
+.note{margin-top:10px;background:var(--eyebg);border:1px dashed var(--eyeline);border-radius:8px;padding:10px 14px;font-size:0.82rem}
+.note b{color:var(--eye)}
+.note .badge{vertical-align:-3px}
+.tag{font-weight:800}
+.tag.pass{color:var(--pass)} .tag.fail{color:var(--skip)} .tag.watch{color:var(--watch)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0}
+@media(max-width:820px){.duo{grid-template-columns:1fr}.head .kv{margin-left:0}}
+
+.capital p{font-size:0.82rem;margin:3px 0}
+.biz{font-size:0.85rem}
+
+/* 五问表：允许换行 */
+table.qa{white-space:normal;table-layout:auto}
+table.qa th{text-align:center}
+table.qa td{white-space:normal;text-align:left;line-height:1.55;padding:6px 8px}
+table.qa th:first-child,table.qa td:first-child{width:28px;text-align:center;position:static}
+table.qa td:nth-child(2){min-width:130px;font-weight:600}
+table.qa td:nth-child(3){white-space:nowrap;text-align:center}
+
+.foot{margin-top:18px;font-size:0.7rem;color:var(--muted);line-height:1.6}
+</style></head><body><div class="wrap">
+<div class="head"><h1>贵州茅台 <small>2026-07-15 12:05 行情</small></h1><div class="kv">
+<div><div class="l">近期股价</div><div class="v">¥1,244.97</div><div class="s">52周区间 1,093.39 – 1,336.37</div></div>
+<div><div class="l">市盈率 (TTM)</div><div class="v">18.82×</div><div class="s">年末静态 15.52–53.75×</div></div>
+<div><div class="l">市净率</div><div class="v">5.76×</div><div class="s">年末静态 4.05–15.56×</div></div>
+<div><div class="l">股息率</div><div class="v">4.2%</div><div class="s">2025年度合计 ¥51.98/股</div></div>
+<div><div class="l">总市值</div><div class="v">¥15,563.14亿</div><div class="s">A股人民币口径</div></div></div></div>
+<div class="verdict-bar"><div class="vhead"><h2>30 秒结论（先看这里，再往下核对证据）</h2><span class="stamp">进入第二轮</span></div>
+<p><b>未进渔场：</b>现价 ¥1,244.97，高于52周低点 13.9%、低于52周高点 6.8%；PE-TTM 18.82 倍，PB 5.76 倍。按 2014–2025 年年末收盘价/年报每股数据直接计算，静态PE区间为 15.52–53.75 倍、PB区间为 4.05–15.56 倍，当前PE在自身区间低位，PB在中低位。</p><p style="margin-top:6px"><b>30 秒结论：</b>贵州茅台的数字画像是高毛利、低负债、长期每股收益上行的品牌酒类生意：2025年毛利率 91.2%、ROE 32.5%、资产负债率 16.4%。不舒服的事实是2025年营收同比 -1.2%、归母净利润同比 -4.5%，经营现金流/归母净利润仅 0.75 倍；页面不能回答的是这次下滑是库存/渠道周期还是高端白酒需求的长期变化。</p>
+<div class="steps"><a href="#m-snapshot"><b>1</b>长期记录 <span class="r pass">✓ 记录向上但右端下蹲</span></a><a href="#m-operating"><b>2</b>ROE与杠杆 <span class="r watch">△ 高回报近年现金流打折</span></a><a href="#m-snapshot"><b>3</b>股本变化 <span class="r pass">✓ 长期稳定且略回购</span></a><a href="#m-operating"><b>4</b>利润率 <span class="r pass">✓ 高毛利平线</span></a><a href="#m-snapshot"><b>5</b>估值锚 <span class="r watch">△ 低位但分母承压</span></a></div></div>
+<div class="card"><div class="card-title">公司业务与商业模式<span class="q">先建立商业认知，快照才能在脑中呈现“商业特性”</span></div>
+<p class="biz">贵州茅台是上海证券交易所上市的白酒企业，核心产品为茅台酒及系列酒，收入主要来自酒类销售；公司同时通过直营与经销等渠道销售产品。白酒企业的收入确认、合同负债、库存与渠道价格需要结合年报附注和渠道信息观察，本页只保留公开财务摘要。</p>
+<div class="note"><b>读快照前先在脑中放一句话：</b>这是一门“品牌与稀缺性支撑高毛利、渠道与真实动销决定现金兑现”的生意——上限由长期提价/放量能力决定，下限由品牌、库存和终端需求决定。带着“2025年的下滑是周期还是需求中枢变化”这个问题看下面每一行。</div></div>
+<div class="card snapshot-card" id="m-snapshot"><div class="card-title">★ 企业快照 · 上半部（每股数据，人民币元）<span class="q">2001年上市后口径；2000年上市前只在下半部保留；2001年加权股本标*表示受IPO时点影响偏低</span></div><div class="scroll"><table><thead><tr><th>指标</th><th>2001</th><th>2002</th><th>2003</th><th>2004</th><th>2005</th><th>2006</th><th>2007</th><th>2008</th><th>2009</th><th>2010</th><th>2011</th><th>2012</th><th>2013</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr class="hl"><td><span class="badge">1</span>每股营收</td><td>7.84</td><td>6.69</td><td>7.94</td><td>7.67</td><td>8.33</td><td>5.21</td><td>7.67</td><td>8.74</td><td>10.25</td><td>11.22</td><td>17.72</td><td>25.49</td><td>27.20</td><td>25.65</td><td>26.62</td><td>31.97</td><td>48.62</td><td>61.45</td><td>70.73</td><td>78.00</td><td>87.14</td><td>101.55</td><td>119.85</td><td>138.62</td><td>137.23</td></tr><tr class="hl"><td><span class="badge">1</span>每股收益（基本）</td><td>1.59</td><td>1.37</td><td>1.94</td><td>2.09</td><td>2.37</td><td>1.64</td><td>3.00</td><td>4.03</td><td>4.57</td><td>4.87</td><td>8.44</td><td>12.82</td><td>13.25</td><td>12.22</td><td>12.34</td><td>13.31</td><td>21.56</td><td>28.02</td><td>32.80</td><td>37.17</td><td>41.76</td><td>49.93</td><td>59.49</td><td>68.64</td><td>65.66</td></tr><tr class=""><td>每股经营现金流</td><td>0.17</td><td>1.58</td><td>3.11</td><td>2.48</td><td>3.59</td><td>2.23</td><td>1.85</td><td>5.56</td><td>4.48</td><td>6.57</td><td>9.78</td><td>11.48</td><td>12.19</td><td>11.06</td><td>13.88</td><td>29.81</td><td>17.63</td><td>32.94</td><td>35.99</td><td>41.13</td><td>50.97</td><td>29.21</td><td>53.01</td><td>73.61</td><td>49.13</td></tr><tr class=""><td>每股股息（元）</td><td>0.60</td><td>0.20</td><td>0.30</td><td>0.50</td><td>0.30</td><td>0.70</td><td>0.84</td><td>1.16</td><td>1.19</td><td>2.30</td><td>4.00</td><td>6.42</td><td>4.37</td><td>4.37</td><td>6.17</td><td>6.79</td><td>11.00</td><td>14.54</td><td>17.02</td><td>19.29</td><td>21.68</td><td>25.91</td><td>30.88</td><td>51.55</td><td>51.98</td></tr><tr class=""><td>每股净资产</td><td>10.12</td><td>10.37</td><td>11.37</td><td>10.60</td><td>10.79</td><td>6.25</td><td>8.72</td><td>11.91</td><td>15.33</td><td>19.49</td><td>24.07</td><td>32.89</td><td>41.05</td><td>46.79</td><td>50.89</td><td>58.03</td><td>72.80</td><td>89.83</td><td>108.27</td><td>128.42</td><td>150.88</td><td>157.23</td><td>171.68</td><td>185.56</td><td>195.36</td></tr><tr class="hl"><td><span class="badge">3</span>加权平均股本（亿股）</td><td>2.06*</td><td>2.75</td><td>3.02</td><td>3.93</td><td>4.72</td><td>9.42</td><td>9.44</td><td>9.43</td><td>9.44</td><td>10.37</td><td>10.38</td><td>10.38</td><td>11.42</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.56</td><td>12.54</td></tr><tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）</td><td>26.8%</td><td>13.9%</td><td>18.6%</td><td>21.3%</td><td>24.0%</td><td>27.7%</td><td>39.3%</td><td>39.0%</td><td>33.5%</td><td>30.9%</td><td>40.4%</td><td>45.0%</td><td>39.4%</td><td>32.0%</td><td>26.2%</td><td>24.4%</td><td>33.0%</td><td>34.5%</td><td>33.1%</td><td>31.4%</td><td>29.9%</td><td>30.3%</td><td>34.2%</td><td>36.0%</td><td>32.5%</td></tr></tbody></table></div>
+<div class="note"><b><span class="badge">1</span>长期记录 ——</b> 2001–2024年基本每股收益从 1.59 元升至 68.64 元，2025年回落至 65.66 元；负增长年份集中在长期序列的少数拐点，最新一次是2025年（-4.5%）。记录仍接近上行线，但右端已出现深蹲，需回到年报分部与渠道数据核验。 <span class="tag pass">✓ 记录仍强，最新拐点需解释</span></div>
+<div class="note"><b><span class="badge">3</span>股本变化 ——</b> 按归母净利润÷基本EPS推算，加权股本从2001年的 2.06 亿股到2025年的 12.54 亿股，累计变化 507.2%；2014–2024年基本稳定，2025年回购后略降。分红从2001年的 ¥0.60 升至2025年 ¥51.98/股，2025分红率 79.2%。 <span class="tag pass">✓ 未见持续稀释</span></div>
+<div class="note"><b><span class="badge">5</span>估值锚 ——</b> 当前PE-TTM 18.82 倍，低于按年末价格/年报EPS计算的自身静态PE上沿 53.75 倍，接近区间下沿 15.52 倍；但当前分母包含2025年下滑后的利润，不能把低PE直接当作便宜，关键分歧是利润是否回到增长轨道。 <span class="tag watch">△ 便宜与否取决于分母</span></div></div>
+<div class="card snapshot-card" id="m-operating"><div class="card-title">★ 企业快照 · 下半部（年度经营数据，人民币）<span class="q">全部26年历史，含上市前2000年</span></div><div class="scroll"><table><thead><tr><th>指标</th><th>2000</th><th>2001</th><th>2002</th><th>2003</th><th>2004</th><th>2005</th><th>2006</th><th>2007</th><th>2008</th><th>2009</th><th>2010</th><th>2011</th><th>2012</th><th>2013</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr class=""><td>营业收入（亿元）</td><td>11.1</td><td>16.2</td><td>18.4</td><td>24.0</td><td>30.1</td><td>39.3</td><td>49.0</td><td>72.4</td><td>82.4</td><td>96.7</td><td>116.3</td><td>184.0</td><td>264.6</td><td>310.7</td><td>322.2</td><td>334.5</td><td>401.6</td><td>610.6</td><td>772.0</td><td>888.5</td><td>979.9</td><td>1,094.6</td><td>1,275.5</td><td>1,505.6</td><td>1,741.4</td><td>1,720.5</td></tr><tr class=""><td>营收同比</td><td>25.0%</td><td>45.2%</td><td>13.6%</td><td>30.6%</td><td>25.4%</td><td>30.6%</td><td>24.8%</td><td>47.6%</td><td>13.9%</td><td>17.3%</td><td>20.3%</td><td>58.2%</td><td>43.8%</td><td>17.4%</td><td>3.7%</td><td>3.8%</td><td>20.1%</td><td>52.1%</td><td>26.4%</td><td>15.1%</td><td>10.3%</td><td>11.7%</td><td>16.5%</td><td>18.0%</td><td>15.7%</td><td class="neg">-1.2%</td></tr><tr class=""><td>归母净利润（亿元）</td><td>2.5</td><td>3.3</td><td>3.8</td><td>5.9</td><td>8.2</td><td>11.2</td><td>15.4</td><td>28.3</td><td>38.0</td><td>43.1</td><td>50.5</td><td>87.6</td><td>133.1</td><td>151.4</td><td>153.5</td><td>155.0</td><td>167.2</td><td>270.8</td><td>352.0</td><td>412.1</td><td>467.0</td><td>524.6</td><td>627.2</td><td>747.3</td><td>862.3</td><td>823.2</td></tr><tr class=""><td>净利润同比</td><td>15.7%</td><td>31.5%</td><td>14.6%</td><td>56.0%</td><td>39.8%</td><td>36.3%</td><td>38.1%</td><td>83.2%</td><td>34.2%</td><td>13.5%</td><td>17.1%</td><td>73.5%</td><td>51.9%</td><td>13.7%</td><td>1.4%</td><td>1.0%</td><td>7.8%</td><td>62.0%</td><td>30.0%</td><td>17.1%</td><td>13.3%</td><td>12.3%</td><td>19.6%</td><td>19.2%</td><td>15.4%</td><td class="neg">-4.5%</td></tr><tr class="hl"><td><span class="badge">4</span>毛利率</td><td>82.3%</td><td>82.2%</td><td>81.4%</td><td>80.1%</td><td>82.2%</td><td>82.5%</td><td>84.0%</td><td>88.0%</td><td>90.3%</td><td>90.2%</td><td>90.9%</td><td>91.6%</td><td>92.3%</td><td>92.9%</td><td>92.6%</td><td>92.2%</td><td>91.2%</td><td>89.8%</td><td>91.1%</td><td>91.3%</td><td>91.4%</td><td>91.5%</td><td>91.9%</td><td>92.0%</td><td>91.9%</td><td>91.2%</td></tr><tr class="hl"><td><span class="badge">4</span>净利率</td><td>22.9%</td><td>21.2%</td><td>21.4%</td><td>25.4%</td><td>28.4%</td><td>29.7%</td><td>33.0%</td><td>41.0%</td><td>48.5%</td><td>47.1%</td><td>45.9%</td><td>50.3%</td><td>53.0%</td><td>51.6%</td><td>51.5%</td><td>50.4%</td><td>46.1%</td><td>49.8%</td><td>51.4%</td><td>51.5%</td><td>52.2%</td><td>52.5%</td><td>52.7%</td><td>52.5%</td><td>52.3%</td><td>50.5%</td></tr><tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）</td><td>68.9%</td><td>26.8%</td><td>13.9%</td><td>18.6%</td><td>21.3%</td><td>24.0%</td><td>27.7%</td><td>39.3%</td><td>39.0%</td><td>33.5%</td><td>30.9%</td><td>40.4%</td><td>45.0%</td><td>39.4%</td><td>32.0%</td><td>26.2%</td><td>24.4%</td><td>33.0%</td><td>34.5%</td><td>33.1%</td><td>31.4%</td><td>29.9%</td><td>30.3%</td><td>34.2%</td><td>36.0%</td><td>32.5%</td></tr><tr class="hl"><td><span class="badge">2</span>投入资本回报率</td><td>50.5%</td><td>20.5%</td><td>13.3%</td><td>18.5%</td><td>21.5%</td><td>24.1%</td><td>28.0%</td><td>40.1%</td><td>39.2%</td><td>33.6%</td><td>30.7%</td><td>40.2%</td><td>44.7%</td><td>37.7%</td><td>30.4%</td><td>24.9%</td><td>22.5%</td><td>30.0%</td><td>32.1%</td><td>31.2%</td><td>29.4%</td><td>27.3%</td><td>29.2%</td><td>33.3%</td><td>35.0%</td><td>31.4%</td></tr><tr class=""><td>资产负债率</td><td>65.0%</td><td>26.7%</td><td>26.9%</td><td>30.0%</td><td>33.8%</td><td>35.9%</td><td>35.6%</td><td>20.2%</td><td>27.0%</td><td>25.9%</td><td>27.5%</td><td>27.2%</td><td>21.2%</td><td>20.4%</td><td>16.0%</td><td>23.3%</td><td>32.8%</td><td>28.7%</td><td>26.5%</td><td>22.5%</td><td>21.4%</td><td>22.8%</td><td>19.5%</td><td>18.0%</td><td>19.0%</td><td>16.4%</td></tr><tr class=""><td>经营现金流（亿元）</td><td>4.4</td><td>0.4</td><td>4.3</td><td>9.4</td><td>9.8</td><td>16.9</td><td>21.1</td><td>17.4</td><td>52.5</td><td>42.2</td><td>62.0</td><td>101.5</td><td>119.2</td><td>126.6</td><td>126.3</td><td>174.4</td><td>374.5</td><td>221.5</td><td>413.9</td><td>452.1</td><td>516.7</td><td>640.3</td><td>367.0</td><td>665.9</td><td>924.6</td><td>615.2</td></tr><tr class=""><td>存货周转天数</td><td>856</td><td>813</td><td>985</td><td>864</td><td>979</td><td>931</td><td>879</td><td>885</td><td>1,220</td><td>1,383</td><td>1,670</td><td>1,481</td><td>1,484</td><td>1,764</td><td>2,064</td><td>2,340</td><td>2,039</td><td>1,293</td><td>1,257</td><td>1,182</td><td>1,195</td><td>1,248</td><td>1,288</td><td>1,293</td><td>1,316</td><td>1,399</td></tr></tbody></table></div>
+<div class="note"><b><span class="badge">2</span>ROE 与杠杆 ——</b> 2025年ROE 32.5%、披露ROIC 31.4%，资产负债率 16.4%；高回报没有明显依赖杠杆。长期净现比中位数约 1.12 倍，但2025年只有 0.75 倍，利润含金量由长期通过转为近年需追问。 <span class="tag watch">△ 结构优秀，现金兑现需跟踪</span></div>
+<div class="note"><b><span class="badge">4</span>利润率 ——</b> 毛利率长期维持在 80.12–92.90% 区间，2025年为 91.2%；净利率长期高位，2025年为 50.5%。更像平线型定价权，而不是靠负债或低价换量；但2025年净利率较2024年下降，费用与渠道去库存要查附注。 <span class="tag pass">✓ 高毛利平线</span></div></div>
+<div class="card"><div class="card-title">5 秒心算<span class="q">不用“每股”概念；每个数字都取自本页，衍生数由脚本计算</span></div><div class="scroll"><table><thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead><tbody>
+<tr><td>市值（所有者视角）</td><td>¥1,244.97 × 12.50亿股</td><td>≈ ¥15,563.14亿元</td></tr>
+<tr><td>息税前利润</td><td>2025年几乎无有息负债，以税前利润作EBIT近似</td><td>≈ ¥1,147.55亿元</td></tr>
+<tr><td>你付的价格</td><td>EV = ¥15,563.14亿 − 现金 ¥516.91亿</td><td>EV/EBIT ≈ 13.11×</td></tr>
+<tr class="hl"><td>生意本身的回报</td><td>EBIT ÷（归母净资产 − 现金）</td><td>≈ 59.5%</td></tr>
+<tr class="hl"><td>回报的历史区间</td><td>披露ROIC，2000–2025年</td><td>13.3%–50.5%</td></tr>
+</tbody></table></div><div class="note"><b>心算的结论：</b>市值约 ¥15,563.14 亿元，扣除2025年末货币资金 ¥516.91 亿元后EV约 ¥15,046.23 亿元；以2025年税前利润 ¥1,147.55 亿元作无重大有息负债下的EBIT近似，EV/EBIT约 13.11 倍。经营占用资本约 ¥1,929.47 亿元，EBIT/经营占用资本约 59.5%；披露ROIC历史区间为 13.3%–50.5%。<span class="tag watch">分歧落在2025年利润是否为周期低点</span></div></div>
+<div class="duo"><div class="card"><div class="card-title">资本结构与流动性（人民币）<span class="q">②的杠杆证据</span></div><div class="capital"><p><b>已发行股本：</b>12.50亿股（上海证券交易所，普通股）。</p><p><b>负债结构：</b>2025年资产负债率 16.4%；资产负债表中短期借款、长期借款和应付债券无重大余额，负债更多来自经营性项目。</p><p><b>股息：</b>2025年度现金股息合计 ¥51.98/股，含中期与年度分配。</p><p><b>市值：</b>约 ¥15,563.14亿元。</p></div><div style="height:8px"></div><div class="scroll"><table><thead><tr><th>指标</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr class=""><td>总资产（亿元）</td><td>2,727.0</td><td>2,989.4</td><td>3,038.3</td></tr><tr class=""><td>总负债（亿元）</td><td>490.4</td><td>569.3</td><td>498.8</td></tr><tr class="hl"><td>资产负债率</td><td>18.0%</td><td>19.0%</td><td>16.4%</td></tr><tr class=""><td>流动比率</td><td>4.62</td><td>4.45</td><td>5.09</td></tr><tr class="hl"><td>期末现金（亿元）</td><td>690.7</td><td>593.0</td><td>516.9</td></tr><tr class=""><td>归母净资产（亿元）</td><td>2,156.7</td><td>2,331.1</td><td>2,446.4</td></tr></tbody></table></div><div class="note"><b><span class="badge">2</span>怎么读：</b>2023–2025年负债率由 18.0% 升至 19.0% 后回落至 16.4%，现金仍高；流动性是安全带，不是护城河。经营性负债与合同负债的变化要结合渠道动销读。</div></div>
+<div class="card"><div class="card-title">年均变化率（2001→2025）<span class="q">①的量化版，由快照实际值直接计算</span></div><div class="scroll"><table><thead><tr><th>指标</th><th>2001→2025（24年复合）</th></tr></thead><tbody><tr class="hl"><td>营收</td><td>21.5%</td></tr><tr class="hl"><td>净利润</td><td>25.9%</td></tr><tr class=""><td>每股营收</td><td>12.7%</td></tr><tr class=""><td>每股净资产</td><td>13.1%</td></tr><tr class=""><td>每股股息</td><td>20.4%</td></tr></tbody></table></div><div class="note"><b><span class="badge">1</span>怎么读：</b>2001→2025公司口径营收复合增长 21.5%、净利润 25.9%，每股营收 12.7%；加权股本长期扩张后趋稳，因此公司口径与每股口径差距收窄。股息复合增长 20.4%，受低基数和2024–2025两次分红影响较大。</div></div></div>
+<div class="card"><div class="card-title">五问检查清单<span class="q">本页只能回答前两问；后三问从合上这页开始，自己去挣</span></div><table class="qa"><thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>贵州茅台的答案 / 去处</th></tr></thead><tbody><tr><td>1</td><td>价格是否便宜?</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td>当前不是52周新低，但PE-TTM处自身年末静态区间低位，PB处中低位；价格问题的答案是“有历史低位特征，但还要验证利润分母”，不是单看股价低点。</td></tr><tr><td>2</td><td>这是不是一桩好生意?</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td>是。长期高毛利（2025年91.2%）、高ROE（32.5%）、低负债（16.4%）是最强证据；2025年净现比0.75倍、营收和净利同比为负是最弱证据。</td></tr><tr><td>3</td><td>管理层是否值得信任?</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>页面外：对照股东回报承诺、回购与分红执行、渠道政策和公开表述；重点查年报、公告、股东会记录，核对“说的”与“做的”是否一致。</td></tr><tr><td>4</td><td>我还遗漏了什么?</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>页面外：产品与用户要查飞天/系列酒真实动销与体验、批价和库存；商业模式与行业要查高端白酒竞争格局、直营/经销渠道和终端数据；公告与财报细读要查分部、合同负债、存货、销售费用和非经常项；专项验证可做门店与渠道走访；长期现金流仍需使用者自己作10–20年判断。</td></tr><tr><td>5</td><td>为什么这个机会被我发现?</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td>更像“全市场分歧”而非无人知晓：2025年负增长、渠道价格与库存变化是公开事实，分歧在于周期性调整还是需求中枢下移。你的优势只能来自持续读年报、跟踪渠道和把现金流兑现情况与利润表对照，而不是信息不对称。</td></tr></tbody></table><div class="note"><b>交接棒规则：</b>前两问结论是“生意合格、估值需验证、入口未亮” → 进入第二轮功课；先去看渠道库存、终端动销、合同负债、分部数据和现金流，再判断2025年下滑的性质。准确的信息、完整的信息——逆势重仓的底气只能来自这里。</div></div>
+<div class="foot">本页为按“企业快照”框架重排的极简筛选版，保留价格、商业模式、快照（每股数据+经营数据）、资本结构与流动性、年均变化率；无评级、无预测、无目标价。财报数据为人民币，来自东方财富 A 股主要财务指标、资产负债表、利润表和分红明细公开接口，年报覆盖 2000–2025；行情来自腾讯证券行情接口，时间戳为 2026-07-15 12:05。当前PE-TTM使用2025年报、2025Q1与2026Q1归母净利润滚动计算，PB使用2026Q1每股净资产；EV与资本结构使用2025年报期末现金和归母净资产。心算、历史静态估值区间、CAGR、加权股本和分红率均为原始数据的直接运算，无估算与预测。A股股价与财报均为人民币，不适用港股模板的港币折算。判词为方法论演示，不构成任何投资建议。</div>
+</div></body></html>

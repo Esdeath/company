@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const docDirectory = new URL('../doc/', import.meta.url);
@@ -275,4 +277,55 @@ test('SEO indexes standalone published HTML instead of iframe contents', () => {
   assert.throws(() => assertSeoRobotsRules(missingPreviewRule, indexable, privatePages), /preview/);
 
   assert.doesNotMatch(markdown, /完整 Markdown 正文|Markdown 标记/);
+});
+
+const currentMarkdownDocs = [
+  'README.md',
+  'DEVELOPMENT.md',
+  'PRODUCT_UI.md',
+  'BACKEND.md',
+  'DEPLOYMENT.md',
+  'SEO.md'
+];
+
+test('published HTML and audit-only Markdown source pairs exist', () => {
+  for (const path of [
+    'snapshots/published/贵州茅台.html',
+    'snapshots/published/哔哩哔哩.html',
+    'snapshots/sources/贵州茅台.md',
+    'snapshots/sources/哔哩哔哩.md'
+  ]) assert.equal(existsSync(currentDocUrl(path)), true, `missing doc/${path}`);
+});
+
+test('current documents do not restore the retired Markdown runtime', () => {
+  const combined = currentMarkdownDocs.map(readCurrentDoc).join('\n');
+  assert.doesNotMatch(combined, /上传 Markdown|扫描 `?content\/inbox|Markdown 是.+唯一事实来源|网站.+解析 Markdown/s);
+  assert.match(combined, /HTML 是网站唯一发布物/);
+});
+
+test('relative Markdown links in current documents resolve', () => {
+  for (const name of currentMarkdownDocs) {
+    const source = readCurrentDoc(name);
+    const sourcePath = fileURLToPath(currentDocUrl(name));
+    for (const match of source.matchAll(/\[[^\]]+\]\((?!https?:|#)([^)#]+)(?:#[^)]+)?\)/g)) {
+      const target = decodeURIComponent(match[1]);
+      assert.equal(existsSync(resolve(dirname(sourcePath), target)), true, `broken link in doc/${name}: ${target}`);
+    }
+  }
+});
+
+test('doc root contains only current entry documents and the prototype', () => {
+  const rootFiles = readdirSync(docDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .sort();
+  assert.deepEqual(rootFiles, [
+    'BACKEND.md',
+    'DEPLOYMENT.md',
+    'DEVELOPMENT.md',
+    'PRODUCT_UI.md',
+    'README.md',
+    'SEO.md',
+    'prototype.html'
+  ]);
 });

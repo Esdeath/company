@@ -21,9 +21,9 @@ const chromePath = [
   '/usr/bin/chromium-browser'
 ].find((candidate) => candidate && existsSync(candidate));
 
-function readSnapshotAsset(fileName) {
-  const url = new URL(fileName, docDirectory);
-  assert.equal(existsSync(url), true, `missing ${fileName}`);
+function readSnapshotAsset(htmlPath) {
+  const url = new URL(htmlPath, docDirectory);
+  assert.equal(existsSync(url), true, `missing ${htmlPath}`);
   return readFileSync(url, 'utf8');
 }
 
@@ -59,11 +59,14 @@ function closeServer(server) {
 
 async function startPrototypeServer() {
   const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
-  const byPath = new Map(manifest.map((snapshot) => [`/doc/${snapshot.fileName}`, snapshot]));
+  const byPath = new Map(manifest.map((snapshot) => [
+    new URL(snapshot.htmlPath, 'http://localhost/doc/prototype.html').pathname,
+    snapshot
+  ]));
   const controls = new Map(manifest.map((snapshot) => [snapshot.id, { headStatus: 200, getStatus: 200, getDelayMs: 0 }]));
   const requests = [];
   const server = createServer((request, response) => {
-    const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    const pathname = new URL(request.url, 'http://localhost').pathname;
     if (pathname === '/doc/prototype.html') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(readPrototype());
@@ -80,7 +83,7 @@ async function startPrototypeServer() {
     requests.push({ method: request.method, snapshotId: snapshot.id, status });
     const send = () => {
       response.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(status === 200 && request.method !== 'HEAD' ? readSnapshotAsset(snapshot.fileName) : '');
+      response.end(status === 200 && request.method !== 'HEAD' ? readSnapshotAsset(snapshot.htmlPath) : '');
     };
     if (request.method === 'GET' && control.getDelayMs) setTimeout(send, control.getDelayMs);
     else send();
@@ -597,8 +600,10 @@ test('HTML snapshot manifest registers only generated public reports', () => {
   assert.deepEqual(manifest.map((item) => item.id), ['cn-600519-html', 'hk-09626-html']);
   assert.deepEqual(manifest.map((item) => item.companyName), ['贵州茅台', '哔哩哔哩']);
   assert.deepEqual(manifest.map((item) => item.status), ['published', 'published']);
-  assert.equal(manifest[0].htmlPath, './价值线_贵州茅台_企业快照版.html');
-  assert.equal(manifest[1].htmlPath, './价值线_哔哩哔哩_企业快照版.html');
+  assert.equal(manifest[0].htmlPath, './snapshots/published/贵州茅台.html');
+  assert.equal(manifest[0].fileName, '贵州茅台.html');
+  assert.equal(manifest[1].htmlPath, './snapshots/published/哔哩哔哩.html');
+  assert.equal(manifest[1].fileName, '哔哩哔哩.html');
 });
 
 test('remote snapshot resource detection covers quoted and unquoted HTML and CSS URLs', () => {
@@ -624,7 +629,7 @@ test('remote snapshot resource detection covers quoted and unquoted HTML and CSS
 test('generated HTML snapshots are self-contained safe documents', () => {
   const manifest = embeddedJson(readPrototype(), 'html-snapshot-manifest');
   for (const snapshot of manifest) {
-    const html = readSnapshotAsset(snapshot.fileName);
+    const html = readSnapshotAsset(snapshot.htmlPath);
     assert.match(html, /^<!doctype html>/i, `${snapshot.fileName} missing doctype`);
     assert.match(html, /<html[^>]+lang=["']zh-CN["']/i, `${snapshot.fileName} missing lang`);
     assert.match(html, /<meta[^>]+charset=["']?utf-8/i, `${snapshot.fileName} missing charset`);
