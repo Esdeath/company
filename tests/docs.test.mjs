@@ -66,6 +66,27 @@ test('backend contract indexes HTML without storing its body', () => {
   assert.doesNotMatch(markdown, /上传 Markdown|scan-inbox|解析 Markdown/);
 });
 
+test('backend defines the complete administrator authentication API', () => {
+  const markdown = readCurrentDoc('BACKEND.md');
+  for (const route of [
+    '/api/v1/auth/login',
+    '/api/v1/auth/me',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/change-password'
+  ]) {
+    assert.ok(markdown.includes(route), `missing authentication route: ${route}`);
+  }
+});
+
+test('backend orders static validation before browser load-check publication gate', () => {
+  const markdown = readCurrentDoc('BACKEND.md');
+  assert.match(markdown, /静态校验[\s\S]+受控预览 URL[\s\S]+html-checking[\s\S]+HEAD[\s\S]+iframe load[\s\S]+load-check[\s\S]+content_sha256[\s\S]+发布门禁/);
+  assert.ok(
+    markdown.includes('/api/v1/admin/snapshots/{id}/load-check'),
+    'missing administrator load-check route'
+  );
+});
+
 test('superseded current documents are removed', () => {
   for (const name of retiredCurrentDocs) {
     assert.equal(existsSync(currentDocUrl(name)), false, `retired document remains: doc/${name}`);
