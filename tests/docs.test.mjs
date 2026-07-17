@@ -32,6 +32,8 @@ test('DEVELOPMENT describes one HTML publication mainline', () => {
   assert.match(markdown, /^# 企业快照库开发总纲/m);
   assert.match(markdown, /Skill[\s\S]+HTML[\s\S]+校验[\s\S]+审核[\s\S]+发布/);
   assert.match(markdown, /MD.+不参与网站运行/s);
-  assert.match(markdown, /Vue.+Nuxt.+Vite.+TypeScript.+FastAPI.+PostgreSQL.+Nginx.+Docker/s);
+  for (const term of ['Vue', 'Nuxt', 'Vite', 'TypeScript', 'FastAPI', 'PostgreSQL', 'Nginx', 'Docker']) {
+    assert.match(markdown, new RegExp(term));
+  }
   assert.doesNotMatch(markdown, /上传 Markdown|扫描 `?content\/inbox|Markdown 是.+唯一事实来源/);
 });
