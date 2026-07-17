@@ -20,12 +20,15 @@ describe('资料管理后台工程骨架', () => {
     expect(wrapper.get('a[href="/"]').text()).toContain('返回公开端')
   })
 
-  it('不展示尚未实现的登录与上传控件', () => {
+  it('不展示尚未实现的控件或虚构业务内容', () => {
     const wrapper = mount(App)
+    const renderedText = wrapper.text()
 
-    expect(wrapper.find('input[type="text"]').exists()).toBe(false)
-    expect(wrapper.find('input[type="password"]').exists()).toBe(false)
-    expect(wrapper.find('input[type="file"]').exists()).toBe(false)
-    expect(wrapper.findAll('button').some((button) => button.text().includes('上传'))).toBe(false)
+    expect(wrapper.find('form, input, button, select, textarea').exists()).toBe(false)
+    expect(renderedText).not.toContain('用户名')
+    expect(renderedText).not.toContain('密码')
+    expect(renderedText).not.toContain('贵州茅台')
+    expect(renderedText).not.toContain('哔哩哔哩')
+    expect(renderedText).not.toContain('估值结论')
   })
 })

@@ -23,7 +23,7 @@ test('declares only the two JavaScript applications as workspace packages', asyn
 
 test('serves the admin application from its reserved path', async () => {
   const adminViteConfig = await read('apps/admin/vite.config.ts')
-  assert.match(adminViteConfig, /base:\s*['"]\/admin\/['"]/)
+  assert.match(adminViteConfig, /^(?!\s*\/\/)\s*base:\s*['"]\/admin\/['"]\s*,?\s*$/m)
 })
 
 test('publishes a safe local environment template', async () => {
