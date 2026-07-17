@@ -39,17 +39,17 @@ FastAPI 在导入、重新校验和发布前先执行静态校验。静态校验
 - 远程资源禁令，包括 HTML 属性中的 HTTP(S) 或协议相对 URL、CSS `url()` 和 `@import`。
 - 禁止 `script`、内嵌或嵌套 `iframe`、表单、提交动作、`meta refresh`、顶层导航和其他可执行导航能力。
 
-文件不可读、MIME 或大小不合规、结构或安全校验失败时，FastAPI 返回错误，不签发预览地址，也不让浏览器探测该文件。只有静态校验为 `clean` 的草稿才能取得管理员鉴权、带 `X-Robots-Tag: noindex, nofollow` 和 `Cache-Control: no-store` 的受控预览 URL。
+文件不可读、MIME 或大小不合规、结构或安全校验失败时，FastAPI 返回错误，不签发预览地址，也不让浏览器或检查器探测该文件。静态校验为 `clean` 后，FastAPI 创建绑定 `record id`、`version`、`content_sha256` 与随机 `nonce` 的受控预览 URL。该 URL 要求管理员鉴权或检查器内部凭据，并返回 `X-Robots-Tag: noindex, nofollow` 与 `Cache-Control: no-store`。
 
-浏览器加载门禁按以下顺序执行：
+权威加载门禁按以下顺序执行：
 
-1. 管理端取得受控预览 URL 后进入 `html-checking`，保持发布按钮禁用。
-2. 客户端先向该 URL 发同源 `HEAD`，成功后继续等待同一 URL 的 `iframe load`；两项缺一都不算通过。
-3. 客户端调用 `POST /api/v1/admin/snapshots/{id}/load-check` 回报 `passed` 或 `failed`。请求必须携带 FastAPI 签发的短期 token；token 绑定管理员、记录 ID、当前 `version` 和 `content_sha256`，并限定该接口使用。
-4. FastAPI 验证 token 后记录 load-check 结果及时间。文件、`version` 或 `content_sha256` 发生任何变化时，旧 token 和结果立即失效。
-5. 发布门禁同时要求静态校验为 `clean`，且 load-check 为 `passed` 并匹配当前 `version` 与 `content_sha256`。
+1. FastAPI 创建预览 URL 后触发内部任务，将记录状态设为 `html-checking`。
+2. 可信 load-checker 通过内部认证通道取得同一 URL，先执行实际 `HEAD`，再用 headless Chromium 在 sandboxed iframe 中加载该 URL，并等待 `load`、`error` 或 `timeout`。
+3. 只有可信 load-checker 能写权威 `passed` 或 `failed`。管理员客户端不得提交或决定 `passed`；它只能触发检查、单独显示本地预览状态，并轮询权威结果。
+4. FastAPI 保存检查器结果及完成时间。文件、`version`、`content_sha256` 或 `nonce` 发生任何变化时，结果立即失效；下一次检查必须生成新 nonce。
+5. 发布门禁同时要求静态校验为 `clean`，且当前版本、哈希和 nonce 对应的可信 load-check 为 `passed`。
 
-`HEAD`、iframe 或回报失败时，预览 UI 移除 iframe、显示错误并继续阻断发布。警告可以保留草稿，但发布请求必须携带明确确认。每次发布都重新计算 SHA-256，并核对导入时的哈希和版本。
+可信检查的 `HEAD`、iframe 加载或等待失败时，检查器写 `failed`。管理端轮询到失败后移除本地预览 iframe、显示错误并继续阻断发布。警告可以保留草稿，但发布请求必须携带明确确认。每次发布都重新计算 SHA-256，并核对导入时的哈希和版本。
 
 ## 状态机
 
@@ -76,7 +76,7 @@ draft（草稿） → published（已发布） → withdrawn（已撤回）
 PostgreSQL 保存内容元数据、相对路径、SHA-256、状态、乐观锁版本、管理员账号、会话和审计记录，但不保存 HTML 正文。核心表为：
 
 - `snapshot_index`：目标记录字段、`version`、校验计数、导入/更新/撤回时间。
-- `snapshot_index` 的门禁字段：静态校验状态、load-check 状态及其绑定的版本、哈希和完成时间。
+- `snapshot_index` 的门禁字段：静态校验状态、load-check 状态及其绑定的版本、哈希、nonce、检查任务和完成时间。
 - `admin_users`：规范化用户名、Argon2id 密码哈希和启用状态。
 - `admin_sessions`：Session 哈希、CSRF 哈希、过期与撤销时间。
 - `audit_logs`：操作者、目标、动作、请求标识、详情和时间。
@@ -94,14 +94,15 @@ POST /api/v1/auth/logout
 POST /api/v1/auth/change-password
 ```
 
-- Session ID 放入 `HttpOnly`、`Secure`、`SameSite=Lax` Cookie；数据库只保存哈希，不保存原文。
-- 登录接口验证凭据和限流后创建或轮换 Session，设置上述 Cookie，并返回管理员基本信息和 CSRF Token。
+`POST /api/v1/auth/login` 发生在 Session 创建之前，所以登录请求不要求 Session CSRF Token。该接口仅接受 `application/json`；其他 Content-Type 返回 415。FastAPI 先校验请求 `Origin`，Origin 缺失时校验 `Referer`，两者都缺失或不与站点同源时返回 403，并且不验证用户名和密码。
+
+- FastAPI 先执行登录限流；凭据失败时返回统一提示并写失败审计，不透露用户名是否存在。
+- 登录成功后创建或轮换 Session，设置 `HttpOnly; Secure; SameSite=Strict` Session Cookie，并返回管理员基本信息及后续请求使用的 CSRF Token。数据库只保存 Session 和 CSRF 哈希，不保存原文。
 - 当前管理员接口返回 Session 对应的管理员信息，不返回 Session ID 或哈希。
-- 退出接口校验 CSRF Token，销毁服务端 Session，并用过期 Cookie 清除浏览器会话。
-- 修改密码接口校验当前密码和 CSRF Token；成功后让其他 Session 全部失效，并轮换当前 Session。
-- 默认闲置 12 小时失效，绝对有效期最长 7 天。所有非 GET 认证和管理请求校验 CSRF Token。
+- `logout`、`change-password` 和所有非 GET 管理请求必须校验 Session CSRF Token。退出销毁服务端 Session 并用过期 Cookie 清除浏览器会话；改密还要校验当前密码，让其他 Session 全部失效，并轮换当前 Session。
+- 默认闲置 12 小时失效，绝对有效期最长 7 天。
 - 用户名存为规范化小写，密码使用 Argon2id。首个管理员由 CLI 初始化，不提供公开注册。
-- 登录失败使用统一响应并限流，不能暴露用户名是否存在。审计与服务日志不得保存明文密码、完整 Cookie 或完整 IP。
+- 审计与服务日志不得保存明文密码、完整 Cookie 或完整 IP。
 
 首版不提供公开 API Token。受保护接口在 Session 无效时返回 401，在 CSRF 或权限检查失败时返回 403。
 
@@ -131,12 +132,13 @@ GET    /api/v1/admin/snapshots/{id}
 POST   /api/v1/admin/snapshots/{id}/validate
 GET    /api/v1/admin/snapshots/{id}/preview
 POST   /api/v1/admin/snapshots/{id}/load-check
+GET    /api/v1/admin/snapshots/{id}/load-check
 POST   /api/v1/admin/snapshots/{id}/publish
 POST   /api/v1/admin/snapshots/{id}/withdraw
 DELETE /api/v1/admin/snapshots/{id}
 ```
 
-导入只接受单个 `.html` 和 `text/html`；扫描只处理配置目录中的 `.html`。详情返回元数据、状态、校验报告和审计摘要。验证重试执行完整静态校验；预览接口只为静态安全的当前版本签发受控 URL 和短期 token；load-check 接口记录浏览器双重加载结果。发布和撤回遵守状态机；删除仅接受符合条件的草稿并要求二次确认值。
+导入只接受单个 `.html` 和 `text/html`；扫描只处理配置目录中的 `.html`。详情返回元数据、状态、校验报告和审计摘要。验证重试执行完整静态校验；预览接口只为静态安全的当前版本创建受控 URL。load-check 的 POST 只触发可信检查任务，不接受状态字段；GET 只供管理端轮询。检查器通过内部接口写结果，管理员 API 不提供结果写入能力。发布和撤回遵守状态机；删除仅接受符合条件的草稿并要求二次确认值。
 
 管理列表可按状态、市场、公司或代码筛选，并使用游标分页。所有响应隐藏服务器绝对路径和内部异常。
 
@@ -147,14 +149,15 @@ DELETE /api/v1/admin/snapshots/{id}
 ```text
 BEGIN
 → SELECT snapshot_index ... FOR UPDATE
-→ 校验状态、version、SHA-256、静态校验 clean 和匹配当前哈希的 load-check passed
+→ 重算 content_sha256
+→ 校验状态、version、nonce、静态校验 clean 和可信 load-check passed
 → 原子移动 HTML 到 published 路径
 → 更新索引状态、路径、published_at 和 version
 → 追加审计记录
 → COMMIT
 ```
 
-发布 API 必须在同一行锁内重新计算 `content_sha256`，并同时验证静态校验和 load-check 两道门禁；任一状态缺失、失败、过期或绑定旧版本时返回 409。撤回以相同方式锁定记录，把 HTML 原子移出公开路径，更新状态、路径和版本，并追加审计记录。索引状态、文件系统状态和审计结果必须作为一个业务事务完成。
+发布 API 必须在行锁内重新计算 `content_sha256`，并要求当前 `version`、`nonce` 对应的可信 load-check 为 `passed`，同时验证静态校验为 `clean`；任一状态缺失、失败、过期或绑定旧文件时返回 409。撤回以相同方式锁定记录，把 HTML 原子移出公开路径，更新状态、路径和版本，并追加审计记录。索引状态、文件系统状态和审计结果必须作为一个业务事务完成。
 
 数据库无法回滚文件系统，因此 service 在移动前登记补偿动作；数据库失败时恢复原文件位置。进程意外退出后，启动校验任务只报告索引与目录差异，不静默修改已发布内容。事务完成前，公开索引不能暴露新状态。
 
@@ -187,4 +190,4 @@ BEGIN
 
 FastAPI 生成 OpenAPI；开发环境提供受控文档，生产环境关闭交互页或限制管理员访问。CI 根据 OpenAPI 生成 Nuxt 与管理端 TypeScript 客户端。不兼容契约变化必须先升级 API 版本，并同步生成客户端与本文。
 
-单元测试覆盖元数据、结构、安全、远程资源、MIME、大小、路径和 SHA-256 静态校验。集成测试覆盖四个认证路由、Session/CSRF、预览 token 绑定、load-check 失效、PostgreSQL 迁移、游标、幂等键、乐观版本、文件补偿事务、审计只追加、发布和撤回可见性。浏览器测试覆盖受控预览 URL、404、重试、`html-checking`、HTTP `HEAD` 与 `iframe load` 双重判定、结果回报，以及管理员错误阻断。
+单元测试覆盖元数据、结构、安全、远程资源、MIME、大小、路径和 SHA-256 静态校验。集成测试覆盖登录 Content-Type、Origin/Referer、Session/CSRF、Strict Cookie、受控预览 URL 绑定、可信检查器内部认证、nonce 失效、管理员不可写结果、PostgreSQL 迁移、游标、幂等键、乐观版本、文件补偿事务、审计只追加、发布和撤回可见性。检查器测试覆盖真实 `HEAD`、headless Chromium 的 sandboxed iframe、`load`/`error`/`timeout` 和权威结果写入；浏览器测试覆盖管理员本地预览、轮询、404、重试、`html-checking` 和错误阻断。

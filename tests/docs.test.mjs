@@ -78,13 +78,49 @@ test('backend defines the complete administrator authentication API', () => {
   }
 });
 
-test('backend orders static validation before browser load-check publication gate', () => {
+test('backend login bootstraps session CSRF through same-origin JSON only', () => {
   const markdown = readCurrentDoc('BACKEND.md');
-  assert.match(markdown, /静态校验[\s\S]+受控预览 URL[\s\S]+html-checking[\s\S]+HEAD[\s\S]+iframe load[\s\S]+load-check[\s\S]+content_sha256[\s\S]+发布门禁/);
-  assert.ok(
-    markdown.includes('/api/v1/admin/snapshots/{id}/load-check'),
-    'missing administrator load-check route'
-  );
+  for (const phrase of [
+    '登录请求不要求 Session CSRF Token',
+    'application/json',
+    'Origin',
+    'Referer',
+    '同源',
+    '登录限流',
+    '失败审计',
+    'HttpOnly; Secure; SameSite=Strict',
+    '所有非 GET 管理请求'
+  ]) {
+    assert.match(markdown, new RegExp(phrase));
+  }
+  assert.match(markdown, /POST \/api\/v1\/auth\/login[\s\S]+登录请求不要求 Session CSRF Token[\s\S]+application\/json/);
+  assert.match(markdown, /Origin[\s\S]+缺失[\s\S]+Referer[\s\S]+同源/);
+  assert.match(markdown, /登录限流[\s\S]+失败审计[\s\S]+HttpOnly; Secure; SameSite=Strict[\s\S]+CSRF Token/);
+  assert.match(markdown, /logout[\s\S]+change-password[\s\S]+所有非 GET 管理请求[\s\S]+Session CSRF/);
+});
+
+test('backend assigns authoritative load-check to a trusted internal checker', () => {
+  const markdown = readCurrentDoc('BACKEND.md');
+  for (const phrase of [
+    '管理员客户端不得',
+    'passed',
+    '可信 load-checker',
+    '内部认证',
+    'headless Chromium',
+    'sandboxed iframe',
+    'record id',
+    'version',
+    'content_sha256',
+    'nonce',
+    '行锁'
+  ]) {
+    assert.match(markdown, new RegExp(phrase));
+  }
+  assert.match(markdown, /静态校验[\s\S]+clean[\s\S]+record id[\s\S]+version[\s\S]+content_sha256[\s\S]+nonce[\s\S]+受控预览 URL/);
+  assert.match(markdown, /可信 load-checker[\s\S]+内部认证[\s\S]+HEAD[\s\S]+headless Chromium[\s\S]+sandboxed iframe[\s\S]+load[\s\S]+error[\s\S]+timeout/);
+  assert.match(markdown, /管理员客户端不得[\s\S]+passed/);
+  assert.match(markdown, /行锁[\s\S]+content_sha256[\s\S]+version[\s\S]+nonce[\s\S]+可信 load-check[\s\S]+passed/);
+  assert.doesNotMatch(markdown, /客户端调用[^。]+load-check[^。]+回报 `passed`/);
 });
 
 test('superseded current documents are removed', () => {
