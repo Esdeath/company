@@ -11,3 +11,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.pyc
+.ruff_cache/
+.mypy_cache/
+coverage/
