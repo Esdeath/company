@@ -71,7 +71,7 @@ assert_non_root_uid() {
   [[ -n "$container_id" ]] || fail "cannot find $service container for UID inspection"
   configured_user=$(docker inspect --format '{{.Config.User}}' "$container_id")
   configured_identity=${configured_user%%:*}
-  [[ -n "$configured_identity" && "$configured_identity" != "0" && "$configured_identity" != "root" ]] || fail "$service has no verifiable non-root user"
+  [[ -n "$configured_identity" && ! "$configured_identity" =~ ^0+$ && "$configured_identity" != "root" ]] || fail "$service has no verifiable non-root user"
   printf '%s configured runtime user: %s (id command unavailable)\n' "$service" "$configured_user"
 }
 

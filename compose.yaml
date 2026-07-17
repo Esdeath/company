@@ -17,6 +17,8 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - backend
 
   api:
     build:
@@ -39,6 +41,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - edge
+      - backend
 
   web:
     build:
@@ -56,6 +61,8 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - edge
 
   admin:
     build:
@@ -69,6 +76,8 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - edge
 
   edge:
     image: nginxinc/nginx-unprivileged:1.30.4-alpine
@@ -89,6 +98,12 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - edge
 
 volumes:
   postgres_data:
+
+networks:
+  edge:
+  backend:

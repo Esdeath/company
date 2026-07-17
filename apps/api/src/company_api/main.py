@@ -57,7 +57,7 @@ def create_app(
         try:
             await probe.check()
         except Exception:
-            logger.exception("Readiness probe failed")
+            logger.error("Readiness probe failed")
             return JSONResponse(
                 status_code=503,
                 content=HealthResponse(status="not_ready").model_dump(),

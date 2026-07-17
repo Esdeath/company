@@ -10,6 +10,9 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 const execFileAsync = promisify(execFile)
 const repositoryRoot = new URL('..', import.meta.url)
 const stripLineComments = (source) => source.replace(/#.*$/gm, '')
+const stripJavaScriptComments = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/\/\/.*$/gm, '')
 
 const markdownSection = (source, title) => {
   const lines = source.split(/\r?\n/)
@@ -179,13 +182,16 @@ test('locks the agreed toolchain versions', async () => {
 
 test('declares only the two JavaScript applications as workspace packages', async () => {
   const workspace = await read('pnpm-workspace.yaml')
-  assert.match(workspace, /apps\/web/)
-  assert.match(workspace, /apps\/admin/)
-  assert.doesNotMatch(workspace, /apps\/api/)
+  const packages = workspace
+    .split(/\r?\n/)
+    .map((line) => line.match(/^\s*-\s+(.+?)\s*$/)?.[1])
+    .filter(Boolean)
+  assert.deepEqual(packages, ['apps/web', 'apps/admin'])
+  assert.ok(packages.every((entry) => !entry.includes('*')), 'workspace entries must not use wide globs')
 })
 
 test('serves the admin application from its reserved path', async () => {
-  const adminViteConfig = await read('apps/admin/vite.config.ts')
+  const adminViteConfig = stripJavaScriptComments(await read('apps/admin/vite.config.ts'))
   assert.match(adminViteConfig, /^(?!\s*\/\/)\s*base:\s*['"]\/admin\/['"]\s*,?\s*$/m)
 })
 
@@ -216,6 +222,9 @@ test('ignores local secrets and generated files while keeping the environment te
     '.pytest_cache/',
     '.venv/',
     '*.pyc',
+    '.ruff_cache/',
+    '.mypy_cache/',
+    'coverage/',
   ]) assert.ok(rules.includes(rule), `missing .gitignore rule: ${rule}`)
 })
 
@@ -264,6 +273,7 @@ test('maps every public Make target to its command in one README table entry', a
       'corepack pnpm --filter @company/web check',
       'corepack pnpm --filter @company/admin check',
       'cd apps/api && uv run ruff check .',
+      'cd apps/api && uv run ruff format --check .',
       'cd apps/api && uv run mypy src',
       'cd apps/api && uv run pytest',
     ]],
@@ -294,6 +304,7 @@ test('gives each Make target exact prerequisites and a bounded recipe', async ()
     '$(PNPM) --filter @company/web check',
     '$(PNPM) --filter @company/admin check',
     'cd apps/api && $(UV) run ruff check .',
+    'cd apps/api && $(UV) run ruff format --check .',
     'cd apps/api && $(UV) run mypy src',
     'cd apps/api && $(UV) run pytest',
   ]) assert.ok(check.recipe.includes(command), `check must run ${command}`)
@@ -328,6 +339,20 @@ test('keeps local and generated files out of Docker build contexts', async () =>
     '.venv',
     '__pycache__',
   ]) assert.ok(rules.includes(rule), `missing .dockerignore rule: ${rule}`)
+
+  const apiRules = (await read('apps/api/.dockerignore')).split(/\r?\n/)
+  for (const rule of [
+    '.venv',
+    'tests',
+    '.pytest_cache',
+    '.ruff_cache',
+    '.mypy_cache',
+    '__pycache__',
+    '*.pyc',
+    '.env',
+    '.env.*',
+    'coverage',
+  ]) assert.ok(apiRules.includes(rule), `missing API context .dockerignore rule: ${rule}`)
 })
 
 test('declares the five-service local runtime with only intended host ports', async () => {
@@ -354,6 +379,13 @@ test('declares the five-service local runtime with only intended host ports', as
     assert.equal(compose.services[service].ports, undefined, `${service} must not publish a host port`)
     assert.ok(compose.services[service].expose.includes(port), `${service} must expose ${port}`)
   }
+
+  assert.deepEqual(Object.keys(compose.networks).sort(), ['backend', 'edge'])
+  assert.deepEqual(Object.keys(compose.services.edge.networks), ['edge'])
+  assert.deepEqual(Object.keys(compose.services.web.networks), ['edge'])
+  assert.deepEqual(Object.keys(compose.services.admin.networks), ['edge'])
+  assert.deepEqual(Object.keys(compose.services.postgres.networks), ['backend'])
+  assert.deepEqual(Object.keys(compose.services.api.networks).sort(), ['backend', 'edge'])
 })
 
 test('wires health-gated dependencies, durable postgres, and container-safe database settings', async () => {
@@ -420,7 +452,7 @@ test('uses bounded condition polling and restores postgres after smoke failures'
   assert.match(smoke, /docker compose[^\n]*stop postgres/)
   assert.doesNotMatch(smoke, /down\s+-v/)
   assert.match(smoke, /configured_identity=\$\{configured_user%%:\*\}/)
-  assert.match(smoke, /configured_identity[^\n]*!=\s*"0"/)
+  assert.match(smoke, /configured_identity[^\n]*\^0\+\$/)
   assert.match(smoke, /configured_identity[^\n]*!=\s*"root"/)
 
   for (const route of ['/healthz', '/admin', '/admin/', '/api/health/live', '/api/health/ready']) {
@@ -466,7 +498,7 @@ test('smoke behavior uses bounded requests, one asset response, and a safe UID f
 })
 
 test('smoke rejects a root Config.User identity including group-qualified forms', async () => {
-  for (const configuredUser of ['0:101', 'root:101']) {
+  for (const configuredUser of ['0:101', '00:101', '000:101', 'root:101']) {
     const result = await runSmokeWithFakes({ FAKE_EDGE_ID_FAIL: '1', FAKE_CONFIG_USER: configuredUser })
     assert.notEqual(result.code, 0)
     assert.match(result.stderr, /no verifiable non-root user/)
@@ -480,4 +512,25 @@ test('smoke exit trap restores postgres when a post-stop assertion fails', async
   assert.match(result.stderr, /unexpected body/)
   assert.match(result.dockerLog, /stop postgres[^]*start postgres/)
   assert.equal(result.postgresStopped, false)
+})
+
+test('documents every quality command and concrete setup recovery steps', async () => {
+  const readme = await read('README.md')
+  const quality = markdownSection(readme, '质量检查')
+  for (const command of [
+    'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
+    'corepack pnpm --filter @company/web check',
+    'corepack pnpm --filter @company/admin check',
+    'cd apps/api && uv run ruff check .',
+    'cd apps/api && uv run ruff format --check .',
+    'cd apps/api && uv run mypy src',
+    'cd apps/api && uv run pytest',
+  ]) assert.ok(quality.includes(command), `quality section must expose ${command}`)
+
+  const troubleshooting = markdownSection(readme, '常见问题')
+  assert.match(troubleshooting, /### frozen lockfile 不一致/)
+  assert.match(troubleshooting, /corepack pnpm install --frozen-lockfile/)
+  assert.match(troubleshooting, /uv sync --frozen/)
+  assert.match(troubleshooting, /### Docker daemon 未启动/)
+  assert.match(troubleshooting, /docker info/)
 })

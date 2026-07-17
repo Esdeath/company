@@ -178,11 +178,12 @@ node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs
 corepack pnpm --filter @company/web check
 corepack pnpm --filter @company/admin check
 cd apps/api && uv run ruff check .
+cd apps/api && uv run ruff format --check .
 cd apps/api && uv run mypy src
 cd apps/api && uv run pytest
 ```
 
-三组 Node 测试检查既有文档、浏览器原型和工程契约。两个前端 `check` 各自运行 lint、类型检查、单元测试和生产构建。API 检查运行 Ruff、严格 mypy 和 pytest。
+三组 Node 测试检查既有文档、浏览器原型和工程契约。两个前端 `check` 各自运行 lint、类型检查、单元测试和生产构建。API 检查运行 Ruff lint、Ruff format check、严格 mypy 和 pytest。
 
 ## Make 目标与底层命令
 
@@ -196,7 +197,7 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 | `make dev-web` | `corepack pnpm --filter @company/web dev` |
 | `make dev-admin` | `corepack pnpm --filter @company/admin dev` |
 | `make dev-api` | `cd apps/api && uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000` |
-| `make check` | `node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs`<br>`corepack pnpm --filter @company/web check`<br>`corepack pnpm --filter @company/admin check`<br>`cd apps/api && uv run ruff check .`<br>`cd apps/api && uv run mypy src`<br>`cd apps/api && uv run pytest` |
+| `make check` | `node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs`<br>`corepack pnpm --filter @company/web check`<br>`corepack pnpm --filter @company/admin check`<br>`cd apps/api && uv run ruff check .`<br>`cd apps/api && uv run ruff format --check .`<br>`cd apps/api && uv run mypy src`<br>`cd apps/api && uv run pytest` |
 | `make compose-up` | `docker compose --env-file .env up --build -d` |
 | `make compose-smoke` | `./scripts/compose-smoke.sh` |
 | `make compose-down` | `docker compose --env-file .env down` |
@@ -214,6 +215,14 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 ### 数据库未 ready
 
 先运行 `docker compose --env-file .env ps postgres`，再看 `docker compose --env-file .env logs postgres`。混合开发还要确认 `.env` 的数据库主机为 `127.0.0.1`。PostgreSQL 停止时，API 存活接口仍返回 `200`，就绪接口返回 `503`。
+
+### frozen lockfile 不一致
+
+如果 pnpm 报 `ERR_PNPM_OUTDATED_LOCKFILE`，先运行 `corepack pnpm install --frozen-lockfile` 复现并检查 `package.json` 与 `pnpm-lock.yaml` 是否来自同一次依赖变更。如果 uv 报锁文件不一致，在 `apps/api` 运行 `uv sync --frozen` 并检查 `pyproject.toml` 与 `uv.lock`。依赖声明确实有意变更时，才使用仓库锁定版本的工具重新生成相应 lockfile，并把声明文件与 lockfile 一起提交；不要用非 frozen 安装绕过不一致。
+
+### Docker daemon 未启动
+
+先运行 `docker info`。如果命令无法连接 daemon，启动 Docker Desktop；使用 Docker Engine 的系统则启动对应的 Docker 服务。等 `docker info` 成功后，再运行 `docker compose version` 和原来的 Make 命令。
 
 ### registry 拉取超时
 

@@ -1,3 +1,6 @@
+import logging
+
+import pytest
 from fastapi.testclient import TestClient
 
 from company_api.config import Settings
@@ -52,6 +55,29 @@ def test_ready_returns_safe_not_ready_response_when_probe_fails() -> None:
         "postgresql+psycopg://company:secret@postgres:5432/company",
     ):
         assert secret not in response_text
+
+
+def test_ready_logs_only_a_fixed_safe_message_when_probe_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.ERROR, logger="company_api.main"),
+        TestClient(create_app(settings(), FailingProbe())) as client,
+    ):
+        response = client.get("/api/health/ready")
+
+    assert response.status_code == 503
+    assert caplog.messages == ["Readiness probe failed"]
+    logged_text = "\n".join(caplog.messages).lower()
+    for secret in (
+        "postgres",
+        "company",
+        "secret",
+        "runtimeerror",
+        "postgresql+psycopg://company:secret@postgres:5432/company",
+    ):
+        assert secret not in logged_text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 def test_cors_allows_configured_origin() -> None:

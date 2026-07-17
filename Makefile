@@ -42,6 +42,7 @@ check:
 	$(PNPM) --filter @company/web check
 	$(PNPM) --filter @company/admin check
 	cd apps/api && $(UV) run ruff check .
+	cd apps/api && $(UV) run ruff format --check .
 	cd apps/api && $(UV) run mypy src
 	cd apps/api && $(UV) run pytest
 
