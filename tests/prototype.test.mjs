@@ -60,16 +60,20 @@ function collectSemanticSnapshotViolations(html) {
   const add = (code) => {
     if (!violations.includes(code)) violations.push(code);
   };
-  const inspectUrlCandidate = (candidate, codes, selfContainedStyle = false) => {
+  const inspectUrlCandidate = (candidate, codes, policy = 'attribute') => {
     const normalized = candidate.trim().replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
     const safeStyleData = /^data:image\/(?:png|gif|jpe?g|webp|avif)(?:[;,]|$)/.test(normalized);
     const dangerousAttributeData = /^data:(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/javascript|application\/javascript)(?:[;,]|$)/.test(normalized);
     if (normalized.startsWith('javascript:')) add(codes.javascript);
     else if (normalized.startsWith('vbscript:')) add(codes.vbscript);
     else if (/^(?:https?:)?\/\//.test(normalized)) add(codes.remote);
-    else if (normalized.startsWith('data:') && (selfContainedStyle ? !safeStyleData : dangerousAttributeData)) {
+    else if (normalized.startsWith('data:') && (
+      policy === 'attribute' ? dangerousAttributeData : policy === 'style' ? !safeStyleData : true
+    )) {
       add(codes.dangerousData);
-    } else if (selfContainedStyle && normalized && !normalized.startsWith('#') && !safeStyleData) {
+    } else if (policy === 'style' && normalized && !normalized.startsWith('#') && !safeStyleData) {
+      add(codes.external);
+    } else if (policy === 'import' && normalized) {
       add(codes.external);
     }
   };
@@ -86,11 +90,7 @@ function collectSemanticSnapshotViolations(html) {
       });
     }
   };
-  const inspectStyle = (element) => {
-    const styleSources = [element.getAttribute('style')];
-    for (const propertyName of element.style) {
-      styleSources.push(element.style.getPropertyValue(propertyName));
-    }
+  const inspectStyleSources = (styleSources) => {
     for (const styleSource of styleSources) {
       if (!styleSource) continue;
       const cssUrlPattern = /url\(\s*(?:(["'])([\s\S]*?)\1|([^)]*))\s*\)/gi;
@@ -101,8 +101,49 @@ function collectSemanticSnapshotViolations(html) {
           dangerousData: 'style-url-dangerous-data',
           remote: 'style-url-remote',
           external: 'style-url-external'
-        }, true);
+        }, 'style');
       }
+    }
+  };
+  const inspectStyleDeclaration = (style) => {
+    const propertyValues = [];
+    for (const propertyName of style) propertyValues.push(style.getPropertyValue(propertyName));
+    inspectStyleSources(propertyValues);
+  };
+  const inspectInlineStyle = (element) => {
+    inspectStyleSources([element.getAttribute('style')]);
+    inspectStyleDeclaration(element.style);
+  };
+  const inspectRuleList = (rules) => {
+    for (const rule of rules) {
+      if (rule.type === CSSRule.IMPORT_RULE) {
+        inspectUrlCandidate(rule.href, {
+          javascript: 'style-import-javascript',
+          vbscript: 'style-import-vbscript',
+          dangerousData: 'style-import-dangerous-data',
+          remote: 'style-import-remote',
+          external: 'style-import-external'
+        }, 'import');
+      }
+      if (rule.style) inspectStyleDeclaration(rule.style);
+      if ('cssRules' in rule) {
+        try {
+          inspectRuleList(rule.cssRules);
+        } catch {
+          add('style-block-parse-error');
+        }
+      }
+    }
+  };
+  const inspectStyleBlock = (element) => {
+    try {
+      if (!element.sheet) {
+        add('style-block-parse-error');
+        return;
+      }
+      inspectRuleList(element.sheet.cssRules);
+    } catch {
+      add('style-block-parse-error');
     }
   };
 
@@ -121,7 +162,8 @@ function collectSemanticSnapshotViolations(html) {
     if (['_top', '_parent'].includes(element.getAttribute('target')?.trim().toLowerCase())) {
       add('top-navigation-target');
     }
-    if (element.hasAttribute('style')) inspectStyle(element);
+    if (element.hasAttribute('style')) inspectInlineStyle(element);
+    if (tagName === 'style') inspectStyleBlock(element);
     for (const attribute of element.attributes) {
       const attributeName = attribute.name.toLowerCase();
       const attributeLocalName = attribute.localName.toLowerCase();
@@ -634,6 +676,33 @@ test('administrator publication and HTML validation execute as runtime state tra
         svgAttributeValue: 'http://example.com/x'
       });
 
+      const cssEscapeBlock = '<style>body{background:url(h\\74tp://example.com/x.png)}</style>';
+      const cssImportBlock = '<style>@import "h\\74tp://example.com/x.css";</style>';
+      assert.doesNotMatch(cssEscapeBlock, REMOTE_CSS_URL_PATTERN, 'raw CSS URL regex unexpectedly decoded CSS escape');
+      assert.doesNotMatch(cssImportBlock, REMOTE_IMPORT_PATTERN, 'raw CSS import regex unexpectedly decoded CSS escape');
+      const detachedCssom = await browser.evaluate(`(() => {
+        const parsedStyle = new DOMParser().parseFromString(${JSON.stringify(cssEscapeBlock)}, 'text/html');
+        const parsedImport = new DOMParser().parseFromString(${JSON.stringify(cssImportBlock)}, 'text/html');
+        const styleSheet = parsedStyle.querySelector('style').sheet;
+        const importSheet = parsedImport.querySelector('style').sheet;
+        return {
+          detachedDefaultView: parsedStyle.defaultView,
+          styleSheetAvailable: Boolean(styleSheet),
+          styleRuleCssText: styleSheet.cssRules[0].cssText,
+          backgroundImage: styleSheet.cssRules[0].style.backgroundImage,
+          importSheetAvailable: Boolean(importSheet),
+          importRuleCssText: importSheet.cssRules[0].cssText,
+          importHref: importSheet.cssRules[0].href
+        };
+      })()`);
+      assert.equal(detachedCssom.detachedDefaultView, null);
+      assert.equal(detachedCssom.styleSheetAvailable, true);
+      assert.match(detachedCssom.styleRuleCssText, /http:\/\/example\.com\/x\.png/);
+      assert.equal(detachedCssom.backgroundImage, 'url("http://example.com/x.png")');
+      assert.equal(detachedCssom.importSheetAvailable, true);
+      assert.match(detachedCssom.importRuleCssText, /http:\/\/example\.com\/x\.css/);
+      assert.equal(detachedCssom.importHref, 'http://example.com/x.css');
+
       const dangerousFixtures = [
         ['script element', '<script>alert(1)</script>', ['script-element']],
         ['iframe element', '<iframe src="/safe"></iframe>', ['iframe-element']],
@@ -664,6 +733,14 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['numeric entity remote SVG href', svgBypass, ['url-remote:xlink:href']],
         ['named entity remote SVG href', '<svg><a xlink:href="&sol;&sol;example.com/x">x</a></svg>', ['url-remote:xlink:href']],
         ['javascript SVG href', '<svg><a xlink:href="java&#x73;cript:alert(1)">x</a></svg>', ['url-javascript:xlink:href']],
+        ['relative style block URL', '<style>body{background:url(./local.png)}</style>', ['style-url-external']],
+        ['CSS escape remote style block URL', cssEscapeBlock, ['style-url-remote']],
+        ['CSS escape import', cssImportBlock, ['style-import-remote']],
+        ['relative import', '<style>@import "./local.css";</style>', ['style-import-external']],
+        ['nested media remote URL', '<style>@media (min-width:1px){body{background:url(https://example.com/x.png)}}</style>', ['style-url-remote']],
+        ['font face relative URL', '<style>@font-face{font-family:test;src:url(./font.woff2)}</style>', ['style-url-external']],
+        ['keyframes remote URL', '<style>@keyframes pulse{from{background:url(https://example.com/x.png)}to{color:#123456}}</style>', ['style-url-remote']],
+        ['unavailable style sheet', '<style type="text/plain">body{color:#123456}</style>', ['style-block-parse-error']],
         ['event handler', '<div onclick="alert(1)"></div>', ['event-handler:onclick']],
         ['object element', '<object data="/safe"></object>', ['legacy-object']],
         ['embed element', '<embed src="/safe">', ['legacy-embed']],
@@ -689,6 +766,10 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['inline color', '<div style="color:#123456"></div>'],
         ['style fragment', '<div style="filter:url(#shadow)"></div>'],
         ['SVG xlink fragment', '<svg><a xlink:href="#section">x</a></svg>'],
+        ['style block image data', '<style>body{background:url(data:image/png;base64,iVBORw0KGgo=)}</style>'],
+        ['style block fragment', '<style>body{filter:url(#shadow)}</style>'],
+        ['style block color', '<style>body{color:#123456}</style>'],
+        ['nested rule without URL', '<style>@media (min-width:1px){body{color:#123456}}</style>'],
         ['relative URL attributes', '<img src="/safe.png" srcset="/safe.png 1x"><video poster="/safe.png"></video>']
       ];
 
