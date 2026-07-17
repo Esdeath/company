@@ -11,6 +11,32 @@ const execFileAsync = promisify(execFile)
 const repositoryRoot = new URL('..', import.meta.url)
 const stripLineComments = (source) => source.replace(/#.*$/gm, '')
 
+const markdownSection = (source, title) => {
+  const lines = source.split(/\r?\n/)
+  const start = lines.findIndex((line) => line.trim() === `## ${title}`)
+  assert.notEqual(start, -1, `missing README section: ${title}`)
+  const end = lines.findIndex((line, index) => index > start && line.startsWith('## '))
+  return lines.slice(start + 1, end === -1 ? undefined : end).join('\n')
+}
+
+const markdownTableRow = (section, firstCell) => {
+  const row = section.split(/\r?\n/).find((line) => line.startsWith(`| \`${firstCell}\` |`))
+  assert.ok(row, `missing Markdown table row: ${firstCell}`)
+  return row
+}
+
+const makeTarget = (source, name) => {
+  const lines = source.split(/\r?\n/)
+  const start = lines.findIndex((line) => line.startsWith(`${name}:`))
+  assert.notEqual(start, -1, `Makefile must provide ${name}`)
+  const prerequisites = lines[start].slice(name.length + 1).trim().split(/\s+/).filter(Boolean)
+  const recipe = []
+  for (let index = start + 1; index < lines.length && lines[index].startsWith('\t'); index += 1) {
+    recipe.push(lines[index].slice(1))
+  }
+  return { prerequisites, recipe }
+}
+
 const nginxLocation = (source, selector) => {
   const match = stripLineComments(source).match(new RegExp(`location\\s+${selector}\\s*\\{([\\s\\S]*?)\\n\\s*\\}`))
   assert.ok(match, `missing nginx location: ${selector}`)
@@ -193,62 +219,99 @@ test('ignores local secrets and generated files while keeping the environment te
   ]) assert.ok(rules.includes(rule), `missing .gitignore rule: ${rule}`)
 })
 
-test('documents the learning path and exposes every Make target command', async () => {
+test('documents service boundaries, both development modes, and unavailable business scope', async () => {
   const readme = await read('README.md')
+  const architecture = markdownSection(readme, '五个服务')
+  const hybrid = markdownSection(readme, '混合开发')
+  const unavailable = markdownSection(readme, '当前不包含')
 
-  for (const target of [
-    'make setup',
-    'make dev-infra',
-    'make dev',
-    'make check',
-    'make compose-up',
-    'make compose-smoke',
-    'make compose-down',
-  ]) assert.ok(readme.includes(target), `README must document ${target}`)
+  for (const [service, responsibility, boundary] of [
+    ['edge', /路由|分发/, /127\.0\.0\.1:8080/],
+    ['web', /公开站点|Nuxt/, /Compose[^|]*3000/],
+    ['admin', /管理端|后台/, /Compose[^|]*8080/],
+    ['api', /FastAPI|健康/, /Compose[^|]*8000/],
+    ['postgres', /PostgreSQL|数据库/, /127\.0\.0\.1:5432/],
+  ]) {
+    const row = markdownTableRow(architecture, service)
+    assert.match(row, responsibility, `${service} row must state its responsibility`)
+    assert.match(row, boundary, `${service} row must state its port boundary`)
+  }
+  assert.match(architecture, /127\.0\.0\.1:8080/)
+  assert.match(architecture, /127\.0\.0\.1:5432/)
+  assert.match(architecture, /Web、Admin 和 API[^\n]*只在 Compose 网络内/)
 
-  for (const command of [
-    'corepack pnpm install --frozen-lockfile',
-    'cd apps/api && uv sync --frozen',
-    'docker compose --env-file .env up -d postgres',
-    'corepack pnpm --filter @company/web dev',
-    'corepack pnpm --filter @company/admin dev',
-    'uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000',
-    'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
-    'docker compose --env-file .env up --build -d',
-    './scripts/compose-smoke.sh',
-    'docker compose --env-file .env down',
-  ]) assert.ok(readme.includes(command), `README must expose underlying command: ${command}`)
-
-  for (const heading of ['工程骨架', '混合开发', '完整 Compose', '五个服务', '当前不包含']) {
-    assert.ok(readme.includes(heading), `README must explain ${heading}`)
+  for (const target of ['make dev-web', 'make dev-admin', 'make dev-api']) {
+    assert.ok(hybrid.includes(target), `hybrid section must document ${target}`)
   }
-  for (const path of ['apps/web', 'apps/admin', 'apps/api', 'infra/nginx', 'compose.yaml']) {
-    assert.ok(readme.includes(path), `README must navigate to ${path}`)
+  for (const address of ['127.0.0.1:3000', '127.0.0.1:5173/admin/', '127.0.0.1:8000/api/health/live']) {
+    assert.ok(hybrid.includes(address), `hybrid section must document ${address}`)
   }
-  for (const command of ['node --version', 'corepack pnpm --version', 'uv --version', 'python3 --version', 'docker --version', 'docker compose version']) {
-    assert.ok(readme.includes(command), `README must show version check: ${command}`)
-  }
-  assert.match(readme, /\.env\.example[^\n]*(?:本地|开发)[^\n]*(?:弱凭据|弱密码)/)
-  assert.match(readme, /真实环境[^\n]*(?:不得|不要)[^\n]*复用/)
+  assert.match(unavailable, /不包含|不可用/)
+  assert.match(unavailable, /管理员登录/)
+  assert.match(unavailable, /资料上传|快照上传|快照业务/)
+  assert.match(unavailable, /HTML\s*发布流程/)
 })
 
-test('provides the final Make interface without coupling checks to Compose', async () => {
-  const makefile = await read('Makefile')
+test('maps every public Make target to its command in one README table entry', async () => {
+  const targets = markdownSection(await read('README.md'), 'Make 目标与底层命令')
 
-  assert.match(makefile, /^\.PHONY:.*\bsetup\b.*\bdev-infra\b.*\bdev\b.*\bcheck\b.*\bcompose-up\b.*\bcompose-smoke\b.*\bcompose-down\b/m)
-  for (const target of ['setup', 'dev-infra', 'dev', 'check', 'compose-up', 'compose-smoke', 'compose-down', 'dev-web', 'dev-admin', 'dev-api']) {
-    assert.match(makefile, new RegExp(`^${target}:`, 'm'), `Makefile must provide ${target}`)
+  for (const [target, commands] of [
+    ['make setup', ['corepack pnpm install --frozen-lockfile', 'cd apps/api && uv sync --frozen']],
+    ['make dev-infra', ['docker compose --env-file .env up -d postgres']],
+    ['make dev', ['make -j3 dev-web dev-admin dev-api']],
+    ['make check', [
+      'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
+      'corepack pnpm --filter @company/web check',
+      'corepack pnpm --filter @company/admin check',
+      'cd apps/api && uv run ruff check .',
+      'cd apps/api && uv run mypy src',
+      'cd apps/api && uv run pytest',
+    ]],
+    ['make compose-up', ['docker compose --env-file .env up --build -d']],
+    ['make compose-smoke', ['./scripts/compose-smoke.sh']],
+    ['make compose-down', ['docker compose --env-file .env down']],
+  ]) {
+    const row = markdownTableRow(targets, target)
+    for (const command of commands) assert.ok(row.includes(command), `${target} row must expose ${command}`)
   }
-  assert.match(makefile, /\$\(MAKE\)\s+-j3\s+dev-web\s+dev-admin\s+dev-api/)
-  assert.match(makefile, /(?:uv|\$\(UV\)) run --env-file \.\.\/\.\.\/\.env uvicorn --factory company_api\.main:create_app --reload --host 0\.0\.0\.0 --port 8000/)
-  assert.match(makefile, /docker compose --env-file \.env up --build -d/)
-  assert.match(makefile, /docker compose --env-file \.env down/)
-  assert.doesNotMatch(makefile, /docker compose[^\n]*down[^\n]*\s-v(?:\s|$)/)
+})
 
-  const checkRecipe = makefile.match(/^check:[^\n]*\n((?:\t[^\n]*\n)+)/m)?.[1]
-  assert.ok(checkRecipe, 'Makefile must provide a check recipe')
-  assert.doesNotMatch(checkRecipe, /docker|compose/i)
-  assert.match(checkRecipe, /tests\/docs\.test\.mjs tests\/prototype\.test\.mjs tests\/scaffold\.test\.mjs/)
+test('gives each Make target exact prerequisites and a bounded recipe', async () => {
+  const makefile = await read('Makefile')
+  const dev = makeTarget(makefile, 'dev')
+  assert.deepEqual(dev.prerequisites, ['require-env'])
+  assert.deepEqual(dev.recipe, ['+$(MAKE) -j3 dev-web dev-admin dev-api'])
+
+  const infrastructure = makeTarget(makefile, 'dev-infra')
+  assert.deepEqual(infrastructure.prerequisites, ['require-env'])
+  assert.deepEqual(infrastructure.recipe, ['docker compose --env-file .env up -d postgres'])
+
+  const check = makeTarget(makefile, 'check')
+  assert.ok(check.prerequisites.every((dependency) => !/docker|compose/i.test(dependency)))
+  assert.ok(check.recipe.every((command) => !/docker|compose/i.test(command)))
+  for (const command of [
+    'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
+    '$(PNPM) --filter @company/web check',
+    '$(PNPM) --filter @company/admin check',
+    'cd apps/api && $(UV) run ruff check .',
+    'cd apps/api && $(UV) run mypy src',
+    'cd apps/api && $(UV) run pytest',
+  ]) assert.ok(check.recipe.includes(command), `check must run ${command}`)
+
+  const composeUp = makeTarget(makefile, 'compose-up')
+  assert.deepEqual(composeUp.prerequisites, ['require-env'])
+  assert.deepEqual(composeUp.recipe, ['docker compose --env-file .env up --build -d'])
+  assert.deepEqual(makeTarget(makefile, 'compose-smoke').recipe, ['./scripts/compose-smoke.sh'])
+  const composeDown = makeTarget(makefile, 'compose-down')
+  assert.deepEqual(composeDown.recipe, ['docker compose --env-file .env down'])
+  assert.ok(composeDown.recipe.every((command) => !/(?:^|\s)-v(?:\s|$)/.test(command)))
+
+  const setup = makeTarget(makefile, 'setup')
+  assert.ok(setup.recipe.includes('$(PNPM) install --frozen-lockfile'))
+  assert.ok(setup.recipe.includes('cd apps/api && $(UV) sync --frozen'))
+  assert.deepEqual(makeTarget(makefile, 'dev-api').recipe, [
+    'cd apps/api && $(UV) run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000',
+  ])
 })
 
 test('keeps local and generated files out of Docker build contexts', async () => {

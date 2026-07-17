@@ -25,7 +25,7 @@ require-env:
 dev-infra: require-env
 	docker compose --env-file .env up -d postgres
 
-dev:
+dev: require-env
 	+$(MAKE) -j3 dev-web dev-admin dev-api
 
 dev-web:

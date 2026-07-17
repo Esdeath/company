@@ -17,13 +17,13 @@
       web     admin     api ---- postgres
 ```
 
-| 服务 | 职责 | 目录或定义 |
-| --- | --- | --- |
-| `edge` | 接收宿主机的 `8080` 请求，把 `/`、`/admin/`、`/api/` 分发给三个应用 | `infra/nginx/default.conf` |
-| `web` | 提供公开站点的 Nuxt 占位页和 `/healthz` | `apps/web` |
-| `admin` | 提供挂载在 `/admin/` 下的 Vue/Vite 占位页 | `apps/admin` |
-| `api` | 提供 FastAPI 存活与就绪检查 | `apps/api` |
-| `postgres` | 为 API 提供本地 PostgreSQL 18.4 数据库 | `compose.yaml` |
+| 服务 | 职责 | 端口边界 | 目录或定义 |
+| --- | --- | --- | --- |
+| `edge` | 接收请求，把 `/`、`/admin/`、`/api/` 分发给三个应用 | 宿主机 `127.0.0.1:8080` | `infra/nginx/default.conf` |
+| `web` | 提供公开站点的 Nuxt 占位页和 `/healthz` | 仅 Compose 网络 `3000` | `apps/web` |
+| `admin` | 提供挂载在 `/admin/` 下的 Vue/Vite 管理端占位页 | 仅 Compose 网络 `8080` | `apps/admin` |
+| `api` | 提供 FastAPI 存活与就绪检查 | 仅 Compose 网络 `8000` | `apps/api` |
+| `postgres` | 为 API 提供本地 PostgreSQL 18.4 数据库 | 宿主机 `127.0.0.1:5432` | `compose.yaml` |
 
 完整 Compose 只向宿主机发布 `127.0.0.1:8080` 和 `127.0.0.1:5432`。Web、Admin 和 API 端口只在 Compose 网络内开放。
 
@@ -119,7 +119,7 @@ make dev
 # make -j3 dev-web dev-admin dev-api
 ```
 
-按 `Ctrl-C` 后，递归 Make 会把中断传给三个开发服务器。若你想分开查看日志，改用三个终端运行内部目标：
+按 `Ctrl-C` 后，递归 Make 会把中断传给三个开发服务器。如果任一服务启动失败，GNU Make 会等待其他长驻任务，不会自动结束它们。此时按 `Ctrl-C`，再单独运行 `make dev-web`、`make dev-admin` 或 `make dev-api` 定位错误。若你想分开查看日志，也可以直接用三个终端运行内部目标：
 
 ```bash
 # 终端 2
@@ -196,7 +196,7 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 | `make dev-web` | `corepack pnpm --filter @company/web dev` |
 | `make dev-admin` | `corepack pnpm --filter @company/admin dev` |
 | `make dev-api` | `cd apps/api && uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000` |
-| `make check` | 三组 Node 测试、两个前端 `check`、API 的 Ruff/mypy/pytest，具体命令见上一节 |
+| `make check` | `node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs`<br>`corepack pnpm --filter @company/web check`<br>`corepack pnpm --filter @company/admin check`<br>`cd apps/api && uv run ruff check .`<br>`cd apps/api && uv run mypy src`<br>`cd apps/api && uv run pytest` |
 | `make compose-up` | `docker compose --env-file .env up --build -d` |
 | `make compose-smoke` | `./scripts/compose-smoke.sh` |
 | `make compose-down` | `docker compose --env-file .env down` |
@@ -225,4 +225,4 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 
 ## 当前不包含
 
-本里程碑不包含登录与权限、公司资料 CRUD、快照上传、HTML 发布、搜索、任务队列和生产部署。页面和 API 只证明工程边界、路由、健康检查与质量门槛可运行。下一里程碑应先从 `doc/README.md`、`doc/BACKEND.md` 和 `doc/PRODUCT_UI.md` 选定一个业务切片，再补测试与实现。
+本里程碑不包含管理员登录与权限、公司资料 CRUD、快照上传、HTML 发布流程、搜索、任务队列和生产部署。页面和 API 只证明工程边界、路由、健康检查与质量门槛可运行。下一里程碑应先从 `doc/README.md`、`doc/BACKEND.md` 和 `doc/PRODUCT_UI.md` 选定一个业务切片，再补测试与实现。
