@@ -60,17 +60,49 @@ function collectSemanticSnapshotViolations(html) {
   const add = (code) => {
     if (!violations.includes(code)) violations.push(code);
   };
-  const inspectUrl = (attributeName, value) => {
-    const candidates = attributeName === 'srcset'
+  const inspectUrlCandidate = (candidate, codes, selfContainedStyle = false) => {
+    const normalized = candidate.trim().replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
+    const safeStyleData = /^data:image\/(?:png|gif|jpe?g|webp|avif)(?:[;,]|$)/.test(normalized);
+    const dangerousAttributeData = /^data:(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/javascript|application\/javascript)(?:[;,]|$)/.test(normalized);
+    if (normalized.startsWith('javascript:')) add(codes.javascript);
+    else if (normalized.startsWith('vbscript:')) add(codes.vbscript);
+    else if (/^(?:https?:)?\/\//.test(normalized)) add(codes.remote);
+    else if (normalized.startsWith('data:') && (selfContainedStyle ? !safeStyleData : dangerousAttributeData)) {
+      add(codes.dangerousData);
+    } else if (selfContainedStyle && normalized && !normalized.startsWith('#') && !safeStyleData) {
+      add(codes.external);
+    }
+  };
+  const inspectUrlAttribute = (attributeLocalName, codeName, value) => {
+    const candidates = attributeLocalName === 'srcset'
       ? value.split(',').map((candidate) => candidate.trim().split(/\s+/, 1)[0])
       : [value];
     for (const candidate of candidates) {
-      const normalized = candidate.trim().replace(/[\u0000-\u0020\u007f]+/g, '').toLowerCase();
-      if (normalized.startsWith('javascript:')) add(`url-javascript:${attributeName}`);
-      else if (normalized.startsWith('vbscript:')) add(`url-vbscript:${attributeName}`);
-      else if (/^data:(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/javascript|application\/javascript)(?:[;,]|$)/.test(normalized)) {
-        add(`url-dangerous-data:${attributeName}`);
-      } else if (/^(?:https?:)?\/\//.test(normalized)) add(`url-remote:${attributeName}`);
+      inspectUrlCandidate(candidate, {
+        javascript: `url-javascript:${codeName}`,
+        vbscript: `url-vbscript:${codeName}`,
+        dangerousData: `url-dangerous-data:${codeName}`,
+        remote: `url-remote:${codeName}`
+      });
+    }
+  };
+  const inspectStyle = (element) => {
+    const styleSources = [element.getAttribute('style')];
+    for (const propertyName of element.style) {
+      styleSources.push(element.style.getPropertyValue(propertyName));
+    }
+    for (const styleSource of styleSources) {
+      if (!styleSource) continue;
+      const cssUrlPattern = /url\(\s*(?:(["'])([\s\S]*?)\1|([^)]*))\s*\)/gi;
+      for (const match of styleSource.matchAll(cssUrlPattern)) {
+        inspectUrlCandidate(match[2] ?? match[3] ?? '', {
+          javascript: 'style-url-javascript',
+          vbscript: 'style-url-vbscript',
+          dangerousData: 'style-url-dangerous-data',
+          remote: 'style-url-remote',
+          external: 'style-url-external'
+        }, true);
+      }
     }
   };
 
@@ -89,10 +121,14 @@ function collectSemanticSnapshotViolations(html) {
     if (['_top', '_parent'].includes(element.getAttribute('target')?.trim().toLowerCase())) {
       add('top-navigation-target');
     }
+    if (element.hasAttribute('style')) inspectStyle(element);
     for (const attribute of element.attributes) {
       const attributeName = attribute.name.toLowerCase();
-      if (attributeName.startsWith('on')) add(`event-handler:${attributeName}`);
-      if (urlAttributes.has(attributeName)) inspectUrl(attributeName, attribute.value);
+      const attributeLocalName = attribute.localName.toLowerCase();
+      if (attributeLocalName.startsWith('on')) add(`event-handler:${attributeName}`);
+      if (urlAttributes.has(attributeLocalName)) {
+        inspectUrlAttribute(attributeLocalName, attributeName, attribute.value);
+      }
     }
   }
   return violations;
@@ -570,6 +606,34 @@ test('administrator publication and HTML validation execute as runtime state tra
         .getAttribute('href')`);
       assert.equal(decodedHref, 'javascript:alert(1)');
 
+      const styleBypass = '<div style="background:url(h&#116;tp://example.com/x.png)"></div>';
+      const svgBypass = '<svg><a xlink:href="h&#116;tp://example.com/x">x</a></svg>';
+      const decodedCssAndSvg = await browser.evaluate(`(() => {
+        const styleElement = new DOMParser()
+          .parseFromString(${JSON.stringify(styleBypass)}, 'text/html')
+          .querySelector('div');
+        const svgLink = new DOMParser()
+          .parseFromString(${JSON.stringify(svgBypass)}, 'text/html')
+          .querySelector('a');
+        const xlinkHref = [...svgLink.attributes].find((attribute) => attribute.localName === 'href');
+        return {
+          styleAttribute: styleElement.getAttribute('style'),
+          backgroundImage: styleElement.style.backgroundImage,
+          svgAttributeName: xlinkHref.name,
+          svgAttributeLocalName: xlinkHref.localName,
+          svgAttributeNamespace: xlinkHref.namespaceURI,
+          svgAttributeValue: xlinkHref.value
+        };
+      })()`);
+      assert.deepEqual(decodedCssAndSvg, {
+        styleAttribute: 'background:url(http://example.com/x.png)',
+        backgroundImage: 'url("http://example.com/x.png")',
+        svgAttributeName: 'xlink:href',
+        svgAttributeLocalName: 'href',
+        svgAttributeNamespace: 'http://www.w3.org/1999/xlink',
+        svgAttributeValue: 'http://example.com/x'
+      });
+
       const dangerousFixtures = [
         ['script element', '<script>alert(1)</script>', ['script-element']],
         ['iframe element', '<iframe src="/safe"></iframe>', ['iframe-element']],
@@ -591,6 +655,15 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['remote poster', '<video poster="//example.com/x.png"></video>', ['url-remote:poster']],
         ['remote action', '<div action="http://example.com/save"></div>', ['url-remote:action']],
         ['remote formaction', '<button formaction="//example.com/save">x</button>', ['url-remote:formaction']],
+        ['numeric entity remote style URL', styleBypass, ['style-url-remote']],
+        ['named entity remote style URL', '<div style="background:url(&sol;&sol;example.com/x.png)"></div>', ['style-url-remote']],
+        ['javascript style URL', '<div style="background:url(java&#x73;cript:alert(1))"></div>', ['style-url-javascript']],
+        ['vbscript style URL', '<div style="background:url(vbscript:msgbox(1))"></div>', ['style-url-vbscript']],
+        ['dangerous data style URL', '<div style="background:url(data:image/svg+xml,<svg></svg>)"></div>', ['style-url-dangerous-data']],
+        ['relative style URL', '<div style="background:url(./local.png)"></div>', ['style-url-external']],
+        ['numeric entity remote SVG href', svgBypass, ['url-remote:xlink:href']],
+        ['named entity remote SVG href', '<svg><a xlink:href="&sol;&sol;example.com/x">x</a></svg>', ['url-remote:xlink:href']],
+        ['javascript SVG href', '<svg><a xlink:href="java&#x73;cript:alert(1)">x</a></svg>', ['url-javascript:xlink:href']],
         ['event handler', '<div onclick="alert(1)"></div>', ['event-handler:onclick']],
         ['object element', '<object data="/safe"></object>', ['legacy-object']],
         ['embed element', '<embed src="/safe">', ['legacy-embed']],
@@ -612,6 +685,10 @@ test('administrator publication and HTML validation execute as runtime state tra
         ['viewport meta', '<meta name="viewport" content="width=device-width">'],
         ['blank target', '<a target="_blank" href="/safe">x</a>'],
         ['safe embedded image', '<img src="data:image/png;base64,iVBORw0KGgo=">'],
+        ['safe style image data', '<div style="background:url(data:image/png;base64,iVBORw0KGgo=)"></div>'],
+        ['inline color', '<div style="color:#123456"></div>'],
+        ['style fragment', '<div style="filter:url(#shadow)"></div>'],
+        ['SVG xlink fragment', '<svg><a xlink:href="#section">x</a></svg>'],
         ['relative URL attributes', '<img src="/safe.png" srcset="/safe.png 1x"><video poster="/safe.png"></video>']
       ];
 
