@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>通用 Markdown 模板预览</title>
+  <link rel="stylesheet" href="./template.css">
+  <style>
+    .showcase-toolbar {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgb(244 246 243 / 92%);
+      backdrop-filter: blur(12px);
+    }
+
+    .showcase-toolbar button {
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font: 700 13px ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .showcase-toolbar button[aria-selected="true"] {
+      border-color: var(--green);
+      color: #fff;
+      background: var(--green);
+    }
+
+    .showcase-panel[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 520px) {
+      .showcase-toolbar {
+        justify-content: flex-start;
+        overflow-x: auto;
+      }
+
+      .showcase-toolbar button {
+        flex: 0 0 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="showcase-toolbar" aria-label="示例资料">
+    <button type="button" aria-selected="true" data-panel="financial">财务快照</button>
+    <button type="button" aria-selected="false" data-panel="interview">CEO 访谈</button>
+    <button type="button" aria-selected="false" data-panel="speech">公开演讲</button>
+  </nav>
+
+  <section class="showcase-panel" data-name="financial">
+    <main class="research-document">
+      <header class="document-header">
+        <p class="document-kicker">企业研究资料</p>
+        <h1>贵州茅台：高回报生意的最新拐点</h1>
+        <p class="document-meta">贵州茅台 · 600519.SH · 数据截至 2026-07-15</p>
+      </header>
+      <article class="markdown-body">
+        <p>长期高毛利、低负债和每股收益增长仍在，但最新年度的现金兑现开始变弱。</p>
+        <table>
+          <thead><tr><th>指标</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+          <tbody>
+            <tr><td>营业收入（亿元）</td><td>1,505.6</td><td>1,741.4</td><td>1,720.5</td></tr>
+            <tr><td>归母净利润（亿元）</td><td>747.3</td><td>862.3</td><td>823.2</td></tr>
+            <tr><td>毛利率</td><td>92.0%</td><td>91.9%</td><td>91.2%</td></tr>
+            <tr><td>ROE</td><td>34.2%</td><td>36.0%</td><td>32.5%</td></tr>
+          </tbody>
+        </table>
+        <h2>先说结论</h2>
+        <p>贵州茅台仍是一门由品牌与稀缺性支撑的高毛利生意。眼下需要追踪收入、利润与经营现金流同时转弱的原因。</p>
+        <blockquote><p>品牌决定利润上限，渠道与真实动销决定利润能否变成现金。</p></blockquote>
+        <h2>后续资料</h2>
+        <ul><li>合同负债和渠道库存</li><li>终端动销与批价</li><li>经营现金流与利润的差异</li></ul>
+      </article>
+    </main>
+  </section>
+
+  <section class="showcase-panel" data-name="interview" hidden>
+    <main class="research-document">
+      <header class="document-header">
+        <p class="document-kicker">企业研究资料</p>
+        <h1>“不要为了增长而增长”</h1>
+        <p class="document-meta">CEO 访谈整理 · 2026-05-18 · 来源：公开访谈</p>
+      </header>
+      <article class="markdown-body">
+        <p>访谈涉及用户价值、资本配置和管理层如何看待短期压力。</p>
+        <blockquote><p>真正重要的是五年后用户是否仍愿意选择我们。</p></blockquote>
+        <h2>关于产品</h2>
+        <p><strong>问：你们如何判断一款产品是否有价值？</strong></p>
+        <p>答：先看它解决了什么问题，再看用户是否愿意持续使用。发布会上的掌声不能代替复购。</p>
+        <p><strong>问：面对竞争者降价，会不会跟进？</strong></p>
+        <p>答：价格只是结果。我们先判断差异是否还能被用户感知，而不是机械地参与价格战。</p>
+        <h2>关于资本配置</h2>
+        <ol><li>保证核心业务所需投入。</li><li>并购需要解释长期协同。</li><li>没有合适机会时，把现金还给股东。</li></ol>
+        <h2>研究者注</h2>
+        <p>访谈属于公开事实。“管理层是否可信”需要结合过去承诺、资本开支和实际结果判断。</p>
+      </article>
+    </main>
+  </section>
+
+  <section class="showcase-panel" data-name="speech" hidden>
+    <main class="research-document">
+      <header class="document-header">
+        <p class="document-kicker">企业研究资料</p>
+        <h1>长期主义不是忽略今天</h1>
+        <p class="document-meta">年度股东大会讲话 · 2026-06-02 · 演讲实录</p>
+      </header>
+      <article class="markdown-body">
+        <p>管理层回顾过去一年的判断与错误，并解释下一阶段的优先次序。</p>
+        <h2>关于长期</h2>
+        <p>长期主义要求公司今天做更难但更正确的选择。</p>
+        <blockquote><p>如果一项增长需要持续牺牲用户体验，它就不是我们想要的增长。</p></blockquote>
+        <h2>今年做错了什么</h2>
+        <p>公司高估了部分新渠道的效率，也低估了组织协同的成本。管理层已经停止两个项目，并承诺在年度报告中复盘。</p>
+        <h2>未来重点</h2>
+        <ul><li>提高核心产品的稳定性</li><li>减少无法形成复用能力的项目</li><li>让资本配置标准更透明</li></ul>
+        <h2>资料说明</h2>
+        <p>本文按照原演讲顺序整理，省略现场致谢与重复表述。完整视频和文字来源附于文末。</p>
+      </article>
+    </main>
+  </section>
+
+  <script>
+    const buttons = [...document.querySelectorAll('[data-panel]')]
+    const panels = [...document.querySelectorAll('[data-name]')]
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        for (const item of buttons) {
+          item.setAttribute('aria-selected', String(item === button))
+        }
+        for (const panel of panels) {
+          panel.hidden = panel.dataset.name !== button.dataset.panel
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+    }
+  </script>
+</body>
+</html>
