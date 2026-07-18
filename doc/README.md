@@ -2,7 +2,9 @@
 
 ## 当前状态
 
-项目当前完成的是可执行 HTML 原型：公开端以公司目录加阅读工作区展示快照，管理端演示 HTML 导入、校验、审核、发布与撤回。Nuxt、Vue 管理端、FastAPI、PostgreSQL 和 Docker 仍是下一阶段的生产目标，不应写成已经实现。
+工程骨架已完成：Nuxt 公开端、Vue/Vite 管理端、FastAPI 健康接口、PostgreSQL、Nginx 和 Docker Compose 已进入生产代码。根目录质量检查、五服务健康检查、非 root 运行、路由、端口边界和 PostgreSQL 失效恢复均已通过验收。
+
+业务功能仍停留在可执行 HTML 原型。`doc/prototype.html` 和两家公司样本覆盖公开工作区、移动抽屉、管理审核、发布状态与加载失败；生产代码尚未实现 HTML 导入、校验、发布、认证或公开快照读取。
 
 ## 唯一内容主线
 
@@ -10,9 +12,10 @@ HTML 是网站唯一发布物。Skill 同时生成的 MD 只用于审计、复�
 
 ## 从哪里开始
 
-1. 打开 [prototype.html](./prototype.html) 查看当前交互。
-2. 阅读 [DEVELOPMENT.md](./DEVELOPMENT.md) 了解产品范围、技术边界和实施顺序。
-3. 按任务阅读 [PRODUCT_UI.md](./PRODUCT_UI.md)、[BACKEND.md](./BACKEND.md)、[DEPLOYMENT.md](./DEPLOYMENT.md) 或 [SEO.md](./SEO.md)。
+1. 阅读仓库根目录 [README.md](../README.md) 运行工程骨架。
+2. 打开 [prototype.html](./prototype.html) 查看目标交互。
+3. 阅读 [DEVELOPMENT.md](./DEVELOPMENT.md) 了解产品范围、技术边界和实施顺序。
+4. 按任务阅读 [PRODUCT_UI.md](./PRODUCT_UI.md)、[BACKEND.md](./BACKEND.md)、[DEPLOYMENT.md](./DEPLOYMENT.md) 或 [SEO.md](./SEO.md)。
 
 ## 样本资产
 
@@ -25,4 +28,4 @@ HTML 是网站唯一发布物。Skill 同时生成的 MD 只用于审计、复�
 
 ## 下一步
 
-按 [DEVELOPMENT.md](./DEVELOPMENT.md) 的实施顺序，从仓库骨架、HTML 内容契约和 FastAPI 索引开始建设生产代码。
+下一里程碑是“HTML 内容契约与后端静态校验核心”。先实现元数据提取、内容路径、SHA-256 与静态安全校验，再进入 PostgreSQL 业务表、认证和发布流程。

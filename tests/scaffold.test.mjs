@@ -49,7 +49,10 @@ const nginxLocation = (source, selector) => {
 const fakeDocker = `#!/bin/sh
 printf '%s\\n' "$*" >> "$FAKE_DOCKER_LOG"
 if [ "$1" = "inspect" ]; then
-  printf '%s\\n' "\${FAKE_CONFIG_USER:-101:101}"
+  case "$*" in
+    *NetworkSettings.Ports*) printf '%s\\n' "\${FAKE_PORT_BINDINGS:-null}" ;;
+    *) printf '%s\\n' "\${FAKE_CONFIG_USER:-101:101}" ;;
+  esac
   exit 0
 fi
 [ "$1" = "compose" ] || exit 2
@@ -58,18 +61,43 @@ if [ "$1" = "--env-file" ]; then shift 2; fi
 case "$1" in
   ps)
     if [ "$2" = "--status" ]; then
-      printf '%s\\n' edge web admin api postgres
+      if [ "\${FAKE_SERVICE_STATE:-running}" = "exited" ]; then
+        printf '%s\\n' web admin api postgres
+      else
+        printf '%s\\n' edge web admin api postgres
+      fi
     elif [ "$2" = "-q" ]; then
       printf 'cid-%s\\n' "$3"
     else
-      printf 'healthy\\n'
+      case "$*" in
+        *State*)
+          if [ "\${FAKE_SERVICE_STATE:-running}" = "exited" ] && ! printf '%s' "$*" | grep -Fq -- '--all'; then
+            :
+          else
+            printf '%s\\n' "\${FAKE_SERVICE_STATE:-running}"
+          fi
+          ;;
+        *Health*)
+          if [ "\${FAKE_SERVICE_STATE:-running}" = "exited" ] && ! printf '%s' "$*" | grep -Fq -- '--all'; then
+            :
+          elif [ "\${FAKE_HEALTH_UNHEALTHY:-0}" = "1" ]; then
+            printf 'unhealthy\\n'
+          elif [ "\${FAKE_HEALTH_STARTING_ONCE:-0}" = "1" ] && [ ! -e "$FAKE_HEALTH_MARKER" ]; then
+            : > "$FAKE_HEALTH_MARKER"
+            printf 'starting\\n'
+          else
+            printf 'healthy\\n'
+          fi
+          ;;
+        *) exit 2 ;;
+      esac
     fi
     ;;
   exec)
     if [ "$3" = "edge" ] && [ "\${FAKE_EDGE_ID_FAIL:-0}" = "1" ]; then exit 127; fi
     printf '10001\\n'
     ;;
-  port) exit 1 ;;
+  port) printf ':0\\n' ;;
   stop) : > "$FAKE_POSTGRES_STOPPED" ;;
   start) rm -f "$FAKE_POSTGRES_STOPPED" ;;
   *) exit 2 ;;
@@ -134,7 +162,7 @@ printf '%s' "$body" > "$output"
 printf '%s' "$code"
 `
 
-const runSmokeWithFakes = async (overrides = {}) => {
+const runSmokeWithFakes = async (overrides = {}, timeout = 30_000) => {
   const root = await mkdtemp(join(tmpdir(), 'company-smoke-test-'))
   const bin = join(root, 'bin')
   await mkdir(bin)
@@ -150,6 +178,7 @@ const runSmokeWithFakes = async (overrides = {}) => {
     FAKE_CURL_LOG: join(root, 'curl.log'),
     FAKE_POSTGRES_STOPPED: join(root, 'postgres-stopped'),
     FAKE_TIMEOUT_MARKER: join(root, 'timeout-once'),
+    FAKE_HEALTH_MARKER: join(root, 'health-starting-once'),
     ...overrides,
   }
   let result
@@ -158,6 +187,7 @@ const runSmokeWithFakes = async (overrides = {}) => {
       cwd: repositoryRoot,
       env,
       maxBuffer: 1024 * 1024,
+      timeout,
     })
     result = { code: 0, ...output }
   } catch (error) {
@@ -495,6 +525,41 @@ test('smoke behavior uses bounded requests, one asset response, and a safe UID f
   assert.match(result.dockerLog, /stop postgres/)
   assert.match(result.dockerLog, /start postgres/)
   assert.equal(result.postgresStopped, false)
+})
+
+test('smoke accepts Compose expose-only port sentinels as internal ports', async () => {
+  const result = await runSmokeWithFakes()
+
+  assert.equal(result.code, 0, result.stderr)
+  assert.match(result.stdout, /compose smoke passed/)
+})
+
+test('smoke waits for containers to become healthy', async () => {
+  const result = await runSmokeWithFakes({ FAKE_HEALTH_STARTING_ONCE: '1' })
+
+  assert.equal(result.code, 0, result.stderr)
+  assert.match(result.stdout, /compose smoke passed/)
+})
+
+test('smoke fails immediately for terminal container states', async () => {
+  for (const overrides of [
+    { FAKE_HEALTH_UNHEALTHY: '1' },
+    { FAKE_SERVICE_STATE: 'exited' },
+  ]) {
+    const result = await runSmokeWithFakes(overrides, 2_000)
+
+    assert.notEqual(result.code, 0)
+    assert.match(result.stderr, /terminal state.*(?:unhealthy|exited)/)
+  }
+})
+
+test('smoke rejects real host port bindings', async () => {
+  const result = await runSmokeWithFakes({
+    FAKE_PORT_BINDINGS: '[{"HostIp":"127.0.0.1","HostPort":"12345"}]',
+  })
+
+  assert.notEqual(result.code, 0)
+  assert.match(result.stderr, /unexpectedly has a host mapping/)
 })
 
 test('smoke rejects a root Config.User identity including group-qualified forms', async () => {

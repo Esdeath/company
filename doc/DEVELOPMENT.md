@@ -6,8 +6,9 @@
 
 ## 当前实现与目标实现
 
-- 已实现：`doc/prototype.html` 和两家公司样本，覆盖公开工作区、移动抽屉、管理审核、发布状态与加载失败。
-- 目标实现：Nuxt 公开端、Vue/Vite 管理端、FastAPI、PostgreSQL、Nginx 和 Docker Compose。
+- 产品原型已完成：`doc/prototype.html` 和两家公司样本覆盖公开工作区、移动抽屉、管理审核、发布状态与加载失败。
+- 工程骨架已完成：Nuxt 公开端、Vue/Vite 管理端、FastAPI 健康接口、PostgreSQL、Nginx 和 Docker Compose 已通过质量检查与真实 Compose smoke。
+- 业务实现待开发：HTML 内容契约、静态安全校验、索引、认证、审核发布和公开读取仍以本文档及专题文档为目标。
 
 ## 唯一内容主线
 
@@ -46,8 +47,8 @@ OpenAPI 是前后端契约来源；内容状态变化必须事务化并记录审
 
 ## 实施顺序
 
-1. 建立 Nuxt、Vue/Vite、FastAPI 和 Compose 仓库骨架。
-2. 实现 HTML 元数据、安全校验和内容路径契约。
+1. 已完成：建立 Nuxt、Vue/Vite、FastAPI 和 Compose 仓库骨架。
+2. 下一步：实现 HTML 元数据、安全校验和内容路径契约。
 3. 建立 PostgreSQL 迁移、管理员认证和审计。
 4. 实现导入、审核、发布、撤回和公开读取 API。
 5. 将已验证的原型交互迁移到公开端和管理端。

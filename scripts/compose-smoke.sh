@@ -75,10 +75,37 @@ assert_non_root_uid() {
   printf '%s configured runtime user: %s (id command unavailable)\n' "$service" "$configured_user"
 }
 
-running_services=$(compose ps --status running --services)
+assert_no_host_mapping() {
+  local service=$1 port=$2 container_id port_bindings
+  container_id=$(compose ps -q "$service")
+  [[ -n "$container_id" ]] || fail "cannot find $service container for port inspection"
+  port_bindings=$(docker inspect --format "{{json (index .NetworkSettings.Ports \"${port}/tcp\")}}" "$container_id") || fail "cannot inspect $service:$port bindings"
+  [[ "$port_bindings" == "null" ]] || fail "$service:$port unexpectedly has a host mapping"
+}
+
+wait_for_service_healthy() {
+  local service=$1 timeout=${2:-60}
+  local deadline=$((SECONDS + timeout))
+  local running_services state health
+  while (( SECONDS < deadline )); do
+    running_services=$(compose ps --status running --services 2>/dev/null || true)
+    state=$(compose ps --all "$service" --format '{{.State}}' 2>/dev/null || true)
+    health=$(compose ps --all "$service" --format '{{.Health}}' 2>/dev/null || true)
+    case "$state:$health" in
+      exited:*|dead:*|removing:*|*:unhealthy)
+        fail "$service reached terminal state (state=${state:-unknown}, health=${health:-none})"
+        ;;
+    esac
+    if grep -Fx "$service" <<< "$running_services" >/dev/null && [[ "$health" == "healthy" ]]; then
+      return 0
+    fi
+    (( SECONDS < deadline )) && sleep 1
+  done
+  fail "$service did not become healthy (last state=${state:-unknown}, health=${health:-none})"
+}
+
 for service in edge web admin api postgres; do
-  grep -Fx "$service" <<< "$running_services" >/dev/null || fail "$service is not running"
-  [[ "$(compose ps "$service" --format '{{.Health}}')" == "healthy" ]] || fail "$service is not healthy"
+  wait_for_service_healthy "$service"
 done
 
 wait_for_http "$BASE_URL/healthz" 200 60 || fail 'edge health check failed'
@@ -127,7 +154,7 @@ assert_body '{"status":"ready"}'
 
 for mapping in 'web 3000' 'admin 8080' 'api 8000'; do
   set -- $mapping
-  [[ -z "$(compose port "$1" "$2" 2>/dev/null || true)" ]] || fail "$1:$2 unexpectedly has a host mapping"
+  assert_no_host_mapping "$1" "$2"
 done
 
 for service in web admin api edge; do

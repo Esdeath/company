@@ -92,6 +92,8 @@ function assertRateLimitAndQueueContract(backend) {
 
 test('README is the current documentation entry point', () => {
   const markdown = readCurrentDoc('README.md');
+  const currentStatus = h2Section(markdown, '当前状态');
+  const nextStep = h2Section(markdown, '下一步');
   assert.match(markdown, /^# 企业快照库文档/m);
   assert.match(markdown, /HTML 是网站唯一发布物/);
   assert.match(markdown, /MD.+审计.+重新生成/s);
@@ -101,16 +103,26 @@ test('README is the current documentation entry point', () => {
   assert.match(markdown, /BACKEND\.md/);
   assert.match(markdown, /DEPLOYMENT\.md/);
   assert.match(markdown, /SEO\.md/);
+  assert.match(currentStatus, /工程骨架已完成/);
+  for (const term of ['Nuxt', 'Vue/Vite', 'FastAPI', 'PostgreSQL', 'Nginx', 'Docker Compose']) {
+    assert.match(currentStatus, new RegExp(term));
+  }
+  assert.match(nextStep, /HTML 内容契约与后端静态校验核心/);
 });
 
 test('DEVELOPMENT describes one HTML publication mainline', () => {
   const markdown = readCurrentDoc('DEVELOPMENT.md');
+  const currentImplementation = h2Section(markdown, '当前实现与目标实现');
+  const implementationOrder = h2Section(markdown, '实施顺序');
   assert.match(markdown, /^# 企业快照库开发总纲/m);
   assert.match(markdown, /Skill[\s\S]+HTML[\s\S]+校验[\s\S]+审核[\s\S]+发布/);
   assert.match(markdown, /MD.+不参与网站运行/s);
   for (const term of ['Vue', 'Nuxt', 'Vite', 'TypeScript', 'FastAPI', 'PostgreSQL', 'Nginx', 'Docker']) {
     assert.match(markdown, new RegExp(term));
   }
+  assert.match(currentImplementation, /工程骨架已完成/);
+  assert.match(implementationOrder, /1\. 已完成：建立 Nuxt、Vue\/Vite、FastAPI 和 Compose 仓库骨架/);
+  assert.match(implementationOrder, /2\. 下一步：实现 HTML 元数据、安全校验和内容路径契约/);
   assert.doesNotMatch(markdown, /上传 Markdown|扫描 `?content\/inbox|Markdown 是.+唯一事实来源/);
 });
 

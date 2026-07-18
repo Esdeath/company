@@ -32,6 +32,11 @@ def test_live_returns_live_without_calling_failing_probe() -> None:
     assert response.json() == {"status": "live"}
 
 
+def test_default_database_probe_disposes_engine_on_shutdown() -> None:
+    with TestClient(create_app(settings())):
+        pass
+
+
 def test_ready_returns_ready_when_probe_succeeds() -> None:
     with TestClient(create_app(settings(), SuccessfulProbe())) as client:
         response = client.get("/api/health/ready")
