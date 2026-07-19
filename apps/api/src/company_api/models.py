@@ -41,9 +41,7 @@ class Document(Base):
         index=True,
     )
     title: Mapped[str] = mapped_column(String(500))
-    format: Mapped[DocumentFormat] = mapped_column(
-        Enum(DocumentFormat, name="document_format")
-    )
+    format: Mapped[DocumentFormat] = mapped_column(Enum(DocumentFormat, name="document_format"))
     source_path: Mapped[str] = mapped_column(String(1000), unique=True)
     rendered_path: Mapped[str | None] = mapped_column(String(1000), unique=True)
     original_filename: Mapped[str] = mapped_column(String(500))

@@ -37,6 +37,16 @@ def test_default_database_probe_disposes_engine_on_shutdown() -> None:
         pass
 
 
+def test_injected_probe_is_preserved_when_library_service_is_injected() -> None:
+    service = object()
+    with TestClient(
+        create_app(settings(), SuccessfulProbe(), library_service=service)  # type: ignore[arg-type]
+    ) as client:
+        response = client.get("/api/health/ready")
+
+    assert response.status_code == 200
+
+
 def test_ready_returns_ready_when_probe_succeeds() -> None:
     with TestClient(create_app(settings(), SuccessfulProbe())) as client:
         response = client.get("/api/health/ready")
