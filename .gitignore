@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 .superpowers/
+.worktrees/
 node_modules/
 .nuxt/
 .output/
