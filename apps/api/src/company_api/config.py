@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +16,7 @@ class Settings(BaseSettings):
 
     database_url: str
     cors_origins: str = ""
+    content_root: Path = Path("/data/content")
 
     @field_validator("cors_origins")
     @classmethod

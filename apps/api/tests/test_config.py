@@ -1,7 +1,15 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from company_api.config import Settings
+
+
+def test_content_root_defaults_to_data_content() -> None:
+    settings = Settings(database_url="postgresql+psycopg://company@postgres/company")
+
+    assert settings.content_root == Path("/data/content")
 
 
 def test_database_url_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
