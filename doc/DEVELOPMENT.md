@@ -2,54 +2,61 @@
 
 ## 项目目标
 
-保存并阅读 A 股、港股及无上市代码公司的企业研究快照。首版先跑通多公司 HTML 快照的导入、审核、发布和公开阅读。
+保存并阅读 A 股、港股及无上市代码公司的企业研究资料。首版接收不同 Skill 或人工整理的 HTML 和 Markdown，不要求统一业务字段。
 
 ## 当前实现与目标实现
 
-- 产品原型已完成：`doc/prototype.html` 和两家公司样本覆盖公开工作区、移动抽屉、管理审核、发布状态与加载失败。
-- 工程骨架已完成：Nuxt 公开端、Vue/Vite 管理端、FastAPI 健康接口、PostgreSQL、Nginx 和 Docker Compose 已通过质量检查与真实 Compose smoke。
-- 业务实现待开发：HTML 内容契约、静态安全校验、索引、认证、审核发布和公开读取仍以本文档及专题文档为目标。
+- 工程骨架已具备 Nuxt、Vue/Vite、FastAPI 健康接口、PostgreSQL、Nginx 和 Docker Compose。
+- `doc/prototype.html` 是交互参考，不代表资料服务已实现。
+- 本轮目标是直接资料上传：选择公司、保存文件、写入索引和公开阅读。
 
-## 唯一内容主线
+## 资料主线
 
-Codex Skill 生成 HTML 与 MD。HTML 经过校验、人工审核后发布，是网站唯一发布物；MD 只用于审计和重新生成，不参与网站运行。
+Skill 或人工资料 → 管理员选择公司 → 上传 HTML/Markdown → 按文件保存并建立索引 → 立即公开阅读
+
+管理员可以选择既有公司或新建公司，再选择一个或多个 `.html`、`.md` 文件。HTML 保留原文件；Markdown 保留源文件并生成展示 HTML。资料成功写入索引后，公开目录和阅读器即可读取它。
+
+管理员选择或新建公司后上传 HTML 和 Markdown；资料写入索引后立即公开。
 
 ## 首版范围
 
-包含多公司目录、HTML 阅读、搜索筛选、管理员认证、HTML 上传或扫描、安全校验、审核、发布、撤回、审计、SEO 基础和阿里云部署。不包含在线编辑器、网站内运行 Skill、行情实时刷新、社区功能或复杂组合管理。
+包含公司目录、资料列表、HTML 与 Markdown 多文件上传、按文件结果、统一 iframe 阅读器、Markdown 模板、移动端公司抽屉、基础 SEO、Docker Compose 和阿里云部署边界。不包含在线编辑器、网站内运行 Skill、行情实时刷新、社区功能或正文搜索。
 
 ## 技术栈
 
-公开端使用 Nuxt、Vue 和 TypeScript；管理端使用 Vue、Vite 和 TypeScript；API 使用 FastAPI；索引和审计使用 PostgreSQL；入口使用 Nginx；本地和阿里云使用 Docker Compose。
+公开端使用 Nuxt、Vue 和 TypeScript；管理端使用 Vue、Vite 和 TypeScript；API 使用 FastAPI；公司与资料索引使用 PostgreSQL；入口使用 Nginx；本地和阿里云使用 Docker Compose。
 
 ## 系统边界
 
-Skill 在网站外运行。只有 FastAPI 可以写生产内容目录和发布状态。Nuxt 与管理端通过 API 读取元数据；公开端与管理端预览同一个 HTML 文件并采用相同 sandbox 规则。数据库不保存 HTML 正文。
+Skill 在网站外运行。HTML 和 Markdown Skill 输出视为可信管理员输入；系统按扩展名处理文件，不检查正文、远程资源、脚本、业务元数据或重复内容。公开端与管理端使用同一个空 `sandbox` iframe 阅读器。数据库保存公司与资料索引，不保存文件正文。
+
+未认证写入仅限本地开发与验收。直传切片的写入接口暂不要求认证，不要把它描述为生产就绪，也不要把该接口暴露到阿里云或其他公网环境。后续生产写入需要独立的管理员认证、授权与 CSRF 工作。
 
 ## 数据流
 
-Skill → HTML 安全与元数据校验 → 草稿 → 人工审核 → 发布 → 公开阅读。任一文件缺失或加载失败都会形成审核错误并阻断发布。
+管理员选择或新建公司，上传 HTML 或 Markdown。FastAPI 写入源文件；Markdown 在写入时生成展示 HTML；服务完成索引写入后返回每个文件的结果。一个文件失败时服务清理该文件的临时数据，保留同批次中已经完成的文件。
 
 ## 文档地图
 
-- [PRODUCT_UI.md](./PRODUCT_UI.md)：公开端和管理端交互。
-- [BACKEND.md](./BACKEND.md)：API、索引、状态、校验和审计。
-- [DEPLOYMENT.md](./DEPLOYMENT.md)：Docker、Nginx、阿里云、备份和回滚。
-- [SEO.md](./SEO.md)：独立 HTML 地址的索引策略。
+- [PRODUCT_UI.md](./PRODUCT_UI.md)：公司选择、上传和阅读交互。
+- [BACKEND.md](./BACKEND.md)：文件、索引、接口和失败处理。
+- [DEPLOYMENT.md](./DEPLOYMENT.md)：Docker、Nginx、阿里云、备份和网络边界。
+- [SEO.md](./SEO.md)：已建立索引的资料内容的索引策略。
+- [资料直接上传与 Markdown 渲染设计](./specs/2026-07-18-direct-document-upload-design.md)：已确认的直传设计。
 
 ## 开发约定
 
-OpenAPI 是前后端契约来源；内容状态变化必须事务化并记录审计；HTML 只能通过统一校验器进入发布状态；文档必须区分“当前已实现”和“目标设计”。
+OpenAPI 是前后端接口契约来源。文件和索引写入要以单个文件为边界完成清理与补偿；文档应区分当前实现、目标设计和仅限本地的直传切片。
 
 ## 测试层级
 
-使用单元测试覆盖元数据和安全校验，集成测试覆盖文件事务与发布状态，浏览器测试覆盖公开目录、管理操作、404、重试、iframe 清理与移动抽屉。
+单元测试覆盖标题提取、扩展名分流和 Markdown 渲染；集成测试覆盖临时文件清理、文件与索引写入及批量逐文件结果；浏览器测试覆盖公司选择、多文件上传、资料列表、iframe 阅读和移动抽屉。
 
 ## 实施顺序
 
 1. 已完成：建立 Nuxt、Vue/Vite、FastAPI 和 Compose 仓库骨架。
-2. 下一步：实现 HTML 元数据、安全校验和内容路径契约。
-3. 建立 PostgreSQL 迁移、管理员认证和审计。
-4. 实现导入、审核、发布、撤回和公开读取 API。
-5. 将已验证的原型交互迁移到公开端和管理端。
-6. 完成 Nginx、阿里云、SEO、备份和发布检查。
+2. 实现 HTML 与 Markdown 的按扩展名写入、标题提取和资料索引。
+3. 实现 Markdown 模板渲染、单文件失败清理和批量结果。
+4. 实现公开目录、资料列表和统一 iframe 阅读。
+5. 将交互迁移到公开端和管理端，并完成移动端抽屉。
+6. 在接入生产写入认证前，只在本地验收直传接口；同时完成 Nginx、阿里云、SEO 和备份边界。
