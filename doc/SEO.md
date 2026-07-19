@@ -24,7 +24,7 @@
 
 ## 元数据
 
-标题来自 HTML `<title>` 或 Markdown 第一个一级标题，缺失时使用文件名。description、公司名称、市场、证券代码、上传时间和 canonical 来自公司与资料索引。页面不编造投资判断或实时行情字段。
+标题来自 HTML `<title>` 或 Markdown 第一个一级标题，缺失时使用原始文件名去掉扩展名后的文件名主体。description、公司名称、市场、证券代码、上传时间和 canonical 来自公司与资料索引。页面不编造投资判断或实时行情字段。
 
 内容地址输出与页面可见内容一致的 Open Graph 和结构化数据。禁止按 User-Agent 返回不同正文，禁止 cloaking 或专供爬虫的页面。
 

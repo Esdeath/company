@@ -18,9 +18,9 @@
 
 1. 管理员选择或新建公司。
 2. 管理员选择一个或多个 `.html`、`.md` 文件。
-3. FastAPI 按扩展名保存文件。HTML 不转换；Markdown 套用统一模板生成 `rendered.html`。
-4. 系统从 HTML `<title>` 或 Markdown 第一个一级标题取得展示标题；缺失时使用文件名。
-5. FastAPI 写入资料索引。公开端随后可以读取该资料。
+3. FastAPI 在 staging 按扩展名准备 `source.html` 或 `source.md`；HTML 不转换，Markdown 套用统一模板生成 `rendered.html`。
+4. 系统从 HTML `<title>` 或 Markdown 第一个一级标题取得展示标题；缺失时使用原始文件名去掉扩展名后的文件名主体。
+5. FastAPI 将完整文件集原子移动到 UUID 最终目录；最终文件存在后才提交资料索引。公开读取只在文件系统和数据库工作都完成后开始。
 
 系统只处理文件无法读取、写入失败、Markdown 渲染失败和不支持的扩展名。系统不检查文档内容、远程资源、脚本、业务元数据或重复资料。
 
@@ -32,7 +32,7 @@ content/companies/<company-id>/<document-id>/source.md
 content/companies/<company-id>/<document-id>/rendered.html
 ```
 
-资料索引保存 `id`、`company_id`、`title`、`format`、`source_path`、`rendered_path`、`original_filename` 和 `uploaded_at`。路径使用系统生成的 ID。同名文件会产生两条记录，管理员可以重命名或删除。
+`company-id` 和 `document-id` 都使用 UUID。资料索引保存 `id`、`company_id`、`title`、`format`、`source_path`、`rendered_path`、`original_filename` 和 `uploaded_at`。路径使用系统生成的 ID。同名文件会产生两条记录，管理员可以重命名或删除。
 
 ## 展示方式
 
@@ -42,7 +42,7 @@ Markdown 模板支持标题、段落、强调、引用、列表、任务列表�
 
 ## 失败处理
 
-FastAPI 先写临时文件，完成渲染和索引写入后再移动到最终目录。任一步失败时，FastAPI 删除本次临时文件并返回错误，不保留残缺记录。批量上传按文件返回结果，一个文件失败不撤销其他已成功文件。
+FastAPI 在 staging 准备 `source.html` 或 `source.md`，并为 Markdown 准备 `rendered.html`。FastAPI 将完整文件集原子移动到 UUID 最终目录；最终文件存在后才提交资料索引。数据库提交失败时删除或补偿最终文件。任一步失败时，FastAPI 删除本次 staging 数据并返回错误，不保留残缺记录。批量上传按文件返回结果，一个文件失败不撤销其他已成功文件。
 
 ## 验收范围
 

@@ -11,11 +11,12 @@
 
 ## 模板变量
 
-`template.html` 使用三个占位符：
+`template.html` 使用四个占位符：
 
-- `{{ document_title }}`：第一个一级标题，缺失时使用文件名。
+- `{{ document_title }}`：第一个一级标题，缺失时使用原始文件名去掉扩展名后的文件名主体。
 - `{{ document_meta }}`：可选的公司名、来源或上传时间文字。
 - `{{ document_content }}`：Markdown 转换后的 HTML。转换器应从正文中移除已作为页面标题使用的第一个一级标题。
+- `{{ document_styles }}`：由已批准的 `template.css` 提供的 CSS。生成的 HTML 内联已批准的 CSS，不依赖运行时相对样式表路径。
 
 模板不要求 Front Matter 或资料类型。后端保存原始 Markdown，并把渲染结果保存为 `rendered.html`。模板调整后，后台可以重新生成这些展示文件。
 

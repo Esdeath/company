@@ -65,6 +65,38 @@ test('backend defines file storage and per-file failure behavior', () => {
   }
 });
 
+test('direct-upload contract commits each UUID file set before exposing its index', () => {
+  const backend = readCurrentDoc('BACKEND.md');
+  const design = readCurrentDoc('specs/2026-07-18-direct-document-upload-design.md');
+
+  for (const markdown of [backend, design]) {
+    assert.match(markdown, /`company-id` 和 `document-id` 都使用 UUID/);
+    assert.match(markdown, /在 staging 准备 `source\.html` 或 `source\.md`，并为 Markdown 准备 `rendered\.html`/);
+    assert.match(markdown, /原子移动到 UUID 最终目录/);
+    assert.match(markdown, /最终文件存在后才提交资料索引/);
+    assert.match(markdown, /数据库提交失败时删除或补偿最终文件/);
+    assert.match(markdown, /公开读取只在文件系统和数据库工作都完成后开始/);
+  }
+});
+
+test('title fallback uses the extensionless original filename stem everywhere', () => {
+  const backend = readCurrentDoc('BACKEND.md');
+  const design = readCurrentDoc('specs/2026-07-18-direct-document-upload-design.md');
+  const seo = readCurrentDoc('SEO.md');
+
+  for (const markdown of [backend, design, seo]) {
+    assert.match(markdown, /原始文件名去掉扩展名后的文件名主体/);
+  }
+});
+
+test('Markdown template documentation defines the inline styles placeholder', () => {
+  const templateReadme = readCurrentDoc('templates/markdown/README.md');
+
+  assert.match(templateReadme, /使用四个占位符/);
+  assert.match(templateReadme, /`\{\{ document_styles \}\}`/);
+  assert.match(templateReadme, /生成的 HTML 内联已批准的 CSS/);
+});
+
 test('product UI keeps one sandboxed reader and the mobile company drawer', () => {
   const productUi = readCurrentDoc('PRODUCT_UI.md');
 
