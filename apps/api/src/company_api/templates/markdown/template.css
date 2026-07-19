@@ -1,0 +1,342 @@
+:root {
+  color-scheme: light;
+  --page: #f4f6f3;
+  --paper: #fbfcfa;
+  --ink: #18221d;
+  --muted: #68756e;
+  --line: #dfe6e1;
+  --green: #285541;
+  --green-soft: #eaf2ed;
+  --red: #b9503d;
+  --code: #15211b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--page);
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--page);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.research-document {
+  width: min(100%, 920px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 72px) clamp(20px, 6vw, 72px) 88px;
+  background: var(--paper);
+  box-shadow: 0 18px 60px rgb(31 48 39 / 8%);
+}
+
+.document-header {
+  margin-bottom: clamp(28px, 5vw, 48px);
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.document-kicker {
+  width: max-content;
+  margin: 0 0 18px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--green);
+  background: var(--green-soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.document-header h1 {
+  margin: 0;
+  font-family: Georgia, "Songti SC", "STSong", serif;
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+}
+
+.document-meta {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.markdown-body {
+  font-family: Georgia, "Songti SC", "STSong", serif;
+  font-size: 17px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+
+.markdown-body > p:first-child {
+  margin-top: 0;
+  color: #34443b;
+  font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.8;
+}
+
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  color: var(--green);
+  font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  line-height: 1.35;
+  scroll-margin-top: 24px;
+}
+
+.markdown-body h2 {
+  margin: 2.8em 0 0.8em;
+  padding-bottom: 0.48em;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.55em;
+}
+
+.markdown-body h3 {
+  margin: 2.2em 0 0.7em;
+  font-size: 1.22em;
+}
+
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 1.8em 0 0.6em;
+  font-size: 1em;
+}
+
+.markdown-body p {
+  margin: 0 0 1.25em;
+}
+
+.markdown-body strong {
+  color: #223c30;
+}
+
+.markdown-body a {
+  color: #246446;
+  text-decoration-color: rgb(36 100 70 / 35%);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.markdown-body a:hover {
+  color: var(--red);
+  text-decoration-color: currentColor;
+}
+
+.markdown-body blockquote {
+  margin: 1.7em 0;
+  padding: 18px 22px;
+  border: 0;
+  border-radius: 10px;
+  color: #315342;
+  background: var(--green-soft);
+}
+
+.markdown-body blockquote p {
+  margin: 0.65em 0;
+  font-size: 1.05em;
+  font-weight: 650;
+  line-height: 1.75;
+}
+
+.markdown-body blockquote p:first-child {
+  margin-top: 0;
+}
+
+.markdown-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 1.4em;
+  padding-left: 1.45em;
+}
+
+.markdown-body li {
+  margin: 0.38em 0;
+  padding-left: 0.2em;
+}
+
+.markdown-body li::marker {
+  color: var(--red);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+}
+
+.markdown-body .task-list-item {
+  list-style: none;
+}
+
+.markdown-body input[type="checkbox"] {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.55em 0 -1.35em;
+  accent-color: var(--green);
+}
+
+.markdown-body table {
+  display: block;
+  width: 100%;
+  margin: 1.5em 0 2em;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-spacing: 0;
+  border-collapse: separate;
+  border-radius: 10px;
+  background: #fff;
+  font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-body thead {
+  background: #edf2ef;
+}
+
+.markdown-body th,
+.markdown-body td {
+  min-width: 110px;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body th {
+  color: #4c6257;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.markdown-body tr > :last-child {
+  border-right: 0;
+}
+
+.markdown-body tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.markdown-body img,
+.markdown-body video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.8em auto;
+  border-radius: 12px;
+}
+
+.markdown-body hr {
+  width: 72px;
+  margin: 3em auto;
+  border: 0;
+  border-top: 2px solid #ccd7d1;
+}
+
+.markdown-body code {
+  padding: 0.18em 0.4em;
+  border-radius: 5px;
+  color: #8d372c;
+  background: #f4eae7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.markdown-body pre {
+  margin: 1.6em 0;
+  padding: 18px 20px;
+  overflow-x: auto;
+  border-radius: 10px;
+  color: #dce9e2;
+  background: var(--code);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.markdown-body .footnotes {
+  margin-top: 3em;
+  padding-top: 1.2em;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.86em;
+}
+
+@media (max-width: 640px) {
+  .research-document {
+    padding: 28px 19px 64px;
+    box-shadow: none;
+  }
+
+  .document-header {
+    margin-bottom: 28px;
+  }
+
+  .document-header h1 {
+    font-size: 34px;
+  }
+
+  .markdown-body {
+    font-size: 16px;
+    line-height: 1.82;
+  }
+
+  .markdown-body > p:first-child {
+    font-size: 17px;
+  }
+
+  .markdown-body h2 {
+    margin-top: 2.3em;
+  }
+
+  .markdown-body blockquote {
+    padding: 15px 17px;
+  }
+
+  .markdown-body th,
+  .markdown-body td {
+    padding: 10px 12px;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+  }
+
+  .research-document {
+    width: 100%;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .markdown-body a {
+    color: inherit;
+  }
+}
