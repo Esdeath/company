@@ -107,7 +107,7 @@ class ContentStore:
             if rendered_bytes is not None:
                 (staging_directory / _RENDERED_FILENAME).write_bytes(rendered_bytes)
         except BaseException:
-            shutil.rmtree(staging_directory, ignore_errors=True)
+            self._remove_tree_if_canonical(staging_directory)
             self._remove_empty_directory(staging_directory.parent)
             raise
 
@@ -117,6 +117,7 @@ class ContentStore:
         self._validate_prepared(prepared)
         try:
             prepared.final_directory.parent.mkdir(parents=True, exist_ok=True)
+            self._require_under_root(prepared.final_directory)
             if os.path.lexists(prepared.final_directory):
                 raise FileExistsError(
                     f"document directory already exists: {prepared.final_directory}"
@@ -154,14 +155,14 @@ class ContentStore:
         """Stage a reversible deletion in the root's trash directory."""
         self._validate_stored(stored)
         trash_directory = self._trash_directory(stored)
-        trash_directory.parent.mkdir(parents=True, exist_ok=True)
-        if os.path.lexists(trash_directory):
-            raise FileExistsError(f"trash directory already exists: {trash_directory}")
-
         try:
+            trash_directory.parent.mkdir(parents=True, exist_ok=True)
+            self._require_under_root(trash_directory)
+            if os.path.lexists(trash_directory):
+                raise FileExistsError(f"trash directory already exists: {trash_directory}")
             os.replace(stored.directory, trash_directory)
         except BaseException:
-            self._remove_empty_directory(trash_directory.parent)
+            self._remove_empty_trash_parents(trash_directory)
             raise
         self._remove_empty_final_parents(stored.directory)
 
@@ -174,11 +175,14 @@ class ContentStore:
 
         try:
             stored.directory.parent.mkdir(parents=True, exist_ok=True)
+            self._require_under_root(stored.directory)
+            self._require_under_root(trash_directory)
             os.replace(trash_directory, stored.directory)
         except BaseException:
             self._remove_empty_final_parents(stored.directory)
+            self._remove_empty_trash_parents(trash_directory)
             raise
-        self._remove_empty_directory(trash_directory.parent)
+        self._remove_empty_trash_parents(trash_directory)
 
     def purge_deleted(self, stored: StoredDocument) -> None:
         """Permanently remove a staged deletion after its database commit."""
@@ -186,7 +190,7 @@ class ContentStore:
         trash_directory = self._trash_directory(stored)
         with suppress(FileNotFoundError):
             shutil.rmtree(trash_directory)
-        self._remove_empty_directory(trash_directory.parent)
+        self._remove_empty_trash_parents(trash_directory)
 
     @staticmethod
     def _document_format(filename: str) -> DocumentFormat:
@@ -199,7 +203,7 @@ class ContentStore:
             ) from error
 
     def _validate_prepared(self, prepared: PreparedDocument) -> None:
-        document_id = self._validate_document_directory(prepared.final_directory)
+        _, document_id = self._validate_document_directory(prepared.final_directory)
         expected_staging_directory = self.root / ".staging" / str(document_id)
         if prepared.staging_directory != expected_staging_directory:
             raise ValueError("staging directory does not match the document UUID")
@@ -255,7 +259,7 @@ class ContentStore:
         if stored.rendered_path is not None:
             self._require_under_root(stored.rendered_path)
 
-    def _validate_document_directory(self, directory: Path) -> uuid.UUID:
+    def _validate_document_directory(self, directory: Path) -> tuple[uuid.UUID, uuid.UUID]:
         self._require_under_root(directory)
         try:
             relative_directory = directory.relative_to(self.root)
@@ -272,14 +276,26 @@ class ContentStore:
             raise ValueError("document directory is not UUID-derived") from error
         if str(company_id) != company_part or str(document_id) != document_part:
             raise ValueError("document directory is not canonically UUID-derived")
-        return document_id
+        return company_id, document_id
 
     def _trash_directory(self, stored: StoredDocument) -> Path:
-        trash_directory = self.root / ".trash" / stored.directory.name
+        company_id, document_id = self._validate_document_directory(stored.directory)
+        trash_directory = self.root / ".trash" / str(company_id) / str(document_id)
         self._require_under_root(trash_directory)
         return trash_directory
 
     def _require_under_root(self, path: Path) -> None:
+        try:
+            relative_path = path.relative_to(self.root)
+        except ValueError as error:
+            raise ValueError(f"content path escapes configured root: {path}") from error
+
+        current = self.root
+        for part in relative_path.parts:
+            current /= part
+            if current.is_symlink():
+                raise ValueError(f"content path contains a symlink component: {current}")
+
         try:
             path.resolve().relative_to(self.root)
         except ValueError as error:
@@ -291,5 +307,24 @@ class ContentStore:
             path.rmdir()
 
     def _remove_empty_final_parents(self, document_directory: Path) -> None:
+        try:
+            self._require_under_root(document_directory.parent)
+        except ValueError:
+            return
         self._remove_empty_directory(document_directory.parent)
         self._remove_empty_directory(self.root / "companies")
+
+    def _remove_empty_trash_parents(self, trash_directory: Path) -> None:
+        try:
+            self._require_under_root(trash_directory.parent)
+        except ValueError:
+            return
+        self._remove_empty_directory(trash_directory.parent)
+        self._remove_empty_directory(self.root / ".trash")
+
+    def _remove_tree_if_canonical(self, path: Path) -> None:
+        try:
+            self._require_under_root(path)
+        except ValueError:
+            return
+        shutil.rmtree(path, ignore_errors=True)

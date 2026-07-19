@@ -9,7 +9,19 @@ from company_api.content_store import ContentStore, UnsupportedDocumentType
 from company_api.models import DocumentFormat
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
+OTHER_COMPANY_ID = uuid.UUID("a0252f1b-fc6e-4d31-8d8e-eb2e65cbe444")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
+
+
+def _as_other_company(stored: content_store_module.StoredDocument, root: Path):
+    directory = root / "companies" / str(OTHER_COMPANY_ID) / str(DOCUMENT_ID)
+    source_path = directory / "source.html"
+    return replace(
+        stored,
+        directory=directory,
+        source_path=source_path,
+        source_relative_path=source_path.relative_to(root).as_posix(),
+    )
 
 
 def test_html_is_saved_byte_for_byte(tmp_path: Path) -> None:
@@ -64,6 +76,32 @@ def test_unsupported_extension_leaves_no_files(tmp_path: Path) -> None:
         store.prepare(COMPANY_ID, DOCUMENT_ID, "notes.pdf", b"pdf")
 
     assert list(tmp_path.rglob("*")) == []
+
+
+def test_prepare_rejects_symlinked_staging_root(tmp_path: Path) -> None:
+    staging_target = tmp_path / "staging-target"
+    staging_target.mkdir()
+    (tmp_path / ".staging").symlink_to(staging_target, target_is_directory=True)
+    store = ContentStore(tmp_path)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source")
+
+    assert list(staging_target.iterdir()) == []
+
+
+def test_prepare_rejects_symlinked_company_directory(tmp_path: Path) -> None:
+    company_target = tmp_path / "company-target"
+    company_target.mkdir()
+    companies = tmp_path / "companies"
+    companies.mkdir()
+    (companies / str(COMPANY_ID)).symlink_to(company_target, target_is_directory=True)
+    store = ContentStore(tmp_path)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source")
+
+    assert list(company_target.iterdir()) == []
 
 
 def test_failed_markdown_decode_leaves_no_files(tmp_path: Path) -> None:
@@ -126,13 +164,13 @@ def test_commit_collision_preserves_existing_document_and_staging(tmp_path: Path
     assert replacement.staging_directory.is_dir()
 
 
-def test_commit_collision_preserves_dangling_destination_symlink(tmp_path: Path) -> None:
+def test_commit_rejects_dangling_destination_symlink(tmp_path: Path) -> None:
     store = ContentStore(tmp_path)
     prepared = store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source")
     prepared.final_directory.parent.mkdir(parents=True)
     prepared.final_directory.symlink_to(tmp_path / "missing-document", target_is_directory=True)
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(ValueError, match="symlink"):
         store.commit(prepared)
 
     assert prepared.final_directory.is_symlink()
@@ -173,6 +211,19 @@ def test_discard_rejects_forged_staging_directory(tmp_path: Path) -> None:
     assert (unrelated / "keep.txt").read_text() == "keep"
 
 
+def test_discard_rejects_symlinked_staging_root(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    prepared = store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source")
+    staging_target = tmp_path / "staging-target"
+    prepared.staging_directory.parent.rename(staging_target)
+    prepared.staging_directory.parent.symlink_to(staging_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.discard(prepared)
+
+    assert (staging_target / str(DOCUMENT_ID) / "source.html").read_bytes() == b"source"
+
+
 def test_failed_commit_removes_empty_destination_parents(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -196,7 +247,7 @@ def test_failed_commit_removes_empty_destination_parents(
 def test_delete_and_restore_compensate_with_reversible_rename(tmp_path: Path) -> None:
     store = ContentStore(tmp_path)
     stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
-    trash_directory = tmp_path / ".trash" / str(DOCUMENT_ID)
+    trash_directory = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID)
 
     assert store.delete(stored) is None
     assert not stored.directory.exists()
@@ -228,32 +279,126 @@ def test_delete_rejects_forged_stored_paths(tmp_path: Path) -> None:
     assert stored.source_path.read_bytes() == b"source"
 
 
-def test_delete_collision_preserves_dangling_trash_symlink(tmp_path: Path) -> None:
+def test_delete_rejects_symlinked_company_directory(tmp_path: Path) -> None:
     store = ContentStore(tmp_path)
     stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
-    trash_directory = tmp_path / ".trash" / str(DOCUMENT_ID)
-    trash_directory.parent.mkdir()
+    company_directory = stored.directory.parent
+    company_target = tmp_path / "company-target"
+    company_directory.rename(company_target)
+    company_directory.symlink_to(company_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.delete(stored)
+
+    assert (company_target / str(DOCUMENT_ID) / "source.html").read_bytes() == b"source"
+
+
+def test_delete_rejects_symlinked_trash_root(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    trash_target = tmp_path / "trash-target"
+    trash_target.mkdir()
+    (tmp_path / ".trash").symlink_to(trash_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.delete(stored)
+
+    assert list(trash_target.iterdir()) == []
+    assert stored.source_path.read_bytes() == b"source"
+
+
+def test_delete_rejects_symlinked_trash_company_directory(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    trash_root = tmp_path / ".trash"
+    trash_root.mkdir()
+    trash_target = tmp_path / "trash-target"
+    trash_target.mkdir()
+    (trash_root / str(COMPANY_ID)).symlink_to(trash_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.delete(stored)
+
+    assert list(trash_target.iterdir()) == []
+    assert stored.source_path.read_bytes() == b"source"
+
+
+def test_failed_delete_cleans_empty_trash_parents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        del source, destination
+        raise OSError("delete failed")
+
+    monkeypatch.setattr(content_store_module.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="delete failed"):
+        store.delete(stored)
+
+    assert stored.source_path.read_bytes() == b"source"
+    assert not (tmp_path / ".trash").exists()
+
+
+def test_delete_rejects_dangling_trash_symlink(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    trash_directory = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID)
+    trash_directory.parent.mkdir(parents=True)
     trash_directory.symlink_to(tmp_path / "missing-trash", target_is_directory=True)
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(ValueError, match="symlink"):
         store.delete(stored)
 
     assert trash_directory.is_symlink()
     assert stored.source_path.read_bytes() == b"source"
 
 
-def test_restore_collision_preserves_dangling_destination_symlink(tmp_path: Path) -> None:
+def test_restore_rejects_dangling_destination_symlink(tmp_path: Path) -> None:
     store = ContentStore(tmp_path)
     stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
     store.delete(stored)
     stored.directory.parent.mkdir(parents=True)
     stored.directory.symlink_to(tmp_path / "missing-document", target_is_directory=True)
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(ValueError, match="symlink"):
         store.restore_deleted(stored)
 
     assert stored.directory.is_symlink()
-    assert (tmp_path / ".trash" / str(DOCUMENT_ID) / "source.html").read_bytes() == b"source"
+    trash_source = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID) / "source.html"
+    assert trash_source.read_bytes() == b"source"
+
+
+def test_restore_rejects_symlinked_trash_root(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    store.delete(stored)
+    trash_target = tmp_path / "trash-target"
+    (tmp_path / ".trash").rename(trash_target)
+    (tmp_path / ".trash").symlink_to(trash_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.restore_deleted(stored)
+
+    assert len(list(trash_target.rglob("source.html"))) == 1
+    assert not stored.directory.exists()
+
+
+def test_other_company_cannot_restore_staged_deletion(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    store.delete(stored)
+    forged = _as_other_company(stored, tmp_path)
+    original_trash_source = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID) / "source.html"
+
+    with pytest.raises(FileNotFoundError):
+        store.restore_deleted(forged)
+
+    assert original_trash_source.read_bytes() == b"source"
+    assert not forged.directory.exists()
 
 
 def test_failed_restore_removes_empty_destination_parents(
@@ -263,7 +408,7 @@ def test_failed_restore_removes_empty_destination_parents(
     store = ContentStore(tmp_path)
     stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
     store.delete(stored)
-    trash_directory = tmp_path / ".trash" / str(DOCUMENT_ID)
+    trash_directory = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID)
 
     def fail_replace(source: Path, destination: Path) -> None:
         del source, destination
@@ -286,3 +431,29 @@ def test_purge_deleted_removes_staged_deletion(tmp_path: Path) -> None:
     assert store.purge_deleted(stored) is None
 
     assert list(tmp_path.rglob("*")) == []
+
+
+def test_purge_rejects_symlinked_trash_root(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    store.delete(stored)
+    trash_target = tmp_path / "trash-target"
+    (tmp_path / ".trash").rename(trash_target)
+    (tmp_path / ".trash").symlink_to(trash_target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        store.purge_deleted(stored)
+
+    assert len(list(trash_target.rglob("source.html"))) == 1
+
+
+def test_other_company_cannot_purge_staged_deletion(tmp_path: Path) -> None:
+    store = ContentStore(tmp_path)
+    stored = store.commit(store.prepare(COMPANY_ID, DOCUMENT_ID, "report.html", b"source"))
+    store.delete(stored)
+    forged = _as_other_company(stored, tmp_path)
+    original_trash_source = tmp_path / ".trash" / str(COMPANY_ID) / str(DOCUMENT_ID) / "source.html"
+
+    assert store.purge_deleted(forged) is None
+
+    assert original_trash_source.read_bytes() == b"source"
