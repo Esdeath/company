@@ -1,6 +1,7 @@
 """Render trusted Markdown documents with the shared editorial template."""
 
 import html
+import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from importlib.resources import files
@@ -8,6 +9,10 @@ from importlib.resources import files
 from markdown_it import MarkdownIt
 from mdit_py_plugins.footnote import footnote_plugin
 from mdit_py_plugins.tasklists import tasklists_plugin
+
+_TEMPLATE_MARKER = re.compile(
+    r"{{ (document_title|document_meta|document_styles|document_content) }}"
+)
 
 markdown = (
     MarkdownIt("commonmark", {"html": True})
@@ -94,8 +99,11 @@ def render_markdown(
         tokens = tokens[:title_index] + tokens[title_index + 3 :]
 
     body = markdown.renderer.render(tokens, markdown.options, {})
-    page = _load_template().replace("{{ document_title }}", html.escape(title))
-    page = page.replace("{{ document_meta }}", html.escape(document_meta))
-    page = page.replace("{{ document_styles }}", _load_styles())
-    page = page.replace("{{ document_content }}", body)
+    replacements = {
+        "document_title": html.escape(title),
+        "document_meta": html.escape(document_meta),
+        "document_styles": _load_styles(),
+        "document_content": body,
+    }
+    page = _TEMPLATE_MARKER.sub(lambda marker: replacements[marker.group(1)], _load_template())
     return RenderedMarkdown(title=title, html=page)

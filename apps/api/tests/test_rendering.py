@@ -67,6 +67,30 @@ def test_raw_html_is_preserved_in_rendered_document() -> None:
     assert "<aside>Trusted administrator content</aside>" in result.html
 
 
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "{{ document_title }}",
+        "{{ document_meta }}",
+        "{{ document_styles }}",
+        "{{ document_content }}",
+    ],
+)
+def test_template_markers_in_title_and_metadata_are_not_reprocessed(marker: str) -> None:
+    raw_body = '<aside data-content="trusted">Raw body</aside>'
+
+    page = render_markdown(raw_body, marker, document_meta=marker).html
+
+    assert f"<title>{marker}</title>" in page
+    assert f"<h1>{marker}</h1>" in page
+    assert f'<p class="document-meta">{marker}</p>' in page
+    assert page.count(raw_body) == 1
+    assert f"<title>{raw_body}</title>" not in page
+    assert f"<h1>{raw_body}</h1>" not in page
+    assert f'<p class="document-meta">{raw_body}</p>' not in page
+    assert raw_body in page.split('<article class="markdown-body">', 1)[1].split("</article>", 1)[0]
+
+
 def test_only_the_first_h1_is_removed_after_leading_content() -> None:
     result = render_markdown("引言\n\n# 首个标题\n\n# 保留标题", "fallback")
 
