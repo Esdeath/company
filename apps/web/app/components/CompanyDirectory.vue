@@ -20,34 +20,38 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 const directory = ref<HTMLElement | null>(null)
 let mediaQuery: MediaQueryList | null = null
 let previousBodyOverflow = ''
+let ownsBodyLock = false
 
 const selectedCompany = computed(
   () => props.companies.find((company) => company.id === props.selectedId) ?? null,
 )
 const navigationVisible = computed(() => isDesktop.value || drawerOpen.value)
 
-function setBodyLock(locked: boolean) {
-  if (typeof document === 'undefined') return
-  if (locked) {
-    previousBodyOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = previousBodyOverflow
-  }
+function acquireBodyLock() {
+  if (typeof document === 'undefined' || ownsBodyLock) return
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  ownsBodyLock = true
+}
+
+function releaseBodyLock() {
+  if (typeof document === 'undefined' || !ownsBodyLock) return
+  document.body.style.overflow = previousBodyOverflow
+  ownsBodyLock = false
 }
 
 async function openDrawer() {
   drawerOpen.value = true
-  if (!isDesktop.value) setBodyLock(true)
+  if (!isDesktop.value) acquireBodyLock()
   await nextTick()
   closeButton.value?.focus()
 }
 
 async function closeDrawer(restoreFocus = true) {
-  if (!drawerOpen.value) return
+  const wasOpen = drawerOpen.value
   drawerOpen.value = false
-  setBodyLock(false)
-  if (restoreFocus) {
+  releaseBodyLock()
+  if (restoreFocus && wasOpen) {
     await nextTick()
     trigger.value?.focus()
   }
@@ -92,10 +96,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 function handleBreakpoint(event: MediaQueryListEvent | MediaQueryList) {
   isDesktop.value = event.matches
-  if (event.matches && drawerOpen.value) {
-    drawerOpen.value = false
-    setBodyLock(false)
-  }
+  if (event.matches) void closeDrawer(false)
 }
 
 onMounted(() => {
@@ -110,7 +111,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   mediaQuery?.removeEventListener('change', handleBreakpoint)
-  setBodyLock(false)
+  releaseBodyLock()
 })
 </script>
 

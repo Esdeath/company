@@ -61,6 +61,20 @@ const companyTwoDocuments: DocumentItem[] = [
   },
 ]
 
+type Unmountable = { unmount: () => void }
+const mountedWrappers: Unmountable[] = []
+
+function track<T extends Unmountable>(wrapper: T): T {
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
+
+function unmountTracked(wrapper: Unmountable) {
+  wrapper.unmount()
+  const index = mountedWrappers.indexOf(wrapper)
+  if (index >= 0) mountedWrappers.splice(index, 1)
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -72,7 +86,7 @@ function deferred<T>() {
 }
 
 async function mountWorkspace(attachToDocument = false) {
-  const wrapper = mount(App, attachToDocument ? { attachTo: document.body } : undefined)
+  const wrapper = track(mount(App, attachToDocument ? { attachTo: document.body } : undefined))
   await flushPromises()
   return wrapper
 }
@@ -91,7 +105,9 @@ describe('公开资料阅读工作台', () => {
   })
 
   afterEach(() => {
+    for (const wrapper of mountedWrappers.splice(0).reverse()) wrapper.unmount()
     document.body.innerHTML = ''
+    document.body.style.overflow = ''
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
@@ -144,7 +160,7 @@ describe('公开资料阅读工作台', () => {
 
     expect(emptyLibrary.text()).toContain('资料库里还没有公司')
     expect(library.listDocuments).not.toHaveBeenCalled()
-    emptyLibrary.unmount()
+    unmountTracked(emptyLibrary)
 
     vi.mocked(library.listCompanies).mockResolvedValueOnce(companies)
     vi.mocked(library.listDocuments).mockResolvedValueOnce([])
@@ -182,7 +198,7 @@ describe('公开资料阅读工作台', () => {
       .mockReturnValueOnce(oldRequest.promise)
       .mockReturnValueOnce(currentRequest.promise)
 
-    const wrapper = mount(App)
+    const wrapper = track(mount(App))
     await flushPromises()
     await wrapper.get('[data-company-id="company-2"]').trigger('click')
 
@@ -215,6 +231,7 @@ describe('公开资料阅读工作台', () => {
 
   it('opens one labeled company drawer with initial focus and restores focus on Escape', async () => {
     vi.mocked(library.listDocuments).mockResolvedValueOnce([])
+    document.body.style.overflow = 'clip'
     const wrapper = await mountWorkspace(true)
     const trigger = wrapper.get('button[name="open-company-drawer"]')
 
@@ -230,10 +247,12 @@ describe('公开资料阅读工作台', () => {
 
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
+    expect(document.body.style.overflow).toBe('clip')
   })
 
   it('dismisses the company drawer by backdrop and close button', async () => {
     vi.mocked(library.listDocuments).mockResolvedValueOnce([])
+    document.body.style.overflow = 'clip'
     const wrapper = await mountWorkspace(true)
     const trigger = wrapper.get('button[name="open-company-drawer"]')
 
@@ -242,11 +261,13 @@ describe('公开资料阅读工作台', () => {
     await nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
+    expect(document.body.style.overflow).toBe('clip')
 
     await trigger.trigger('click')
     await wrapper.get('button[name="close-company-drawer"]').trigger('click')
     await nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
+    expect(document.body.style.overflow).toBe('clip')
   })
 })
