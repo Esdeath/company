@@ -36,29 +36,27 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        engine = None
-        session_factory = None
-        if readiness_probe is None or library_service is None:
-            engine, session_factory = create_engine_and_session_factory(resolved_settings)
-
-        if readiness_probe is not None:
+        if readiness_probe is not None and library_service is not None:
             app.state.readiness_probe = readiness_probe
-        else:
-            assert engine is not None
-            app.state.readiness_probe = SqlAlchemyReadinessProbe(engine)
-        app.state.library_service = library_service
-        if app.state.library_service is None:
-            assert session_factory is not None
-            repository = SqlAlchemyLibraryRepository(session_factory)
-            app.state.library_service = LibraryService(
-                repository,
-                ContentStore(resolved_settings.content_root),
-            )
+            app.state.library_service = library_service
+            yield
+            return
+
+        engine, session_factory = create_engine_and_session_factory(resolved_settings)
         try:
+            app.state.readiness_probe = (
+                readiness_probe if readiness_probe is not None else SqlAlchemyReadinessProbe(engine)
+            )
+            app.state.library_service = library_service
+            if app.state.library_service is None:
+                repository = SqlAlchemyLibraryRepository(session_factory)
+                app.state.library_service = LibraryService(
+                    repository,
+                    ContentStore(resolved_settings.content_root),
+                )
             yield
         finally:
-            if engine is not None:
-                await engine.dispose()
+            await engine.dispose()
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(

@@ -109,9 +109,11 @@ class SqlAlchemyLibraryRepository:
                 original_filename=record.original_filename,
             )
             session.add(document)
-            await session.commit()
+            await session.flush()
             await session.refresh(document)
-            return _document_record(document)
+            saved = _document_record(document)
+            await session.commit()
+            return saved
 
     async def list_documents(self, company_id: UUID) -> list[DocumentRecord]:
         async with self._session_factory() as session:

@@ -1,8 +1,10 @@
 import logging
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+import company_api.main as main_module
 from company_api.config import Settings
 from company_api.main import create_app
 
@@ -15,6 +17,22 @@ class SuccessfulProbe:
 class FailingProbe:
     async def check(self) -> None:
         raise RuntimeError("postgresql+psycopg://company:secret@postgres:5432/company")
+
+
+class FakeEngine:
+    def __init__(self) -> None:
+        self.dispose_calls = 0
+
+    async def dispose(self) -> None:
+        self.dispose_calls += 1
+
+
+class ExternalProbe:
+    def __init__(self, engine: FakeEngine) -> None:
+        self.engine = engine
+
+    async def check(self) -> None:
+        return None
 
 
 def settings() -> Settings:
@@ -32,9 +50,74 @@ def test_live_returns_live_without_calling_failing_probe() -> None:
     assert response.json() == {"status": "live"}
 
 
-def test_default_database_probe_disposes_engine_on_shutdown() -> None:
+def test_app_owned_engine_is_disposed_on_normal_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = FakeEngine()
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        lambda resolved_settings: (engine, object()),
+    )
+
     with TestClient(create_app(settings())):
         pass
+
+    assert engine.dispose_calls == 1
+
+
+def test_app_owned_engine_is_disposed_when_content_store_construction_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = FakeEngine()
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        lambda resolved_settings: (engine, object()),
+    )
+
+    def fail_content_store(content_root: Any) -> None:
+        del content_root
+        raise RuntimeError("content store construction failed")
+
+    monkeypatch.setattr(main_module, "ContentStore", fail_content_store)
+
+    with (
+        pytest.raises(RuntimeError, match="content store construction failed"),
+        TestClient(create_app(settings())),
+    ):
+        pass
+
+    assert engine.dispose_calls == 1
+
+
+def test_injected_dependencies_do_not_dispose_external_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    external_engine = FakeEngine()
+    external_probe = ExternalProbe(external_engine)
+    service = object()
+
+    def fail_if_factory_called(resolved_settings: Settings) -> None:
+        del resolved_settings
+        raise AssertionError("app must not create an engine for injected dependencies")
+
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        fail_if_factory_called,
+    )
+
+    with TestClient(
+        create_app(
+            settings(),
+            external_probe,
+            library_service=service,  # type: ignore[arg-type]
+        )
+    ):
+        pass
+
+    assert external_engine.dispose_calls == 0
 
 
 def test_injected_probe_is_preserved_when_library_service_is_injected() -> None:
