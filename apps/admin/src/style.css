@@ -447,18 +447,11 @@ input[type="file"]::file-selector-button {
   gap: 0.7rem;
 }
 
-.document-row__heading a {
+.document-title {
   min-width: 0;
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
-  text-decoration-color: rgb(40 85 65 / 30%);
-  text-underline-offset: 0.22rem;
-}
-
-.document-row__heading a:hover {
-  color: var(--green);
-  text-decoration-color: currentColor;
 }
 
 .format-badge {

@@ -50,7 +50,7 @@ function formatUploadedAt(value: string): string {
       <li v-for="document in documents" :key="document.id" class="document-row">
         <div class="document-row__heading">
           <span class="format-badge">{{ document.format === 'markdown' ? 'MD' : 'HTML' }}</span>
-          <a :href="document.content_url" target="_blank" rel="noreferrer">{{ document.title }}</a>
+          <span class="document-title">{{ document.title }}</span>
         </div>
         <p class="document-meta">
           <span>{{ document.original_filename }}</span>

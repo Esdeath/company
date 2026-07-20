@@ -102,6 +102,7 @@ describe('公开资料阅读工作台', () => {
     vi.mocked(library.listDocuments).mockReset().mockImplementation(async (companyId) =>
       companyId === 'company-1' ? companyOneDocuments : companyTwoDocuments,
     )
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
   })
 
   afterEach(() => {
@@ -148,6 +149,7 @@ describe('公开资料阅读工作台', () => {
     const wrapper = await mountWorkspace()
 
     await wrapper.get('[data-document-id="document-2"]').trigger('click')
+    await flushPromises()
 
     expect(wrapper.get('[data-document-id="document-2"]').attributes('aria-current')).toBe('true')
     expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-2/content')

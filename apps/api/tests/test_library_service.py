@@ -120,6 +120,11 @@ class FakeRepository:
         return record
 
 
+class CancelledInsertRepository(FakeRepository):
+    async def insert_document(self, record: NewDocumentRecord) -> DocumentRecord:
+        raise asyncio.CancelledError
+
+
 def company(company_id: uuid.UUID, name: str) -> CompanyRecord:
     return CompanyRecord(
         id=company_id,
@@ -226,6 +231,21 @@ def test_database_failure_removes_committed_directory(tmp_path: Path) -> None:
     assert response.items == []
     assert response.errors == [UploadError(filename="talk.md", message="文件处理失败")]
     assert list((tmp_path / "companies").rglob("source.md")) == []
+
+
+def test_cancelled_database_insert_removes_files_and_propagates_cancellation(
+    tmp_path: Path,
+) -> None:
+    repository = CancelledInsertRepository(companies=[company(COMPANY_ID, "Acme")])
+    service = LibraryService(repository, ContentStore(tmp_path))
+
+    with pytest.raises(asyncio.CancelledError):
+        run(service.upload_documents(COMPANY_ID, [UploadInput("talk.md", b"# Talk")]))
+
+    company_directory = tmp_path / "companies" / str(COMPANY_ID)
+    assert list(company_directory.rglob("source.md")) == []
+    assert list(company_directory.rglob("rendered.html")) == []
+    assert not company_directory.exists()
 
 
 def test_unexpected_upload_failure_logs_only_fixed_message(

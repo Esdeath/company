@@ -106,6 +106,31 @@ test('product UI keeps one sandboxed reader and the mobile company drawer', () =
   assert.match(productUi, /<iframe sandbox><\/iframe>/);
 });
 
+test('current docs report the completed slice without claiming deferred interactions', () => {
+  const readme = readCurrentDoc('README.md');
+  const productUi = readCurrentDoc('PRODUCT_UI.md');
+
+  assert.match(readme, /直接资料上传垂直切片已经完成/);
+  assert.match(readme, /下一步[\s\S]+管理员认证[\s\S]+授权[\s\S]+CSRF[\s\S]+生产/);
+  for (const phrase of [
+    '选择既有公司或新建公司',
+    '多文件选择器',
+    '逐文件最终结果',
+    '空 `sandbox` iframe',
+    '移动端公司抽屉',
+  ]) {
+    assert.ok(productUi.includes(phrase), `missing implemented UI behavior: ${phrase}`);
+  }
+  for (const deferredClaim of [
+    /目录支持公司名称、证券代码和市场筛选/,
+    /把文件拖入上传区/,
+    /逐文件显示进度/,
+    /成功结果显示[^。]+打开阅读器的操作/,
+  ]) {
+    assert.doesNotMatch(productUi, deferredClaim);
+  }
+});
+
 test('backend and deployment retain unversioned infrastructure health routes', () => {
   const backend = readCurrentDoc('BACKEND.md');
   const deployment = readCurrentDoc('DEPLOYMENT.md');

@@ -106,6 +106,11 @@ async def delete_document(document_id: UUID, service: LibraryServiceDependency) 
 
 
 @router.get("/documents/{document_id}/content", response_class=FileResponse)
+@router.head(
+    "/documents/{document_id}/content",
+    response_class=FileResponse,
+    include_in_schema=False,
+)
 async def document_content(
     document_id: UUID,
     service: LibraryServiceDependency,

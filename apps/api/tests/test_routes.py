@@ -224,6 +224,21 @@ def test_content_route_returns_html_with_safe_headers(tmp_path: Path) -> None:
     assert response.headers["cache-control"] == "no-cache"
 
 
+def test_content_route_supports_a_bodyless_head_probe(tmp_path: Path) -> None:
+    content = tmp_path / "content.html"
+    content.write_bytes(b"<title>Talk</title>")
+    service = FakeService(content)
+
+    with client_for(service, tmp_path) as client:
+        response = client.head(f"/api/v1/documents/{DOCUMENT_ID}/content")
+
+    assert response.status_code == 200
+    assert response.content == b""
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "no-cache"
+
+
 def test_missing_content_returns_not_found(tmp_path: Path) -> None:
     service = MissingDocumentService(tmp_path / "content.html")
 

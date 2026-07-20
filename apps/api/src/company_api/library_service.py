@@ -145,8 +145,10 @@ class LibraryService:
                     UploadError(filename=upload.filename, message=_GENERIC_UPLOAD_MESSAGE)
                 )
                 continue
-            except Exception:
+            except BaseException as error:
                 self._cleanup_failed_upload(prepared, stored)
+                if not isinstance(error, Exception):
+                    raise
                 logger.error("Document upload failed")
                 errors.append(
                     UploadError(filename=upload.filename, message=_GENERIC_UPLOAD_MESSAGE)

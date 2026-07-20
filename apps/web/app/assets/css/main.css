@@ -341,6 +341,7 @@ h1 {
 }
 
 .document-reader {
+  position: relative;
   min-height: 70svh;
   border-top: 0.18rem solid var(--red);
   background: var(--paper);
@@ -363,6 +364,13 @@ h1 {
   padding: 2rem;
   color: var(--muted);
   text-align: center;
+}
+
+.reader-state--frame-loading {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: rgb(251 252 250 / 92%);
 }
 
 .reader-state strong {

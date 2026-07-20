@@ -77,6 +77,17 @@ describe('资料管理工作台', () => {
     expect(wrapper.text()).toContain('仅供本地开发环境使用')
   })
 
+  it('keeps uploaded content out of unsandboxed top-level navigation', async () => {
+    const wrapper = await mountWorkspace()
+
+    const documentRow = wrapper.get('.document-row')
+    expect(documentRow.get('.document-title').text()).toBe('年度报告')
+    expect(documentRow.find(`a[href="${documents[0]!.content_url}"]`).exists()).toBe(false)
+    expect(documentRow.find('[target="_blank"]').exists()).toBe(false)
+    expect(documentRow.get('input[aria-label="重命名 年度报告"]').exists()).toBe(true)
+    expect(documentRow.get('button[aria-label="删除 年度报告"]').exists()).toBe(true)
+  })
+
   it('creates a company with optional ticker and market and keeps it selected', async () => {
     const wrapper = await mountWorkspace()
 
