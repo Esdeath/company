@@ -4,4 +4,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   modules: ['@nuxt/eslint'],
   typescript: { strict: true, typeCheck: true },
+  routeRules: {
+    '/api/**': { proxy: 'http://127.0.0.1:8000/api/**' },
+  },
 })
