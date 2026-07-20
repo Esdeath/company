@@ -226,9 +226,16 @@ request_http "$BASE_URL/api/v1/companies" 30 \
   --header 'Content-Type: application/json' \
   --data "{\"name\":\"$company_name\"}"
 [[ "$HTTP_CODE" == "201" ]] || fail "company creation returned ${HTTP_CODE:-no status}"
-company_id=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["id"])' "$BODY_FILE" 2>/dev/null) \
-  || fail 'could not parse created company'
-[[ -n "$company_id" ]] || fail 'company creation returned no id'
+company_id=$(python3 -c 'import json, sys, uuid
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+if not isinstance(data, dict) or data.get("name") != sys.argv[2]:
+    raise SystemExit(1)
+raw_id = data.get("id")
+if not isinstance(raw_id, str) or str(uuid.UUID(raw_id)) != raw_id:
+    raise SystemExit(1)
+print(raw_id)' "$BODY_FILE" "$company_name" 2>/dev/null) \
+  || fail 'could not validate created company'
+[[ -n "$company_id" ]] || fail 'could not validate created company'
 
 request_http "$BASE_URL/api/v1/companies/$company_id/documents" 60 \
   --request POST \

@@ -147,7 +147,19 @@ case "$method:$path" in
     if [ "\${FAKE_COMPANY_RESPONSE_MALFORMED:-0}" = "1" ]; then
       body='{malformed'
     else
-      body='{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'","ticker":null,"market":null,"created_at":"2026-07-20T00:00:00Z"}'
+      response_id='"11111111-1111-4111-8111-111111111111"'
+      response_name=$company_name
+      case "\${FAKE_COMPANY_RESPONSE_ID_KIND:-uuid}" in
+        null) response_id=null ;;
+        number) response_id=42 ;;
+        invalid) response_id='"not-a-uuid"' ;;
+        noncanonical) response_id='"AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"' ;;
+      esac
+      if [ "\${FAKE_COMPANY_RESPONSE_NAME_MISMATCH:-0}" = "1" ]; then
+        response_id='"55555555-5555-4555-8555-555555555555"'
+        response_name=another-company
+      fi
+      body='{"id":'"$response_id"',"name":"'"$response_name"'","ticker":null,"market":null,"created_at":"2026-07-20T00:00:00Z"}'
     fi
     ;;
   POST:/api/v1/companies/11111111-1111-4111-8111-111111111111/documents)
@@ -161,7 +173,9 @@ case "$method:$path" in
   GET:/api/v1/companies)
     type=application/json
     company_name=$(cat "$FAKE_COMPANY_NAME_FILE" 2>/dev/null || true)
-    if [ "\${FAKE_DUPLICATE_COMPANY_NAME:-0}" = "1" ]; then
+    if [ "\${FAKE_COMPANY_RESPONSE_NAME_MISMATCH:-0}" = "1" ]; then
+      body='[{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'"},{"id":"55555555-5555-4555-8555-555555555555","name":"another-company"}]'
+    elif [ "\${FAKE_DUPLICATE_COMPANY_NAME:-0}" = "1" ]; then
       body='[{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'"},{"id":"44444444-4444-4444-8444-444444444444","name":"'"$company_name"'"}]'
     else
       body='[{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'"}]'
@@ -683,6 +697,36 @@ test('smoke cleanup finds the exact company name after an ambiguous create respo
     assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
     assert.doesNotMatch(result.stderr, /\{malformed|Traceback|JSONDecodeError/)
   }
+})
+
+test('smoke rejects non-canonical company ids and recovers the exact created company', async () => {
+  for (const [kind, leakedValue] of [
+    ['null', 'None'],
+    ['number', '42'],
+    ['invalid', 'not-a-uuid'],
+    ['noncanonical', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'],
+  ]) {
+    const result = await runSmokeWithFakes({ FAKE_COMPANY_RESPONSE_ID_KIND: kind })
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /could not validate created company/)
+    assert.doesNotMatch(result.stderr, new RegExp(`${leakedValue}|Traceback|"id"`))
+    assert.match(result.curlLog, /GET .*\/api\/v1\/companies connect=/)
+    assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
+    assert.doesNotMatch(result.curlLog, new RegExp(`/api/v1/companies/${leakedValue}(?:/|\\s)`))
+  }
+})
+
+test('smoke rejects a valid company id paired with the wrong response name', async () => {
+  const otherCompanyId = '55555555-5555-4555-8555-555555555555'
+  const result = await runSmokeWithFakes({ FAKE_COMPANY_RESPONSE_NAME_MISMATCH: '1' })
+
+  assert.equal(result.code, 1)
+  assert.match(result.stderr, /could not validate created company/)
+  assert.doesNotMatch(result.stderr, /another-company|55555555|Traceback|"name"/)
+  assert.match(result.curlLog, /GET .*\/api\/v1\/companies connect=/)
+  assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
+  assert.doesNotMatch(result.curlLog, new RegExp(`/api/v1/companies/${otherCompanyId}(?:/|\\s)`))
 })
 
 test('smoke cleanup does not guess when multiple companies share the exact smoke name', async () => {
