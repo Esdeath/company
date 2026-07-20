@@ -87,4 +87,24 @@ describe('management API client', () => {
 
     await expect(listDocuments('missing', fetchMock)).rejects.toThrow('公司不存在')
   })
+
+  it('keeps the status fallback for FastAPI validation detail arrays', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: [
+            {
+              type: 'missing',
+              loc: ['body', 'name'],
+              msg: 'Field required',
+              input: {},
+            },
+          ],
+        }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    await expect(listCompanies(fetchMock)).rejects.toThrow('请求失败（422）')
+  })
 })

@@ -8,8 +8,8 @@ async function request<T>(url: string, init: RequestInit, fetcher: Fetcher): Pro
   if (!response.ok) {
     let message = `请求失败（${response.status}）`
     try {
-      const body = (await response.json()) as { detail?: string }
-      if (body.detail) message = body.detail
+      const body = (await response.json()) as { detail?: unknown }
+      if (typeof body.detail === 'string' && body.detail.trim()) message = body.detail
     } catch {
       // Keep the status-based fallback when an upstream response is not JSON.
     }
