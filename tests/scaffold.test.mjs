@@ -111,6 +111,7 @@ connect_timeout=
 max_time=
 url=
 method=GET
+request_data=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) output=$2; shift 2 ;;
@@ -119,7 +120,8 @@ while [ "$#" -gt 0 ]; do
     --max-time) max_time=$2; shift 2 ;;
     --write-out) shift 2 ;;
     --request|-X) method=$2; shift 2 ;;
-    --header|-H|--data|--form|-F) shift 2 ;;
+    --data) request_data=$2; shift 2 ;;
+    --header|-H|--form|-F) shift 2 ;;
     http://*) url=$1; shift ;;
     *) shift ;;
   esac
@@ -137,13 +139,33 @@ location=
 admin_index='<html><head><title>资料管理后台</title><link rel="stylesheet" href="/admin/assets/app.css"><script src="/admin/assets/app.js"></script></head><body>资料管理后台</body></html>'
 case "$method:$path" in
   POST:/api/v1/companies)
+    company_name=$(printf '%s' "$request_data" | sed -n 's/.*"name":"\\([^"]*\\)".*/\\1/p')
+    printf '%s' "$company_name" > "$FAKE_COMPANY_NAME_FILE"
+    if [ "\${FAKE_COMPANY_POST_TIMEOUT:-0}" = "1" ]; then exit 28; fi
     type=application/json
     code=201
-    body='{"id":"11111111-1111-4111-8111-111111111111","name":"Smoke","ticker":null,"market":null,"created_at":"2026-07-20T00:00:00Z"}'
+    if [ "\${FAKE_COMPANY_RESPONSE_MALFORMED:-0}" = "1" ]; then
+      body='{malformed'
+    else
+      body='{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'","ticker":null,"market":null,"created_at":"2026-07-20T00:00:00Z"}'
+    fi
     ;;
   POST:/api/v1/companies/11111111-1111-4111-8111-111111111111/documents)
     type=application/json
-    body='{"items":[{"id":"22222222-2222-4222-8222-222222222222","title":"CEO interview","format":"markdown","content_url":"/api/v1/documents/22222222-2222-4222-8222-222222222222/content"},{"id":"33333333-3333-4333-8333-333333333333","title":"Showcase","format":"html","content_url":"/api/v1/documents/33333333-3333-4333-8333-333333333333/content"}],"errors":[]}'
+    second_format=html
+    second_url=/api/v1/documents/33333333-3333-4333-8333-333333333333/content
+    if [ "\${FAKE_DUPLICATE_UPLOAD_FORMAT:-0}" = "1" ]; then second_format=markdown; fi
+    if [ "\${FAKE_MISMATCHED_CONTENT_URL:-0}" = "1" ]; then second_url=/api/v1/documents/22222222-2222-4222-8222-222222222222/content; fi
+    body='{"items":[{"id":"22222222-2222-4222-8222-222222222222","title":"CEO interview","format":"markdown","content_url":"/api/v1/documents/22222222-2222-4222-8222-222222222222/content"},{"id":"33333333-3333-4333-8333-333333333333","title":"Showcase","format":"'"$second_format"'","content_url":"'"$second_url"'"}],"errors":[]}'
+    ;;
+  GET:/api/v1/companies)
+    type=application/json
+    company_name=$(cat "$FAKE_COMPANY_NAME_FILE" 2>/dev/null || true)
+    if [ "\${FAKE_DUPLICATE_COMPANY_NAME:-0}" = "1" ]; then
+      body='[{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'"},{"id":"44444444-4444-4444-8444-444444444444","name":"'"$company_name"'"}]'
+    else
+      body='[{"id":"11111111-1111-4111-8111-111111111111","name":"'"$company_name"'"}]'
+    fi
     ;;
   GET:/api/v1/companies/11111111-1111-4111-8111-111111111111/documents)
     type=application/json
@@ -200,6 +222,7 @@ const runSmokeWithFakes = async (overrides = {}, timeout = 30_000) => {
     FAKE_DOCKER_LOG: join(root, 'docker.log'),
     FAKE_CURL_LOG: join(root, 'curl.log'),
     FAKE_POSTGRES_STOPPED: join(root, 'postgres-stopped'),
+    FAKE_COMPANY_NAME_FILE: join(root, 'company-name'),
     FAKE_TIMEOUT_MARKER: join(root, 'timeout-once'),
     FAKE_HEALTH_MARKER: join(root, 'health-starting-once'),
     ...overrides,
@@ -586,6 +609,13 @@ test('smoke accepts Compose expose-only port sentinels as internal ports', async
   assert.match(result.stdout, /compose smoke passed/)
 })
 
+test('smoke does not recover a company by name after successful cleanup', async () => {
+  const result = await runSmokeWithFakes()
+
+  assert.equal(result.code, 0, result.stderr)
+  assert.doesNotMatch(result.curlLog, /GET .*\/api\/v1\/companies connect=/)
+})
+
 test('smoke waits for containers to become healthy', async () => {
   const result = await runSmokeWithFakes({ FAKE_HEALTH_STARTING_ONCE: '1' })
 
@@ -639,6 +669,49 @@ test('smoke cleanup removes uploaded documents and the company after a content a
   assert.match(result.curlLog, /DELETE .*\/api\/v1\/documents\/22222222-2222-4222-8222-222222222222/)
   assert.match(result.curlLog, /DELETE .*\/api\/v1\/documents\/33333333-3333-4333-8333-333333333333/)
   assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
+})
+
+test('smoke cleanup finds the exact company name after an ambiguous create response', async () => {
+  for (const overrides of [
+    { FAKE_COMPANY_RESPONSE_MALFORMED: '1' },
+    { FAKE_COMPANY_POST_TIMEOUT: '1' },
+  ]) {
+    const result = await runSmokeWithFakes(overrides)
+
+    assert.equal(result.code, 1)
+    assert.match(result.curlLog, /GET .*\/api\/v1\/companies\b.*connect=[1-9][0-9]* max=[1-9][0-9]*/)
+    assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
+    assert.doesNotMatch(result.stderr, /\{malformed|Traceback|JSONDecodeError/)
+  }
+})
+
+test('smoke cleanup does not guess when multiple companies share the exact smoke name', async () => {
+  const result = await runSmokeWithFakes({
+    FAKE_COMPANY_RESPONSE_MALFORMED: '1',
+    FAKE_DUPLICATE_COMPANY_NAME: '1',
+  })
+
+  assert.equal(result.code, 1)
+  assert.match(result.curlLog, /GET .*\/api\/v1\/companies\b/)
+  assert.doesNotMatch(result.curlLog, /DELETE .*\/api\/v1\/companies\//)
+})
+
+test('smoke rejects duplicate upload formats before fetching document content', async () => {
+  const result = await runSmokeWithFakes({ FAKE_DUPLICATE_UPLOAD_FORMAT: '1' })
+
+  assert.equal(result.code, 1)
+  assert.match(result.stderr, /exactly one Markdown, one HTML, and zero errors with canonical content URLs/)
+  assert.doesNotMatch(result.stderr, /22222222|33333333|"items"/)
+  assert.doesNotMatch(result.curlLog, /^GET .*\/api\/v1\/documents\//m)
+})
+
+test('smoke rejects a content URL that does not match its document id', async () => {
+  const result = await runSmokeWithFakes({ FAKE_MISMATCHED_CONTENT_URL: '1' })
+
+  assert.equal(result.code, 1)
+  assert.match(result.stderr, /exactly one Markdown, one HTML, and zero errors with canonical content URLs/)
+  assert.doesNotMatch(result.stderr, /22222222|33333333|"items"/)
+  assert.doesNotMatch(result.curlLog, /^GET .*\/api\/v1\/documents\//m)
 })
 
 test('documents every quality command and concrete setup recovery steps', async () => {

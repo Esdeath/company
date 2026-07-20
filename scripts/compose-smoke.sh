@@ -12,6 +12,7 @@ UPLOAD_ITEMS_FILE="$SMOKE_DIR/upload-items"
 CLEANUP_IDS_FILE="$SMOKE_DIR/cleanup-document-ids"
 postgres_stopped=0
 company_id=
+company_name=
 
 cd "$ROOT_DIR"
 
@@ -26,7 +27,7 @@ fail() {
 
 restore_postgres() {
   local status=$?
-  local deadline document_id
+  local candidate_id deadline document_id
   trap - EXIT
   set +e
 
@@ -35,7 +36,7 @@ restore_postgres() {
     postgres_stopped=0
   fi
 
-  if [[ -n "$company_id" ]]; then
+  if [[ -n "$company_name" ]]; then
     deadline=$((SECONDS + 30))
     while (( SECONDS < deadline )); do
       request_http "$BASE_URL/api/health/ready" 3
@@ -43,15 +44,33 @@ restore_postgres() {
       sleep 1
     done
 
-    request_http "$BASE_URL/api/v1/companies/$company_id/documents" 10
-    if [[ "$HTTP_CODE" == "200" ]]; then
-      python3 -c 'import json, sys; print(*(item["id"] for item in json.load(open(sys.argv[1], encoding="utf-8"))), sep="\n")' "$BODY_FILE" > "$CLEANUP_IDS_FILE" 2>/dev/null || true
-      while IFS= read -r document_id; do
-        [[ -n "$document_id" ]] || continue
-        request_http "$BASE_URL/api/v1/documents/$document_id" 10 --request DELETE
-      done < "$CLEANUP_IDS_FILE"
+    if [[ -z "$company_id" ]]; then
+      request_http "$BASE_URL/api/v1/companies" 10
+      if [[ "$HTTP_CODE" == "200" ]]; then
+        candidate_id=$(python3 -c 'import json, sys, uuid
+items = json.load(open(sys.argv[1], encoding="utf-8"))
+matches = [item for item in items if isinstance(item, dict) and item.get("name") == sys.argv[2]]
+if len(matches) != 1:
+    raise SystemExit(1)
+raw_id = matches[0].get("id")
+if not isinstance(raw_id, str) or str(uuid.UUID(raw_id)) != raw_id.lower():
+    raise SystemExit(1)
+print(raw_id)' "$BODY_FILE" "$company_name" 2>/dev/null) || candidate_id=
+        [[ -n "$candidate_id" ]] && company_id=$candidate_id
+      fi
     fi
-    request_http "$BASE_URL/api/v1/companies/$company_id" 10 --request DELETE
+
+    if [[ -n "$company_id" ]]; then
+      request_http "$BASE_URL/api/v1/companies/$company_id/documents" 10
+      if [[ "$HTTP_CODE" == "200" ]]; then
+        python3 -c 'import json, sys; print(*(item["id"] for item in json.load(open(sys.argv[1], encoding="utf-8"))), sep="\n")' "$BODY_FILE" > "$CLEANUP_IDS_FILE" 2>/dev/null || true
+        while IFS= read -r document_id; do
+          [[ -n "$document_id" ]] || continue
+          request_http "$BASE_URL/api/v1/documents/$document_id" 10 --request DELETE
+        done < "$CLEANUP_IDS_FILE"
+      fi
+      request_http "$BASE_URL/api/v1/companies/$company_id" 10 --request DELETE
+    fi
   fi
 
   rm -rf "$SMOKE_DIR"
@@ -207,7 +226,7 @@ request_http "$BASE_URL/api/v1/companies" 30 \
   --header 'Content-Type: application/json' \
   --data "{\"name\":\"$company_name\"}"
 [[ "$HTTP_CODE" == "201" ]] || fail "company creation returned ${HTTP_CODE:-no status}"
-company_id=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["id"])' "$BODY_FILE") \
+company_id=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["id"])' "$BODY_FILE" 2>/dev/null) \
   || fail 'could not parse created company'
 [[ -n "$company_id" ]] || fail 'company creation returned no id'
 
@@ -216,18 +235,24 @@ request_http "$BASE_URL/api/v1/companies/$company_id/documents" 60 \
   --form "files=@$ROOT_DIR/doc/templates/markdown/examples/ceo-interview.md;type=text/markdown" \
   --form "files=@$ROOT_DIR/doc/templates/markdown/showcase.html;type=text/html"
 [[ "$HTTP_CODE" == "200" ]] || fail "document upload returned ${HTTP_CODE:-no status}"
-python3 -c 'import json, sys
+python3 -c 'from collections import Counter
+import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 items = data.get("items", [])
 errors = data.get("errors", [])
-if len(items) != 2 or len(errors) != 0:
-    raise SystemExit("expected two upload items and zero errors")
+if len(items) != 2 or errors != []:
+    raise SystemExit(1)
+if Counter(item.get("format") for item in items if isinstance(item, dict)) != Counter({"markdown": 1, "html": 1}):
+    raise SystemExit(1)
 for item in items:
+    document_id = item.get("id")
+    if not isinstance(document_id, str) or item.get("content_url") != f"/api/v1/documents/{document_id}/content":
+        raise SystemExit(1)
     print(item["id"], item["format"], item["content_url"], sep="\t")' "$BODY_FILE" > "$UPLOAD_ITEMS_FILE" \
-  || fail 'upload response did not contain two successes and zero errors'
+  2>/dev/null || fail 'upload response did not contain exactly one Markdown, one HTML, and zero errors with canonical content URLs'
 
 while IFS=$'\t' read -r document_id document_format content_url; do
-  [[ -n "$document_id" && "$content_url" == /api/v1/documents/*/content ]] \
+  [[ -n "$document_id" && "$content_url" == "/api/v1/documents/$document_id/content" ]] \
     || fail 'upload response contained an invalid document reference'
   request_http "$BASE_URL$content_url" 30
   [[ "$HTTP_CODE" == "200" ]] || fail "$document_format content returned ${HTTP_CODE:-no status}"
@@ -253,5 +278,6 @@ done < "$UPLOAD_ITEMS_FILE"
 request_http "$BASE_URL/api/v1/companies/$company_id" 30 --request DELETE
 [[ "$HTTP_CODE" == "204" ]] || fail "company cleanup returned ${HTTP_CODE:-no status}"
 company_id=
+company_name=
 
 printf 'compose smoke passed\n'
