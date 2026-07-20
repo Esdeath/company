@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { DocumentItem } from '../types'
 
-defineProps<{
+const props = defineProps<{
   documents: DocumentItem[]
   busy?: boolean
+  pendingIds: string[]
 }>()
 
 const emit = defineEmits<{
@@ -15,6 +16,10 @@ function rename(document: DocumentItem, source: Event | HTMLInputElement) {
   const input = source instanceof HTMLInputElement ? source : (source.target as HTMLInputElement)
   const title = input.value.trim()
   if (title && title !== document.title) emit('rename', document, title)
+}
+
+function isPending(documentId: string): boolean {
+  return props.pendingIds.includes(documentId)
 }
 
 function formatUploadedAt(value: string): string {
@@ -57,13 +62,13 @@ function formatUploadedAt(value: string): string {
             :id="`rename-${document.id}`"
             :aria-label="`重命名 ${document.title}`"
             :value="document.title"
-            :disabled="busy"
+            :disabled="busy || isPending(document.id)"
             @keydown.enter.prevent="rename(document, $event)"
           />
           <button
             class="text-action"
             type="button"
-            :disabled="busy"
+            :disabled="busy || isPending(document.id)"
             @click="rename(document, ($event.currentTarget as HTMLButtonElement).previousElementSibling as HTMLInputElement)"
           >
             保存名称
@@ -72,7 +77,7 @@ function formatUploadedAt(value: string): string {
             class="text-action text-action--danger"
             type="button"
             :aria-label="`删除 ${document.title}`"
-            :disabled="busy"
+            :disabled="busy || isPending(document.id)"
             @click="emit('delete', document)"
           >
             删除

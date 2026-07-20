@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 import type { Company, CompanyInput } from '../types'
 
-defineProps<{
+const props = defineProps<{
   companies: Company[]
   selectedId: string
   busy?: boolean
+  creating?: boolean
+  createSuccessKey: number
 }>()
 
 const emit = defineEmits<{
@@ -21,18 +23,24 @@ const market = ref('')
 
 function submitCompany() {
   const trimmedName = name.value.trim()
-  if (!trimmedName) return
+  if (!trimmedName || props.creating) return
 
   emit('create', {
     name: trimmedName,
     ticker: ticker.value.trim() || null,
     market: market.value.trim() || null,
   })
-  name.value = ''
-  ticker.value = ''
-  market.value = ''
-  showingForm.value = false
 }
+
+watch(
+  () => props.createSuccessKey,
+  () => {
+    name.value = ''
+    ticker.value = ''
+    market.value = ''
+    showingForm.value = false
+  },
+)
 </script>
 
 <template>
@@ -82,6 +90,7 @@ function submitCompany() {
       type="button"
       :aria-expanded="showingForm"
       aria-controls="new-company-form"
+      :disabled="creating"
       @click="showingForm = !showingForm"
     >
       {{ showingForm ? '收起新建公司' : '＋ 新建公司' }}
@@ -95,20 +104,29 @@ function submitCompany() {
       @submit.prevent="submitCompany"
     >
       <label for="company-name">公司名称</label>
-      <input id="company-name" v-model="name" name="company-name" required autocomplete="organization" />
+      <input
+        id="company-name"
+        v-model="name"
+        name="company-name"
+        required
+        autocomplete="organization"
+        :disabled="creating"
+      />
 
       <div class="paired-fields">
         <label for="ticker">
           <span>股票代码 <small>选填</small></span>
-          <input id="ticker" v-model="ticker" name="ticker" autocomplete="off" />
+          <input id="ticker" v-model="ticker" name="ticker" autocomplete="off" :disabled="creating" />
         </label>
         <label for="market">
           <span>市场 <small>选填</small></span>
-          <input id="market" v-model="market" name="market" autocomplete="off" />
+          <input id="market" v-model="market" name="market" autocomplete="off" :disabled="creating" />
         </label>
       </div>
 
-      <button class="primary-action" type="submit" :disabled="busy || !name.trim()">保存公司</button>
+      <button class="primary-action" type="submit" :disabled="busy || creating || !name.trim()">
+        {{ creating ? '正在保存…' : '保存公司' }}
+      </button>
     </form>
   </aside>
 </template>

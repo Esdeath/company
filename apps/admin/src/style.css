@@ -154,13 +154,23 @@ h1 {
   line-height: 1.8;
 }
 
-.page-error {
+.page-error,
+.refresh-warning {
   margin: -2rem 0 2rem;
   padding: 0.8rem 1rem;
+  font-size: 0.85rem;
+}
+
+.page-error {
   border-left: 0.2rem solid var(--red);
   color: var(--red);
   background: #fff7f4;
-  font-size: 0.85rem;
+}
+
+.refresh-warning {
+  border-left: 0.2rem solid var(--green);
+  color: #3f5f50;
+  background: var(--green-soft);
 }
 
 .workspace {
@@ -475,9 +485,9 @@ input[type="file"]::file-selector-button {
 
 .document-actions {
   display: grid;
-  grid-template-columns: minmax(8rem, 1fr) auto auto;
   gap: 0.55rem 0.8rem;
-  align-items: center;
+  align-items: start;
+  justify-items: start;
 }
 
 .document-actions input {
@@ -540,7 +550,7 @@ input[type="file"]::file-selector-button {
   border: 0;
 }
 
-@media (min-width: 36rem) {
+@media (min-width: 48rem) {
   .paired-fields {
     grid-template-columns: 1fr 1fr;
   }
@@ -558,6 +568,12 @@ input[type="file"]::file-selector-button {
   .upload-form .primary-action {
     min-width: 8.5rem;
   }
+
+  .document-actions {
+    grid-template-columns: minmax(8rem, 1fr) auto auto;
+    align-items: center;
+    justify-items: stretch;
+  }
 }
 
 @media (min-width: 64rem) {
@@ -573,11 +589,7 @@ input[type="file"]::file-selector-button {
   }
 
   .mobile-company-select {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    display: none;
   }
 
   .folio-tabs {

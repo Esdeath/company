@@ -19,40 +19,86 @@ const selectedCompanyId = ref('')
 const documents = ref<DocumentItem[]>([])
 const uploadResults = ref<UploadBatch | null>(null)
 const uploadResetKey = ref(0)
+const createSuccessKey = ref(0)
 const loading = ref(true)
-const mutating = ref(false)
+const documentsLoading = ref(false)
+const creating = ref(false)
 const uploading = ref(false)
+const pendingDocumentIds = ref<string[]>([])
 const pageError = ref('')
+const refreshWarning = ref('')
+let documentRequestGeneration = 0
 
 const selectedCompany = computed(
   () => companies.value.find((company) => company.id === selectedCompanyId.value) ?? null,
 )
+const hasDocumentMutation = computed(() => pendingDocumentIds.value.length > 0)
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请稍后重试'
 }
 
-async function refreshDocuments() {
-  if (!selectedCompanyId.value) {
-    documents.value = []
-    return
-  }
-  documents.value = await listDocuments(selectedCompanyId.value)
+function warnRefresh(prefix: string, error: unknown) {
+  refreshWarning.value = `${prefix}：${errorMessage(error)}`
 }
 
-async function refreshCompanies(preferredCompanyId = selectedCompanyId.value) {
-  const refreshed = await listCompanies()
-  companies.value = refreshed
-  selectedCompanyId.value =
-    refreshed.find((company) => company.id === preferredCompanyId)?.id ?? refreshed[0]?.id ?? ''
-  await refreshDocuments()
+function beginDocumentMutation(documentId: string): boolean {
+  if (pendingDocumentIds.value.includes(documentId)) return false
+  pendingDocumentIds.value = [...pendingDocumentIds.value, documentId]
+  return true
+}
+
+function finishDocumentMutation(documentId: string) {
+  pendingDocumentIds.value = pendingDocumentIds.value.filter((id) => id !== documentId)
+}
+
+async function refreshDocuments(companyId: string) {
+  const requestGeneration = ++documentRequestGeneration
+
+  if (!companyId) {
+    documents.value = []
+    documentsLoading.value = false
+    return
+  }
+
+  if (selectedCompanyId.value === companyId) {
+    documentsLoading.value = true
+    refreshWarning.value = ''
+  }
+
+  try {
+    const refreshed = await listDocuments(companyId)
+    if (
+      requestGeneration === documentRequestGeneration &&
+      selectedCompanyId.value === companyId
+    ) {
+      documents.value = refreshed
+    }
+  } catch (error) {
+    if (
+      requestGeneration === documentRequestGeneration &&
+      selectedCompanyId.value === companyId
+    ) {
+      warnRefresh('资料目录未能刷新', error)
+    }
+  } finally {
+    if (
+      requestGeneration === documentRequestGeneration &&
+      selectedCompanyId.value === companyId
+    ) {
+      documentsLoading.value = false
+    }
+  }
 }
 
 async function initialize() {
   loading.value = true
   pageError.value = ''
   try {
-    await refreshCompanies()
+    companies.value = await listCompanies()
+    selectedCompanyId.value = companies.value[0]?.id ?? ''
+    documents.value = []
+    await refreshDocuments(selectedCompanyId.value)
   } catch (error) {
     pageError.value = errorMessage(error)
   } finally {
@@ -62,74 +108,120 @@ async function initialize() {
 
 async function selectCompany(companyId: string) {
   selectedCompanyId.value = companyId
+  documents.value = []
   uploadResults.value = null
   pageError.value = ''
+  refreshWarning.value = ''
+  await refreshDocuments(companyId)
+}
+
+async function refreshCompaniesAfterCreate(company: Company) {
   try {
-    await refreshDocuments()
+    const refreshed = await listCompanies()
+    companies.value = refreshed.some((item) => item.id === company.id)
+      ? refreshed
+      : [company, ...refreshed]
   } catch (error) {
-    documents.value = []
-    pageError.value = errorMessage(error)
+    warnRefresh('公司列表未能刷新', error)
+    return
   }
+
+  await refreshDocuments(company.id)
 }
 
 async function addCompany(input: CompanyInput) {
-  mutating.value = true
+  if (creating.value) return
+  creating.value = true
   pageError.value = ''
+  refreshWarning.value = ''
+
+  let company: Company
   try {
-    const company = await createCompany(input)
-    await refreshCompanies(company.id)
+    company = await createCompany(input)
   } catch (error) {
     pageError.value = errorMessage(error)
-  } finally {
-    mutating.value = false
+    creating.value = false
+    return
   }
+
+  companies.value = [company, ...companies.value.filter((item) => item.id !== company.id)]
+  selectedCompanyId.value = company.id
+  documents.value = []
+  uploadResults.value = null
+  createSuccessKey.value += 1
+  await refreshCompaniesAfterCreate(company)
+  creating.value = false
 }
 
 async function upload(files: File[]) {
-  if (!selectedCompanyId.value) return
+  if (!selectedCompanyId.value || uploading.value) return
+  const companyId = selectedCompanyId.value
   uploading.value = true
   pageError.value = ''
   uploadResults.value = null
+
+  let batch: UploadBatch
   try {
-    uploadResults.value = await uploadDocuments(selectedCompanyId.value, files)
-    await refreshDocuments()
+    batch = await uploadDocuments(companyId, files)
   } catch (error) {
-    uploadResults.value = {
-      items: [],
-      errors: files.map((file) => ({ filename: file.name, message: errorMessage(error) })),
+    if (selectedCompanyId.value === companyId) {
+      uploadResults.value = {
+        items: [],
+        errors: files.map((file) => ({ filename: file.name, message: errorMessage(error) })),
+      }
     }
-  } finally {
     uploadResetKey.value += 1
     uploading.value = false
+    return
   }
+
+  if (selectedCompanyId.value === companyId) uploadResults.value = batch
+  await refreshDocuments(companyId)
+  uploadResetKey.value += 1
+  uploading.value = false
 }
 
 async function rename(document: DocumentItem, title: string) {
-  mutating.value = true
+  if (!beginDocumentMutation(document.id)) return
+  const companyId = selectedCompanyId.value
   pageError.value = ''
+
+  let renamed: DocumentItem
   try {
-    await renameDocument(document.id, title)
-    await refreshDocuments()
+    renamed = await renameDocument(document.id, title)
   } catch (error) {
     pageError.value = errorMessage(error)
-  } finally {
-    mutating.value = false
+    finishDocumentMutation(document.id)
+    return
   }
+
+  if (selectedCompanyId.value === companyId) {
+    documents.value = documents.value.map((item) => (item.id === renamed.id ? renamed : item))
+  }
+  await refreshDocuments(companyId)
+  finishDocumentMutation(document.id)
 }
 
 async function remove(document: DocumentItem) {
+  if (pendingDocumentIds.value.includes(document.id)) return
   if (!window.confirm(`确认删除《${document.title}》？此操作无法撤销。`)) return
+  if (!beginDocumentMutation(document.id)) return
 
-  mutating.value = true
+  const companyId = selectedCompanyId.value
   pageError.value = ''
   try {
     await deleteDocument(document.id)
-    await refreshDocuments()
   } catch (error) {
     pageError.value = errorMessage(error)
-  } finally {
-    mutating.value = false
+    finishDocumentMutation(document.id)
+    return
   }
+
+  if (selectedCompanyId.value === companyId) {
+    documents.value = documents.value.filter((item) => item.id !== document.id)
+  }
+  await refreshDocuments(companyId)
+  finishDocumentMutation(document.id)
 }
 
 onMounted(initialize)
@@ -153,12 +245,17 @@ onMounted(initialize)
       </header>
 
       <p v-if="pageError" class="page-error" role="alert">{{ pageError }}</p>
+      <p v-if="refreshWarning" class="refresh-warning" role="status" aria-live="polite">
+        {{ refreshWarning }}。已完成的操作不受影响，可稍后切换公司重试刷新。
+      </p>
 
-      <div class="workspace" :aria-busy="loading">
+      <div class="workspace" :aria-busy="loading || documentsLoading">
         <CompanyPicker
           :companies="companies"
           :selected-id="selectedCompanyId"
-          :busy="loading || mutating || uploading"
+          :busy="loading || creating || uploading || hasDocumentMutation"
+          :creating="creating"
+          :create-success-key="createSuccessKey"
           @select="selectCompany"
           @create="addCompany"
         />
@@ -172,7 +269,7 @@ onMounted(initialize)
 
           <template v-if="selectedCompany">
             <DocumentUpload
-              :disabled="mutating"
+              :disabled="creating || documentsLoading || hasDocumentMutation"
               :uploading="uploading"
               :results="uploadResults"
               :reset-key="uploadResetKey"
@@ -180,7 +277,8 @@ onMounted(initialize)
             />
             <DocumentList
               :documents="documents"
-              :busy="mutating || uploading"
+              :busy="documentsLoading || creating || uploading"
+              :pending-ids="pendingDocumentIds"
               @rename="rename"
               @delete="remove"
             />
