@@ -1,8 +1,8 @@
 # 企业研究资料库
 
-## 当前里程碑：工程骨架
+## 当前里程碑：直接资料上传垂直切片
 
-仓库目前提供可运行、可检查的五服务工程骨架。你可以查看占位页面、后台占位页和 API 健康接口，也可以练习本机开发与 Compose 验收。业务功能尚未进入本里程碑，具体边界见文末“当前不包含”。
+仓库目前提供可运行、可检查的五服务直接资料上传垂直切片。你可以在管理端创建公司，一次上传一个或多个 HTML、Markdown 原文件，再从公开站点按公司选择并阅读资料。Markdown 会套用现代编辑排版模板生成 HTML；HTML 保持原文发布。当前实现只面向可信的本地开发环境，安全边界见文末“当前不包含”。
 
 ## 五个服务
 
@@ -20,9 +20,9 @@
 | 服务 | 职责 | 端口边界 | 目录或定义 |
 | --- | --- | --- | --- |
 | `edge` | 接收请求，把 `/`、`/admin/`、`/api/` 分发给三个应用 | 宿主机 `127.0.0.1:8080` | `infra/nginx/default.conf` |
-| `web` | 提供公开站点的 Nuxt 占位页和 `/healthz` | 仅 Compose 网络 `3000` | `apps/web` |
-| `admin` | 提供挂载在 `/admin/` 下的 Vue/Vite 管理端占位页 | 仅 Compose 网络 `8080` | `apps/admin` |
-| `api` | 提供 FastAPI 存活与就绪检查 | 仅 Compose 网络 `8000` | `apps/api` |
+| `web` | 提供公开资料目录与文档阅读页 | 仅 Compose 网络 `3000` | `apps/web` |
+| `admin` | 提供公司管理、HTML/Markdown 上传与资料维护 | 仅 Compose 网络 `8080` | `apps/admin` |
+| `api` | 提供 FastAPI 公司、资料、内容与健康接口 | 仅 Compose 网络 `8000` | `apps/api` |
 | `postgres` | 为 API 提供本地 PostgreSQL 18.4 数据库 | 宿主机 `127.0.0.1:5432` | `compose.yaml` |
 
 完整 Compose 只向宿主机发布 `127.0.0.1:8080` 和 `127.0.0.1:5432`。Web、Admin 和 API 端口只在 Compose 网络内开放。
@@ -78,7 +78,7 @@ docker compose version
    cp .env.example .env
    ```
 
-   `.env.example` 只含本地开发弱凭据，方便启动骨架。真实环境不得复用其中的用户名、密码或连接串。Git 会忽略 `.env`。
+   `.env.example` 只含本地开发弱凭据，方便启动垂直切片。真实环境不得复用其中的用户名、密码或连接串。`CONTENT_ROOT=../../var/content` 指向宿主机开发时的资料目录；Git 会忽略 `.env` 和根目录的 `var/`。
 
 2. 安装锁定依赖：
 
@@ -104,6 +104,8 @@ DATABASE_URL=postgresql+psycopg://company:company_local_only@127.0.0.1:5432/comp
 ```
 
 Compose 中的 API 会根据 `POSTGRES_*` 变量生成容器内连接串，因此这项本机改动不会改变完整 Compose 的服务连接。
+
+保留 `.env` 中的 `CONTENT_ROOT=../../var/content`。这个路径从 `apps/api` 解析到仓库根目录的 `var/content`，不会把上传内容提交到 Git。
 
 终端 1 启动数据库：
 
@@ -132,8 +134,11 @@ make dev-admin
 
 # 终端 4
 make dev-api
+# make db-upgrade
 # cd apps/api && uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000
 ```
+
+`make dev-api` 依赖 `make db-upgrade`，会先执行 `cd apps/api && uv run --env-file ../../.env alembic upgrade head`。需要只升级数据库时，可以单独运行 `make db-upgrade`。
 
 混合开发地址：
 
@@ -163,7 +168,9 @@ make compose-down
 # docker compose --env-file .env down
 ```
 
-启动后访问 `http://127.0.0.1:8080`。smoke 会检查 edge、静态资源、深层 Admin 路由、API 健康响应、非 root 运行身份，以及 PostgreSQL 停止后的 `503` 与恢复后的 `200`。`make compose-down` 不带 `-v`，数据库 volume 会保留。
+启动后访问公开资料库 `http://127.0.0.1:8080/`，或进入管理端 `http://127.0.0.1:8080/admin/`。在管理端创建公司，选中该公司后可在一次请求中上传多个 `.md` 与 `.html` 文件；上传成功的资料会立即出现在公开站点。
+
+Compose 把 API 的 `CONTENT_ROOT` 固定为 `/data/content`，并把命名 volume `content_data` 挂载到该目录。API 容器启动时先运行 Alembic migration，再以非 root 用户启动 Uvicorn。smoke 会检查 edge、静态资源、深层 Admin 路由、API 健康响应、非 root 运行身份、PostgreSQL 停止与恢复，还会创建唯一公司、同时上传仓库中的 Markdown 与 HTML 示例、读取两份内容并清理测试数据。`make compose-down` 不带 `-v`，`postgres_data` 与 `content_data` 两个 volume 都会保留。
 
 ## 质量检查
 
@@ -196,7 +203,8 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 | `make dev` | `make -j3 dev-web dev-admin dev-api` |
 | `make dev-web` | `corepack pnpm --filter @company/web dev` |
 | `make dev-admin` | `corepack pnpm --filter @company/admin dev` |
-| `make dev-api` | `cd apps/api && uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000` |
+| `make db-upgrade` | `cd apps/api && uv run --env-file ../../.env alembic upgrade head` |
+| `make dev-api` | 先运行 `make db-upgrade`，再运行 `cd apps/api && uv run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000` |
 | `make check` | `node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs`<br>`corepack pnpm --filter @company/web check`<br>`corepack pnpm --filter @company/admin check`<br>`cd apps/api && uv run ruff check .`<br>`cd apps/api && uv run ruff format --check .`<br>`cd apps/api && uv run mypy src`<br>`cd apps/api && uv run pytest` |
 | `make compose-up` | `docker compose --env-file .env up --build -d` |
 | `make compose-smoke` | `./scripts/compose-smoke.sh` |
@@ -234,4 +242,4 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 
 ## 当前不包含
 
-本里程碑不包含管理员登录与权限、公司资料 CRUD、快照上传、HTML 发布流程、搜索、任务队列和生产部署。页面和 API 只证明工程边界、路由、健康检查与质量门槛可运行。下一里程碑应先从 `doc/README.md`、`doc/BACKEND.md` 和 `doc/PRODUCT_UI.md` 选定一个业务切片，再补测试与实现。
+本里程碑不包含管理员登录、权限控制、用户鉴权、搜索、任务队列和生产部署。管理端与写入 API 目前未鉴权，只能在可信机器上作为仅限本地（local-only）的开发工具使用；不要把端口暴露到公网，也不要上传不可信 HTML。生产化之前必须补齐身份认证、授权、内容安全策略和部署隔离。

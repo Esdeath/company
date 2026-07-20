@@ -110,6 +110,7 @@ headers=/dev/null
 connect_timeout=
 max_time=
 url=
+method=GET
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) output=$2; shift 2 ;;
@@ -117,11 +118,13 @@ while [ "$#" -gt 0 ]; do
     --connect-timeout) connect_timeout=$2; shift 2 ;;
     --max-time) max_time=$2; shift 2 ;;
     --write-out) shift 2 ;;
+    --request|-X) method=$2; shift 2 ;;
+    --header|-H|--data|--form|-F) shift 2 ;;
     http://*) url=$1; shift ;;
     *) shift ;;
   esac
 done
-printf '%s connect=%s max=%s\\n' "$url" "$connect_timeout" "$max_time" >> "$FAKE_CURL_LOG"
+printf '%s %s connect=%s max=%s\\n' "$method" "$url" "$connect_timeout" "$max_time" >> "$FAKE_CURL_LOG"
 if [ "\${FAKE_TIMEOUT_ONCE:-0}" = "1" ] && [ ! -e "$FAKE_TIMEOUT_MARKER" ]; then
   : > "$FAKE_TIMEOUT_MARKER"
   exit 28
@@ -132,16 +135,36 @@ type=text/html
 body=
 location=
 admin_index='<html><head><title>资料管理后台</title><link rel="stylesheet" href="/admin/assets/app.css"><script src="/admin/assets/app.js"></script></head><body>资料管理后台</body></html>'
-case "$path" in
-  /healthz) type=application/json; body='{"status":"ok"}' ;;
-  /) body='<html><body>企业研究资料库</body></html>' ;;
-  /admin) code=308; location=/admin/ ;;
-  /admin/) body=$admin_index ;;
-  /admin/assets/app.js) type=application/javascript; body='console.log("admin")' ;;
-  /admin/assets/app.css) type=text/css; body='body{color:#111}' ;;
-  /admin/review/example) body=$admin_index ;;
-  /api/health/live) type=application/json; body='{"status":"live"}' ;;
-  /api/health/ready)
+case "$method:$path" in
+  POST:/api/v1/companies)
+    type=application/json
+    code=201
+    body='{"id":"11111111-1111-4111-8111-111111111111","name":"Smoke","ticker":null,"market":null,"created_at":"2026-07-20T00:00:00Z"}'
+    ;;
+  POST:/api/v1/companies/11111111-1111-4111-8111-111111111111/documents)
+    type=application/json
+    body='{"items":[{"id":"22222222-2222-4222-8222-222222222222","title":"CEO interview","format":"markdown","content_url":"/api/v1/documents/22222222-2222-4222-8222-222222222222/content"},{"id":"33333333-3333-4333-8333-333333333333","title":"Showcase","format":"html","content_url":"/api/v1/documents/33333333-3333-4333-8333-333333333333/content"}],"errors":[]}'
+    ;;
+  GET:/api/v1/companies/11111111-1111-4111-8111-111111111111/documents)
+    type=application/json
+    body='[{"id":"22222222-2222-4222-8222-222222222222"},{"id":"33333333-3333-4333-8333-333333333333"}]'
+    ;;
+  GET:/api/v1/documents/22222222-2222-4222-8222-222222222222/content)
+    if [ "\${FAKE_BAD_MARKDOWN:-0}" = "1" ]; then body='<html>bad markdown</html>'; else body='<main class="research-document">Markdown</main>'; fi
+    ;;
+  GET:/api/v1/documents/33333333-3333-4333-8333-333333333333/content)
+    body='<title>通用 Markdown 模板预览</title>'
+    ;;
+  DELETE:/api/v1/documents/*|DELETE:/api/v1/companies/*) code=204; body= ;;
+  GET:/healthz) type=application/json; body='{"status":"ok"}' ;;
+  GET:/) body='<html><body>企业研究资料库</body></html>' ;;
+  GET:/admin) code=308; location=/admin/ ;;
+  GET:/admin/) body=$admin_index ;;
+  GET:/admin/assets/app.js) type=application/javascript; body='console.log("admin")' ;;
+  GET:/admin/assets/app.css) type=text/css; body='body{color:#111}' ;;
+  GET:/admin/review/example) body=$admin_index ;;
+  GET:/api/health/live) type=application/json; body='{"status":"live"}' ;;
+  GET:/api/health/ready)
     type=application/json
     if [ -e "$FAKE_POSTGRES_STOPPED" ]; then
       code=503
@@ -233,7 +256,9 @@ test('publishes a safe local environment template', async () => {
     'POSTGRES_PASSWORD',
     'DATABASE_URL',
     'CORS_ORIGINS',
+    'CONTENT_ROOT',
   ]) assert.match(env, new RegExp(`^${key}=`, 'm'))
+  assert.match(env, /^CONTENT_ROOT=\.\.\/\.\.\/var\/content$/m)
   assert.doesNotMatch(env, /ayaseeri|buffett/i)
 })
 
@@ -255,10 +280,11 @@ test('ignores local secrets and generated files while keeping the environment te
     '.ruff_cache/',
     '.mypy_cache/',
     'coverage/',
+    '/var/',
   ]) assert.ok(rules.includes(rule), `missing .gitignore rule: ${rule}`)
 })
 
-test('documents service boundaries, both development modes, and unavailable business scope', async () => {
+test('documents the direct-document slice, service boundaries, and local-only security scope', async () => {
   const readme = await read('README.md')
   const architecture = markdownSection(readme, '五个服务')
   const hybrid = markdownSection(readme, '混合开发')
@@ -266,9 +292,9 @@ test('documents service boundaries, both development modes, and unavailable busi
 
   for (const [service, responsibility, boundary] of [
     ['edge', /路由|分发/, /127\.0\.0\.1:8080/],
-    ['web', /公开站点|Nuxt/, /Compose[^|]*3000/],
-    ['admin', /管理端|后台/, /Compose[^|]*8080/],
-    ['api', /FastAPI|健康/, /Compose[^|]*8000/],
+    ['web', /公开站点|阅读/, /Compose[^|]*3000/],
+    ['admin', /管理端|上传/, /Compose[^|]*8080/],
+    ['api', /FastAPI|资料/, /Compose[^|]*8000/],
     ['postgres', /PostgreSQL|数据库/, /127\.0\.0\.1:5432/],
   ]) {
     const row = markdownTableRow(architecture, service)
@@ -287,8 +313,9 @@ test('documents service boundaries, both development modes, and unavailable busi
   }
   assert.match(unavailable, /不包含|不可用/)
   assert.match(unavailable, /管理员登录/)
-  assert.match(unavailable, /资料上传|快照上传|快照业务/)
-  assert.match(unavailable, /HTML\s*发布流程/)
+  assert.match(unavailable, /仅限本地|local-only/i)
+  assert.match(unavailable, /未鉴权|无鉴权|不提供鉴权/)
+  assert.doesNotMatch(unavailable, /资料上传[^。]*不可用/)
 })
 
 test('maps every public Make target to its command in one README table entry', async () => {
@@ -298,6 +325,7 @@ test('maps every public Make target to its command in one README table entry', a
     ['make setup', ['corepack pnpm install --frozen-lockfile', 'cd apps/api && uv sync --frozen']],
     ['make dev-infra', ['docker compose --env-file .env up -d postgres']],
     ['make dev', ['make -j3 dev-web dev-admin dev-api']],
+    ['make db-upgrade', ['cd apps/api && uv run --env-file ../../.env alembic upgrade head']],
     ['make check', [
       'node --test tests/docs.test.mjs tests/prototype.test.mjs tests/scaffold.test.mjs',
       'corepack pnpm --filter @company/web check',
@@ -350,6 +378,11 @@ test('gives each Make target exact prerequisites and a bounded recipe', async ()
   const setup = makeTarget(makefile, 'setup')
   assert.ok(setup.recipe.includes('$(PNPM) install --frozen-lockfile'))
   assert.ok(setup.recipe.includes('cd apps/api && $(UV) sync --frozen'))
+  assert.deepEqual(makeTarget(makefile, 'db-upgrade'), {
+    prerequisites: ['require-env'],
+    recipe: ['cd apps/api && $(UV) run --env-file ../../.env alembic upgrade head'],
+  })
+  assert.deepEqual(makeTarget(makefile, 'dev-api').prerequisites, ['db-upgrade'])
   assert.deepEqual(makeTarget(makefile, 'dev-api').recipe, [
     'cd apps/api && $(UV) run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000',
   ])
@@ -442,6 +475,19 @@ test('wires health-gated dependencies, durable postgres, and container-safe data
   assert.ok(compose.volumes.postgres_data)
 })
 
+test('Compose persists document content and migrates before API start', async () => {
+  const composeSource = await read('compose.yaml')
+  const apiDockerfile = await read('apps/api/Dockerfile')
+  const apiEntrypoint = await read('apps/api/docker-entrypoint.sh').catch(() => '')
+  const apiRuntime = [apiDockerfile, apiEntrypoint].join('\n')
+
+  assert.match(composeSource, /content_data:\/data\/content/)
+  assert.match(composeSource, /CONTENT_ROOT:\s*\/data\/content/)
+  assert.match(apiRuntime, /alembic upgrade head/)
+  assert.match(apiRuntime, /mkdir -p \/data\/content/)
+  assert.match(apiRuntime, /chown[^\n]+10001|chown[^\n]+app/)
+})
+
 test('routes edge traffic with deliberate admin prefix stripping and API path preservation', async () => {
   const nginx = stripLineComments(await read('infra/nginx/default.conf'))
 
@@ -508,6 +554,12 @@ test('uses bounded condition polling and restores postgres after smoke failures'
     assert.ok(smoke.includes(body), `smoke must assert exact body ${body}`)
   }
   assert.match(smoke, /for service in web admin api edge; do[^]*assert_non_root_uid\s+"\$service"[^]*done/)
+  assert.ok(smoke.includes('doc/templates/markdown/examples/ceo-interview.md'))
+  assert.ok(smoke.includes('doc/templates/markdown/showcase.html'))
+  assert.match(smoke, /class=["']research-document["']/)
+  assert.match(smoke, /通用 Markdown 模板预览/)
+  assert.match(smoke, /python3 -c/)
+  assert.doesNotMatch(smoke, /\bjq\b/)
 })
 
 test('smoke behavior uses bounded requests, one asset response, and a safe UID fallback', async () => {
@@ -574,9 +626,19 @@ test('smoke exit trap restores postgres when a post-stop assertion fails', async
   const result = await runSmokeWithFakes({ FAKE_BAD_NOT_READY: '1' })
 
   assert.notEqual(result.code, 0)
-  assert.match(result.stderr, /unexpected body/)
+  assert.match(result.stderr, /unexpected response body/)
   assert.match(result.dockerLog, /stop postgres[^]*start postgres/)
   assert.equal(result.postgresStopped, false)
+})
+
+test('smoke cleanup removes uploaded documents and the company after a content assertion fails', async () => {
+  const result = await runSmokeWithFakes({ FAKE_BAD_MARKDOWN: '1' })
+
+  assert.notEqual(result.code, 0)
+  assert.match(result.stderr, /Markdown content marker missing/)
+  assert.match(result.curlLog, /DELETE .*\/api\/v1\/documents\/22222222-2222-4222-8222-222222222222/)
+  assert.match(result.curlLog, /DELETE .*\/api\/v1\/documents\/33333333-3333-4333-8333-333333333333/)
+  assert.match(result.curlLog, /DELETE .*\/api\/v1\/companies\/11111111-1111-4111-8111-111111111111/)
 })
 
 test('documents every quality command and concrete setup recovery steps', async () => {

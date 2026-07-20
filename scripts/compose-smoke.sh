@@ -8,7 +8,10 @@ SMOKE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/company-smoke.XXXXXX")
 BODY_FILE="$SMOKE_DIR/body"
 HEADERS_FILE="$SMOKE_DIR/headers"
 ADMIN_INDEX_FILE="$SMOKE_DIR/admin-index"
+UPLOAD_ITEMS_FILE="$SMOKE_DIR/upload-items"
+CLEANUP_IDS_FILE="$SMOKE_DIR/cleanup-document-ids"
 postgres_stopped=0
+company_id=
 
 cd "$ROOT_DIR"
 
@@ -23,20 +26,46 @@ fail() {
 
 restore_postgres() {
   local status=$?
+  local deadline document_id
+  trap - EXIT
+  set +e
+
   if (( postgres_stopped )); then
     docker compose --env-file "$ENV_FILE" start postgres >/dev/null 2>&1 || true
+    postgres_stopped=0
   fi
+
+  if [[ -n "$company_id" ]]; then
+    deadline=$((SECONDS + 30))
+    while (( SECONDS < deadline )); do
+      request_http "$BASE_URL/api/health/ready" 3
+      [[ "$HTTP_CODE" == "200" ]] && break
+      sleep 1
+    done
+
+    request_http "$BASE_URL/api/v1/companies/$company_id/documents" 10
+    if [[ "$HTTP_CODE" == "200" ]]; then
+      python3 -c 'import json, sys; print(*(item["id"] for item in json.load(open(sys.argv[1], encoding="utf-8"))), sep="\n")' "$BODY_FILE" > "$CLEANUP_IDS_FILE" 2>/dev/null || true
+      while IFS= read -r document_id; do
+        [[ -n "$document_id" ]] || continue
+        request_http "$BASE_URL/api/v1/documents/$document_id" 10 --request DELETE
+      done < "$CLEANUP_IDS_FILE"
+    fi
+    request_http "$BASE_URL/api/v1/companies/$company_id" 10 --request DELETE
+  fi
+
   rm -rf "$SMOKE_DIR"
-  return "$status"
+  exit "$status"
 }
 trap restore_postgres EXIT
 
 request_http() {
   local url=$1 request_timeout=$2
+  shift 2
   local connect_timeout=$request_timeout
   (( connect_timeout > 3 )) && connect_timeout=3
   HTTP_CODE=$(
-    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$url" || true
+    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$@" "$url" || true
   )
 }
 
@@ -50,13 +79,13 @@ wait_for_http() {
     [[ "$HTTP_CODE" == "$expected" ]] && return 0
     (( SECONDS < deadline )) && sleep 1
   done
-  printf 'timed out waiting for %s to return %s (last response: %s)\n' "$url" "$expected" "$(cat "$BODY_FILE" 2>/dev/null || true)" >&2
+  printf 'timed out waiting for %s to return %s (last status: %s)\n' "$url" "$expected" "${HTTP_CODE:-none}" >&2
   return 1
 }
 
 assert_body() {
   local expected=$1
-  [[ "$(cat "$BODY_FILE")" == "$expected" ]] || fail "unexpected body: $(cat "$BODY_FILE")"
+  [[ "$(cat "$BODY_FILE")" == "$expected" ]] || fail "unexpected response body"
 }
 
 assert_non_root_uid() {
@@ -171,5 +200,58 @@ docker compose --env-file "$ENV_FILE" start postgres
 postgres_stopped=0
 wait_for_http "$BASE_URL/api/health/ready" 200 60 || fail 'API readiness did not recover'
 assert_body '{"status":"ready"}'
+
+company_name="compose-smoke-$(date +%s)-$$-$RANDOM"
+request_http "$BASE_URL/api/v1/companies" 30 \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data "{\"name\":\"$company_name\"}"
+[[ "$HTTP_CODE" == "201" ]] || fail "company creation returned ${HTTP_CODE:-no status}"
+company_id=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["id"])' "$BODY_FILE") \
+  || fail 'could not parse created company'
+[[ -n "$company_id" ]] || fail 'company creation returned no id'
+
+request_http "$BASE_URL/api/v1/companies/$company_id/documents" 60 \
+  --request POST \
+  --form "files=@$ROOT_DIR/doc/templates/markdown/examples/ceo-interview.md;type=text/markdown" \
+  --form "files=@$ROOT_DIR/doc/templates/markdown/showcase.html;type=text/html"
+[[ "$HTTP_CODE" == "200" ]] || fail "document upload returned ${HTTP_CODE:-no status}"
+python3 -c 'import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+items = data.get("items", [])
+errors = data.get("errors", [])
+if len(items) != 2 or len(errors) != 0:
+    raise SystemExit("expected two upload items and zero errors")
+for item in items:
+    print(item["id"], item["format"], item["content_url"], sep="\t")' "$BODY_FILE" > "$UPLOAD_ITEMS_FILE" \
+  || fail 'upload response did not contain two successes and zero errors'
+
+while IFS=$'\t' read -r document_id document_format content_url; do
+  [[ -n "$document_id" && "$content_url" == /api/v1/documents/*/content ]] \
+    || fail 'upload response contained an invalid document reference'
+  request_http "$BASE_URL$content_url" 30
+  [[ "$HTTP_CODE" == "200" ]] || fail "$document_format content returned ${HTTP_CODE:-no status}"
+  case "$document_format" in
+    markdown)
+      grep -Fq 'class="research-document"' "$BODY_FILE" || fail 'Markdown content marker missing'
+      ;;
+    html)
+      grep -Fq '通用 Markdown 模板预览' "$BODY_FILE" || fail 'HTML source marker missing'
+      ;;
+    *)
+      fail 'upload response contained an unexpected document format'
+      ;;
+  esac
+done < "$UPLOAD_ITEMS_FILE"
+
+while IFS=$'\t' read -r document_id _; do
+  [[ -n "$document_id" ]] || continue
+  request_http "$BASE_URL/api/v1/documents/$document_id" 30 --request DELETE
+  [[ "$HTTP_CODE" == "204" ]] || fail "document cleanup returned ${HTTP_CODE:-no status}"
+done < "$UPLOAD_ITEMS_FILE"
+
+request_http "$BASE_URL/api/v1/companies/$company_id" 30 --request DELETE
+[[ "$HTTP_CODE" == "204" ]] || fail "company cleanup returned ${HTTP_CODE:-no status}"
+company_id=
 
 printf 'compose smoke passed\n'

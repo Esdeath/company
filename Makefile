@@ -1,7 +1,7 @@
 UV ?= uv
 PNPM ?= corepack pnpm
 
-.PHONY: setup dev-infra dev dev-web dev-admin dev-api check compose-up compose-smoke compose-down require-env
+.PHONY: setup dev-infra dev dev-web dev-admin db-upgrade dev-api check compose-up compose-smoke compose-down require-env
 
 setup:
 	@printf 'Expected Node 24.18.0; found '
@@ -34,7 +34,10 @@ dev-web:
 dev-admin:
 	$(PNPM) --filter @company/admin dev
 
-dev-api:
+db-upgrade: require-env
+	cd apps/api && $(UV) run --env-file ../../.env alembic upgrade head
+
+dev-api: db-upgrade
 	cd apps/api && $(UV) run --env-file ../../.env uvicorn --factory company_api.main:create_app --reload --host 0.0.0.0 --port 8000
 
 check:

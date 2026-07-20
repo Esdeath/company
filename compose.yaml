@@ -27,11 +27,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-company}:${POSTGRES_PASSWORD:-company_local_only}@postgres:5432/${POSTGRES_DB:-company}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CONTENT_ROOT: /data/content
     depends_on:
       postgres:
         condition: service_healthy
     expose:
       - "8000"
+    volumes:
+      - content_data:/data/content
     healthcheck:
       test:
         - CMD
@@ -103,6 +106,7 @@ services:
 
 volumes:
   postgres_data:
+  content_data:
 
 networks:
   edge:
