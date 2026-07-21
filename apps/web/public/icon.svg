@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="企业研究资料库">
+  <rect width="128" height="128" rx="28" fill="#285541"/>
+  <circle cx="56" cy="54" r="29" fill="none" stroke="#fbfcfa" stroke-width="11"/>
+  <path d="m77 76 25 25" fill="none" stroke="#fbfcfa" stroke-width="11" stroke-linecap="round"/>
+  <path d="M40 47h32M40 58h23M40 69h15" fill="none" stroke="#fbfcfa" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="78" cy="32" r="8" fill="#b9503d"/>
+</svg>
