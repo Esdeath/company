@@ -140,8 +140,18 @@ onMounted(() => {
   <div class="site-shell">
     <header class="masthead">
       <a class="brand" href="/" aria-label="企业研究资料库首页">
-        <span class="brand__name">企业研究资料库</span>
-        <span class="brand__note">Company research library</span>
+        <img
+          class="brand__mark"
+          :src="'/icon.svg'"
+          alt=""
+          aria-hidden="true"
+          width="32"
+          height="32"
+        >
+        <span class="brand__copy">
+          <span class="brand__name">企业研究资料库</span>
+          <span class="brand__note">Company research library</span>
+        </span>
       </a>
       <p>原始资料 · 独立阅读</p>
     </header>

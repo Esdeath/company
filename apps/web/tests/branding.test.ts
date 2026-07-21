@@ -164,6 +164,22 @@ function expectBrandRaster(name: string, raster: Raster) {
 }
 
 describe('public-site brand assets', () => {
+  it('registers browser, mobile, and manifest metadata in Nuxt', () => {
+    const config = readFileSync(resolve(webRoot, 'nuxt.config.ts'), 'utf8')
+
+    for (const href of [
+      '/icon.svg',
+      '/favicon.ico',
+      '/favicon-16x16.png',
+      '/favicon-32x32.png',
+      '/apple-touch-icon.png',
+      '/site.webmanifest',
+    ]) {
+      expect(config).toContain(`href: '${href}'`)
+    }
+    expect(config).toContain("content: '#285541'")
+  })
+
   it('keeps the approved colors and symbol-only SVG source', () => {
     const svg = readFileSync(publicFile('icon.svg'), 'utf8')
 

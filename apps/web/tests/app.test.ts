@@ -125,6 +125,21 @@ describe('公开资料阅读工作台', () => {
     expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
   })
 
+  it('shows the decorative brand mark inside the existing homepage link', async () => {
+    const wrapper = await mountWorkspace()
+    const brand = wrapper.get('a.brand')
+    const mark = brand.get('img.brand__mark')
+
+    expect(mark.attributes()).toMatchObject({
+      src: '/icon.svg',
+      alt: '',
+      'aria-hidden': 'true',
+      width: '32',
+      height: '32',
+    })
+    expect(brand.text()).toContain('企业研究资料库')
+  })
+
   it('clears old documents while changing company and selects the new first document', async () => {
     const nextDocuments = deferred<DocumentItem[]>()
     vi.mocked(library.listDocuments)

@@ -71,11 +71,24 @@ a {
 }
 
 .brand {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  gap: 0.12rem;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
   text-decoration: none;
+}
+
+.brand__mark {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+}
+
+.brand__copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
 }
 
 .brand__name {
