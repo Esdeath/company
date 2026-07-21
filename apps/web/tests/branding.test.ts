@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
 import { describe, expect, it } from 'vitest'
 
@@ -10,6 +11,38 @@ function pngDimensions(name: string): [number, number] {
   const png = readFileSync(publicFile(name))
   expect(png.subarray(1, 4).toString('ascii')).toBe('PNG')
   return [png.readUInt32BE(16), png.readUInt32BE(20)]
+}
+
+function opaquePaperWhitePixels(name: string): number {
+  const result = spawnSync(
+    'magick',
+    [
+      publicFile(name),
+      '-alpha',
+      'on',
+      '-fuzz',
+      '8%',
+      '-fill',
+      'white',
+      '-opaque',
+      '#fbfcfa',
+      '-fill',
+      'black',
+      '+opaque',
+      'white',
+      '-format',
+      '%c',
+      'histogram:info:-',
+    ],
+    { encoding: 'utf8' },
+  )
+
+  expect(result.error, `unable to inspect ${name}`).toBeUndefined()
+  expect(result.status, result.stderr).toBe(0)
+
+  const white = result.stdout.match(/^\s*(\d+):.*\bwhite$/m)
+  expect(white, `unable to find opaque near-white pixels in ${name}: ${result.stdout}`).not.toBeNull()
+  return Number(white?.[1])
 }
 
 describe('public-site brand assets', () => {
@@ -30,6 +63,19 @@ describe('public-site brand assets', () => {
     ['icon-512.png', 512],
   ])('publishes %s at %ix%i', (name, size) => {
     expect(pngDimensions(name)).toEqual([size, size])
+  })
+
+  it.each([
+    ['favicon-16x16.png', 4],
+    ['favicon-32x32.png', 16],
+    ['apple-touch-icon.png', 400],
+    ['icon-192.png', 450],
+    ['icon-512.png', 3_000],
+    ['favicon.ico[1]', 16],
+  ])('renders the paper-white lens in %s', (name, minimumPixels) => {
+    const pixels = opaquePaperWhitePixels(name)
+
+    expect(pixels, `${name} has ${pixels} opaque near-white pixels`).toBeGreaterThanOrEqual(minimumPixels)
   })
 
   it('publishes a multi-size ICO fallback', () => {
