@@ -469,6 +469,16 @@ test('keeps local and generated files out of Docker build contexts', async () =>
   ]) assert.ok(apiRules.includes(rule), `missing API context .dockerignore rule: ${rule}`)
 })
 
+test('copies Nuxt public assets into the web image build', async () => {
+  const dockerfile = await read('apps/web/Dockerfile')
+
+  assert.match(
+    dockerfile,
+    /^COPY apps\/web\/public apps\/web\/public$/m,
+    'web image must include favicon and brand assets from apps/web/public',
+  )
+})
+
 test('declares the five-service local runtime with only intended host ports', async () => {
   const { stdout } = await execFileAsync(
     'docker',

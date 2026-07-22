@@ -13,6 +13,7 @@ FROM deps AS build
 
 COPY apps/web/nuxt.config.ts apps/web/tsconfig.json apps/web/eslint.config.mjs apps/web/vitest.config.ts apps/web/
 COPY apps/web/app apps/web/app
+COPY apps/web/public apps/web/public
 COPY apps/web/server apps/web/server
 
 RUN pnpm --filter @company/web build
