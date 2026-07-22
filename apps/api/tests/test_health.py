@@ -8,6 +8,11 @@ import company_api.main as main_module
 from company_api.config import Settings
 from company_api.main import create_app
 
+ADMIN_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$"
+    "aXR5J2OvFOW7Bb653Nn6mQ$Mjw20TGkSlMBsX4JsoCVfOe1DH6Cedzk01lTosf8YPU"
+)
+
 
 class SuccessfulProbe:
     async def check(self) -> None:
@@ -38,6 +43,8 @@ class ExternalProbe:
 def settings() -> Settings:
     return Settings(
         database_url="postgresql+psycopg://company:local@postgres:5432/company",
+        admin_username="admin",
+        admin_password_hash=ADMIN_HASH,
         cors_origins="http://localhost:3000,http://localhost:5173",
     )
 
@@ -113,6 +120,7 @@ def test_injected_dependencies_do_not_dispose_external_engine(
             settings(),
             external_probe,
             library_service=service,  # type: ignore[arg-type]
+            auth_service=object(),  # type: ignore[arg-type]
         )
     ):
         pass

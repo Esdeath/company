@@ -26,8 +26,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-company}:${POSTGRES_PASSWORD:-company_local_only}@postgres:5432/${POSTGRES_DB:-company}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       CONTENT_ROOT: /data/content
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_LIFETIME_SECONDS: ${SESSION_LIFETIME_SECONDS:-43200}
     depends_on:
       postgres:
         condition: service_healthy

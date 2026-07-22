@@ -56,3 +56,15 @@ class UploadError(BaseModel):
 class UploadBatchResponse(BaseModel):
     items: list[UploadItem]
     errors: list[UploadError]
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=1_000)
+
+
+class AuthState(BaseModel):
+    authenticated: bool
+    username: str | None = None
+    csrf_token: str
+    expires_at: datetime | None = None

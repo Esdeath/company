@@ -98,6 +98,15 @@ a {
   font-size: 0.7rem;
 }
 
+.session-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+}
+
 .local-mark {
   margin: 0;
   text-align: right;
@@ -108,9 +117,75 @@ main {
   padding-block: clamp(2.75rem, 7vw, 5.5rem) 2.5rem;
 }
 
-.page-intro {
-  max-width: 42rem;
-  margin-block-end: clamp(2.75rem, 7vw, 5rem);
+.auth-loading {
+  display: grid;
+  min-height: 60svh;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.login-page {
+  display: grid;
+  min-height: min(42rem, 76svh);
+  align-items: center;
+}
+
+.login-panel {
+  width: min(100%, 30rem);
+  margin-inline: auto;
+  padding: clamp(1.5rem, 5vw, 2.75rem);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: 0 1.5rem 4rem rgb(24 34 29 / 7%);
+}
+
+.login-panel h1 {
+  margin-block-start: 0.65rem;
+  font-size: clamp(2.25rem, 8vw, 4rem);
+}
+
+.login-panel__intro {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.login-form {
+  display: grid;
+  gap: 1rem;
+  margin-block-start: 2rem;
+}
+
+.login-form label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.login-form .primary-action {
+  margin-block-start: 0.35rem;
+}
+
+.login-error {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border-left: 0.2rem solid var(--red);
+  color: var(--red);
+  background: #fff7f4;
+  font-size: 0.78rem;
+}
+
+.login-return {
+  display: inline-block;
+  margin-block-start: 1.5rem;
+  color: var(--green);
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-underline-offset: 0.2rem;
 }
 
 .eyebrow,
@@ -146,17 +221,9 @@ h1 {
   letter-spacing: -0.045em;
 }
 
-.page-intro > p:last-child {
-  max-width: 35rem;
-  margin: 1.25rem 0 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.8;
-}
-
 .page-error,
 .refresh-warning {
-  margin: -2rem 0 2rem;
+  margin: 0 0 2rem;
   padding: 0.8rem 1rem;
   font-size: 0.85rem;
 }

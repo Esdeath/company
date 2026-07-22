@@ -157,14 +157,6 @@ onMounted(() => {
     </header>
 
     <main class="library-main">
-      <header class="library-intro">
-        <div>
-          <p class="eyebrow">Public research desk</p>
-          <h1>企业研究资料库</h1>
-        </div>
-        <p>按公司查找研究资料，在独立阅读页中连续阅读。</p>
-      </header>
-
       <div class="library-workspace">
         <CompanyDirectory
           :companies="companies"

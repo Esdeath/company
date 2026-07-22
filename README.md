@@ -2,7 +2,7 @@
 
 ## 当前里程碑：直接资料上传垂直切片
 
-仓库目前提供可运行、可检查的五服务直接资料上传垂直切片。你可以在管理端创建公司，一次上传一个或多个 HTML、Markdown 原文件，再从公开站点按公司选择并阅读资料。Markdown 会套用现代编辑排版模板生成 HTML；HTML 保持原文发布。当前实现只面向可信的本地开发环境，安全边界见文末“当前不包含”。
+仓库目前提供可运行、可检查的五服务资料库。你可以用管理员账号登录管理端，创建公司并上传一个或多个 HTML、Markdown 原文件，再从公开站点按公司选择并阅读资料。Markdown 会套用现代编辑排版模板生成 HTML；HTML 保持原文发布。管理员会话保存在 PostgreSQL，写操作同时要求会话 Cookie 与 CSRF 令牌，因此阿里云 ECS 管理端可以通过 HTTPS 直接使用，不再依赖 SSH 隧道。
 
 ## 五个服务
 
@@ -35,8 +35,9 @@
 │   ├── web/             # Nuxt 公开站点
 │   ├── admin/           # Vue/Vite 管理端
 │   └── api/             # FastAPI 服务、Python 测试与 uv.lock
-├── infra/nginx/         # edge 路由配置
-├── scripts/             # Compose smoke 验收脚本
+├── infra/nginx/         # 容器 edge 路由配置
+├── infra/aliyun-ecs/    # 宿主机 Nginx、systemd 与证书续签配置
+├── scripts/             # Compose smoke、离线镜像与备份脚本
 ├── tests/               # 文档、原型和工程契约测试
 ├── doc/                 # 产品与开发背景文档
 ├── compose.yaml         # 五服务编排
@@ -78,7 +79,9 @@ docker compose version
    cp .env.example .env
    ```
 
-   `.env.example` 只含本地开发弱凭据，方便启动垂直切片。真实环境不得复用其中的用户名、密码或连接串。`CONTENT_ROOT=../../var/content` 指向宿主机开发时的资料目录；Git 会忽略 `.env` 和根目录的 `var/`。
+   `.env.example` 只含本地开发弱凭据，管理员密码是 `company_local_only`。真实环境不得复用其中的用户名、密码、哈希或连接串。`CONTENT_ROOT=../../var/content` 指向宿主机开发时的资料目录；Git 会忽略 `.env` 和根目录的 `var/`。
+
+   需要创建自己的管理员密码哈希时运行 `make admin-password-hash`。脚本在终端内隐藏密码输入，并输出一行带单引号的 Argon2 配置；单引号不能删，否则 Compose 会把哈希中的 `$` 当作变量。
 
 2. 安装锁定依赖：
 
@@ -172,6 +175,21 @@ make compose-down
 
 Compose 把 API 的 `CONTENT_ROOT` 固定为 `/data/content`，并把命名 volume `content_data` 挂载到该目录。API 容器启动时先运行 Alembic migration，再以非 root 用户启动 Uvicorn。smoke 会检查 edge、静态资源、深层 Admin 路由、API 健康响应、非 root 运行身份、PostgreSQL 停止与恢复，还会创建唯一公司、同时上传仓库中的 Markdown 与 HTML 示例、读取两份内容并清理测试数据。`make compose-down` 不带 `-v`，`postgres_data` 与 `content_data` 两个 volume 都会保留。
 
+## 阿里云 ECS 部署
+
+生产部署采用“宿主机 Nginx 作为唯一公网入口、Compose 全部绑定回环地址”的边界。公开端和登录后的管理端都通过 HTTPS 使用；管理端写请求由 FastAPI 会话与 CSRF 双重保护，登录接口另有 Nginx 速率限制。服务器无法稳定访问 Docker Hub 时，可以在 Mac 构建 linux/amd64 离线镜像包，再上传到 ECS 导入；PostgreSQL 与内容卷由 systemd 定时任务每天备份到 `/srv/company/backups/`。
+
+完整的首次部署、HTTPS、管理员凭据、离线镜像更新、回滚和备份恢复命令见 [doc/DEPLOYMENT.md](doc/DEPLOYMENT.md)。仓库提供的入口包括：
+
+```bash
+make deploy-aliyun
+./scripts/build-ecs-image-bundle.sh /tmp/company-ecs-amd64-images.tar.gz
+./scripts/load-ecs-image-bundle.sh /srv/company/company-ecs-amd64-images.tar.gz
+./scripts/company-backup.sh
+```
+
+已完成首次部署的 ECS，日常更新只需在 Mac 仓库根目录运行 `make deploy-aliyun`。脚本会完成本地检查、远端备份、代码同步、AMD64 镜像构建与上传、数据库迁移、Nginx 更新和公网验收。第一次接入管理员认证时会提示创建生产密码；普通更新不会改变现有密码。可通过 `DEPLOY_TARGET=root@<ECS-IP> make deploy-aliyun` 覆盖默认 SSH 目标。
+
 ## 质量检查
 
 ```bash
@@ -199,6 +217,8 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 | Make 目标 | 底层命令 |
 | --- | --- |
 | `make setup` | 版本检查；`corepack pnpm install --frozen-lockfile`；`cd apps/api && uv sync --frozen` |
+| `make admin-password-hash` | `./scripts/hash-admin-password.sh`，交互式生成 Argon2 管理员密码哈希 |
+| `make deploy-aliyun` | `./scripts/deploy-aliyun-ecs.sh`，备份、构建、上传、迁移、切换 Nginx 并验收 |
 | `make dev-infra` | `docker compose --env-file .env up -d postgres` |
 | `make dev` | `make -j3 dev-web dev-admin dev-api` |
 | `make dev-web` | `corepack pnpm --filter @company/web dev` |
@@ -242,4 +262,4 @@ Makefile 支持 `UV=/path/to/uv` 和 `PNPM='corepack pnpm'` 覆盖，表中列�
 
 ## 当前不包含
 
-本里程碑不包含管理员登录、权限控制、用户鉴权、搜索、任务队列和生产部署。管理端与写入 API 目前未鉴权，只能在可信机器上作为仅限本地（local-only）的开发工具使用；不要把端口暴露到公网，也不要上传不可信 HTML。生产化之前必须补齐身份认证、授权、内容安全策略和部署隔离。
+当前只支持由环境变量配置的单管理员，不包含多管理员账号、角色权限、密码找回、二次验证、搜索和任务队列。不要把容器的 8080、8000 或 5432 端口开放到公网；生产管理端只能经宿主机 HTTPS Nginx 进入。系统仍把 HTML/Markdown 当作可信管理员输入，不应上传来源不明的 HTML。

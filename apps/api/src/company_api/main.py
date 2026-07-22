@@ -8,6 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from company_api.auth import AuthOperations, AuthService
+from company_api.auth_repository import SqlAlchemyAuthRepository
+from company_api.auth_routes import router as auth_router
 from company_api.config import Settings
 from company_api.content_store import ContentStore
 from company_api.db import (
@@ -30,15 +33,18 @@ def create_app(
     settings: Settings | None = None,
     readiness_probe: ReadinessProbe | None = None,
     library_service: LibraryOperations | None = None,
+    auth_service: AuthOperations | None = None,
 ) -> FastAPI:
     # BaseSettings supplies required fields from the environment at runtime.
     resolved_settings = settings if settings is not None else Settings()  # type: ignore[call-arg]
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if readiness_probe is not None and library_service is not None:
+        app.state.settings = resolved_settings
+        if readiness_probe is not None and library_service is not None and auth_service is not None:
             app.state.readiness_probe = readiness_probe
             app.state.library_service = library_service
+            app.state.auth_service = auth_service
             yield
             return
 
@@ -54,6 +60,12 @@ def create_app(
                     repository,
                     ContentStore(resolved_settings.content_root),
                 )
+            app.state.auth_service = auth_service
+            if app.state.auth_service is None:
+                app.state.auth_service = AuthService(
+                    SqlAlchemyAuthRepository(session_factory),
+                    resolved_settings,
+                )
             yield
         finally:
             await engine.dispose()
@@ -65,6 +77,7 @@ def create_app(
         allow_credentials=True,
     )
     app.include_router(library_router)
+    app.include_router(auth_router)
 
     @app.get("/api/health/live", response_model=HealthResponse)
     async def live() -> HealthResponse:

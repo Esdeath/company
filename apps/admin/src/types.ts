@@ -39,3 +39,15 @@ export type UploadBatch = {
   items: UploadItem[]
   errors: UploadError[]
 }
+
+export type AuthState = {
+  authenticated: boolean
+  username: string | null
+  csrf_token: string
+  expires_at: string | null
+}
+
+export type LoginInput = {
+  username: string
+  password: string
+}

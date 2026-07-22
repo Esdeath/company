@@ -3,13 +3,67 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createCompany,
   deleteDocument,
+  getSession,
   listCompanies,
   listDocuments,
+  login,
+  logout,
   renameDocument,
   uploadDocuments,
 } from '../src/api'
 
 describe('management API client', () => {
+  it('restores login state and sends the matching CSRF token on login and logout', async () => {
+    const anonymous = {
+      authenticated: false,
+      username: null,
+      csrf_token: 'login-csrf',
+      expires_at: null,
+    }
+    const authenticated = {
+      authenticated: true,
+      username: 'admin',
+      csrf_token: 'session-csrf',
+      expires_at: '2026-07-21T20:00:00Z',
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(anonymous)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticated)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await getSession(fetchMock)
+    await login({ username: 'admin', password: 'secret' }, fetchMock)
+    await logout(fetchMock)
+
+    const loginHeaders = new Headers((fetchMock.mock.calls[1]![1] as RequestInit).headers)
+    const logoutHeaders = new Headers((fetchMock.mock.calls[2]![1] as RequestInit).headers)
+    expect(loginHeaders.get('X-CSRF-Token')).toBe('login-csrf')
+    expect(logoutHeaders.get('X-CSRF-Token')).toBe('session-csrf')
+    expect(fetchMock.mock.calls[1]![1]).toEqual(
+      expect.objectContaining({ credentials: 'same-origin' }),
+    )
+  })
+
+  it('adds the session CSRF token to every content mutation', async () => {
+    const session = {
+      authenticated: true,
+      username: 'admin',
+      csrf_token: 'session-csrf',
+      expires_at: '2026-07-21T20:00:00Z',
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(session)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'company-1' }), { status: 201 }))
+
+    await getSession(fetchMock)
+    await createCompany({ name: '山河研究', ticker: null, market: null }, fetchMock)
+
+    const headers = new Headers((fetchMock.mock.calls[1]![1] as RequestInit).headers)
+    expect(headers.get('X-CSRF-Token')).toBe('session-csrf')
+  })
+
   it('lists companies from the versioned API', async () => {
     const companies = [{ id: 'company-1', name: '山河研究', ticker: null, market: null }]
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(companies)))

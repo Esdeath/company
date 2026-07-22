@@ -4,15 +4,20 @@ import { computed, onMounted, ref } from 'vue'
 import {
   createCompany,
   deleteDocument,
+  getSession,
+  isAuthenticationRequired,
   listCompanies,
   listDocuments,
+  login,
+  logout,
   renameDocument,
   uploadDocuments,
 } from './api'
 import CompanyPicker from './components/CompanyPicker.vue'
 import DocumentList from './components/DocumentList.vue'
 import DocumentUpload from './components/DocumentUpload.vue'
-import type { Company, CompanyInput, DocumentItem, UploadBatch } from './types'
+import LoginPanel from './components/LoginPanel.vue'
+import type { AuthState, Company, CompanyInput, DocumentItem, LoginInput, UploadBatch } from './types'
 
 const companies = ref<Company[]>([])
 const selectedCompanyId = ref('')
@@ -27,6 +32,11 @@ const uploading = ref(false)
 const pendingDocumentIds = ref<string[]>([])
 const pageError = ref('')
 const refreshWarning = ref('')
+const authState = ref<AuthState | null>(null)
+const authLoading = ref(true)
+const loginBusy = ref(false)
+const loginError = ref('')
+const logoutBusy = ref(false)
 let documentRequestGeneration = 0
 
 const selectedCompany = computed(
@@ -35,7 +45,28 @@ const selectedCompany = computed(
 const hasDocumentMutation = computed(() => pendingDocumentIds.value.length > 0)
 
 function errorMessage(error: unknown): string {
+  if (isAuthenticationRequired(error)) {
+    void returnToLogin()
+  }
   return error instanceof Error ? error.message : '操作未完成，请稍后重试'
+}
+
+function clearWorkspace() {
+  companies.value = []
+  selectedCompanyId.value = ''
+  documents.value = []
+  uploadResults.value = null
+  pageError.value = ''
+  refreshWarning.value = ''
+}
+
+async function returnToLogin() {
+  clearWorkspace()
+  try {
+    authState.value = await getSession()
+  } catch {
+    authState.value = null
+  }
 }
 
 function warnRefresh(prefix: string, error: unknown) {
@@ -104,6 +135,55 @@ async function initialize() {
   } finally {
     loading.value = false
   }
+}
+
+async function initializeAuthentication() {
+  authLoading.value = true
+  loginError.value = ''
+  try {
+    authState.value = await getSession()
+    if (authState.value.authenticated) await initialize()
+  } catch (error) {
+    loginError.value = errorMessage(error)
+  } finally {
+    authLoading.value = false
+  }
+}
+
+async function signIn(input: LoginInput) {
+  if (loginBusy.value) return
+  loginBusy.value = true
+  loginError.value = ''
+  try {
+    authState.value = await login(input)
+    await initialize()
+  } catch (error) {
+    loginError.value = errorMessage(error)
+    try {
+      authState.value = await getSession()
+    } catch {
+      // Keep the useful login error when the replacement challenge cannot be loaded.
+    }
+  } finally {
+    loginBusy.value = false
+  }
+}
+
+async function signOut() {
+  if (logoutBusy.value) return
+  logoutBusy.value = true
+  try {
+    await logout()
+  } catch {
+    // A missing/expired server session is already equivalent to being signed out.
+  }
+  clearWorkspace()
+  try {
+    authState.value = await getSession()
+  } catch {
+    authState.value = null
+  }
+  logoutBusy.value = false
 }
 
 async function selectCompany(companyId: string) {
@@ -224,7 +304,7 @@ async function remove(document: DocumentItem) {
   finishDocumentMutation(document.id)
 }
 
-onMounted(initialize)
+onMounted(initializeAuthentication)
 </script>
 
 <template>
@@ -234,16 +314,25 @@ onMounted(initialize)
         <span class="identity__library">企业研究资料库</span>
         <span class="identity__division">管理端</span>
       </div>
-      <p class="local-mark">仅供本地开发环境使用</p>
+      <div v-if="authState?.authenticated" class="session-mark">
+        <span>{{ authState.username }}</span>
+        <button class="text-action" type="button" :disabled="logoutBusy" @click="signOut">
+          {{ logoutBusy ? '正在退出…' : '退出' }}
+        </button>
+      </div>
+      <p v-else class="local-mark">安全管理入口</p>
     </header>
 
-    <main>
-      <header class="page-intro">
-        <p class="eyebrow">资料入库与整理</p>
-        <h1>资料归档台</h1>
-        <p>按公司收纳 HTML 与 Markdown 原文件，文件会直接出现在公开资料库中。</p>
-      </header>
+    <main v-if="authLoading" class="auth-loading" aria-live="polite">正在确认管理员会话…</main>
 
+    <LoginPanel
+      v-else-if="!authState?.authenticated"
+      :busy="loginBusy"
+      :error="loginError"
+      @login="signIn"
+    />
+
+    <main v-else>
       <p v-if="pageError" class="page-error" role="alert">{{ pageError }}</p>
       <p v-if="refreshWarning" class="refresh-warning" role="status" aria-live="polite">
         {{ refreshWarning }}。已完成的操作不受影响，可稍后切换公司重试刷新。
@@ -288,12 +377,12 @@ onMounted(initialize)
 
       <nav class="public-return" aria-label="站点入口">
         <a href="/"><span aria-hidden="true">←</span> 前往公开站点</a>
-        <p>本工具仅限本地开发使用，不对外开放。</p>
+        <p>所有资料变更均要求有效管理员会话。</p>
       </nav>
     </main>
 
     <footer class="footer">
-      <p>企业研究资料库 · 本地资料管理</p>
+      <p>企业研究资料库 · 安全资料管理</p>
       <p>支持 .html 与 .md</p>
     </footer>
   </div>

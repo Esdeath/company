@@ -121,7 +121,7 @@ while [ "$#" -gt 0 ]; do
     --write-out) shift 2 ;;
     --request|-X) method=$2; shift 2 ;;
     --data) request_data=$2; shift 2 ;;
-    --header|-H|--form|-F) shift 2 ;;
+    --header|-H|--form|-F|--cookie|--cookie-jar) shift 2 ;;
     http://*) url=$1; shift ;;
     *) shift ;;
   esac
@@ -138,6 +138,14 @@ body=
 location=
 admin_index='<html><head><title>资料管理后台</title><link rel="stylesheet" href="/admin/assets/app.css"><script src="/admin/assets/app.js"></script></head><body>资料管理后台</body></html>'
 case "$method:$path" in
+  GET:/api/v1/auth/session)
+    type=application/json
+    body='{"authenticated":false,"username":null,"csrf_token":"login-csrf","expires_at":null}'
+    ;;
+  POST:/api/v1/auth/login)
+    type=application/json
+    body='{"authenticated":true,"username":"admin","csrf_token":"session-csrf","expires_at":"2026-07-21T20:00:00Z"}'
+    ;;
   POST:/api/v1/companies)
     company_name=$(printf '%s' "$request_data" | sed -n 's/.*"name":"\\([^"]*\\)".*/\\1/p')
     printf '%s' "$company_name" > "$FAKE_COMPANY_NAME_FILE"
@@ -292,8 +300,12 @@ test('publishes a safe local environment template', async () => {
     'POSTGRES_USER',
     'POSTGRES_PASSWORD',
     'DATABASE_URL',
+    'ADMIN_USERNAME',
+    'ADMIN_PASSWORD_HASH',
     'CORS_ORIGINS',
     'CONTENT_ROOT',
+    'SESSION_COOKIE_SECURE',
+    'SESSION_LIFETIME_SECONDS',
   ]) assert.match(env, new RegExp(`^${key}=`, 'm'))
   assert.match(env, /^CONTENT_ROOT=\.\.\/\.\.\/var\/content$/m)
   assert.doesNotMatch(env, /ayaseeri|buffett/i)
@@ -321,7 +333,7 @@ test('ignores local secrets and generated files while keeping the environment te
   ]) assert.ok(rules.includes(rule), `missing .gitignore rule: ${rule}`)
 })
 
-test('documents the direct-document slice, service boundaries, and local-only security scope', async () => {
+test('documents the direct-document slice, service boundaries, and authenticated security scope', async () => {
   const readme = await read('README.md')
   const architecture = markdownSection(readme, '五个服务')
   const hybrid = markdownSection(readme, '混合开发')
@@ -349,9 +361,9 @@ test('documents the direct-document slice, service boundaries, and local-only se
     assert.ok(hybrid.includes(address), `hybrid section must document ${address}`)
   }
   assert.match(unavailable, /不包含|不可用/)
-  assert.match(unavailable, /管理员登录/)
-  assert.match(unavailable, /仅限本地|local-only/i)
-  assert.match(unavailable, /未鉴权|无鉴权|不提供鉴权/)
+  assert.match(unavailable, /多管理员/)
+  assert.match(unavailable, /二次验证/)
+  assert.match(unavailable, /HTTPS Nginx/)
   assert.doesNotMatch(unavailable, /资料上传[^。]*不可用/)
 })
 
@@ -360,6 +372,8 @@ test('maps every public Make target to its command in one README table entry', a
 
   for (const [target, commands] of [
     ['make setup', ['corepack pnpm install --frozen-lockfile', 'cd apps/api && uv sync --frozen']],
+    ['make admin-password-hash', ['./scripts/hash-admin-password.sh']],
+    ['make deploy-aliyun', ['./scripts/deploy-aliyun-ecs.sh']],
     ['make dev-infra', ['docker compose --env-file .env up -d postgres']],
     ['make dev', ['make -j3 dev-web dev-admin dev-api']],
     ['make db-upgrade', ['cd apps/api && uv run --env-file ../../.env alembic upgrade head']],
@@ -505,6 +519,8 @@ test('wires health-gated dependencies, durable postgres, and container-safe data
     assert.equal(compose.services.edge.depends_on[upstream].condition, 'service_healthy')
   }
   assert.match(compose.services.api.environment.DATABASE_URL, /@postgres:5432\//)
+  assert.match(compose.services.api.environment.ADMIN_PASSWORD_HASH.replaceAll('$$', '$'), /^\$argon2id\$/)
+  assert.equal(compose.services.api.environment.SESSION_COOKIE_SECURE, 'false')
   assert.ok(Object.values(compose.services.api.environment).every((value) => value !== ''))
   const postgresData = compose.services.postgres.volumes.find((mount) => mount.type === 'volume' && mount.source === 'postgres_data')
   assert.ok(postgresData)
@@ -568,7 +584,7 @@ test('uses bounded condition polling and restores postgres after smoke failures'
   assert.match(smoke, /configured_identity[^\n]*\^0\+\$/)
   assert.match(smoke, /configured_identity[^\n]*!=\s*"root"/)
 
-  for (const route of ['/healthz', '/admin', '/admin/', '/api/health/live', '/api/health/ready']) {
+  for (const route of ['/healthz', '/admin', '/admin/', '/api/health/live', '/api/health/ready', '/api/v1/auth/session', '/api/v1/auth/login']) {
     assert.ok(smoke.includes(route), `smoke must check ${route}`)
   }
   for (const [route, status] of [
@@ -585,6 +601,8 @@ test('uses bounded condition polling and restores postgres after smoke failures'
   assert.ok(smoke.includes('/admin/review/example'), 'smoke must check a deep admin SPA route')
   assert.match(smoke, /\/admin\/assets\//)
   assert.match(smoke, /Content-Type/i)
+  assert.match(smoke, /X-CSRF-Token/)
+  assert.match(smoke, /--cookie-jar/)
   assert.match(smoke, /application\|text\)\/javascript/)
   assert.match(smoke, /text\/css/)
   for (const body of ['{"status":"live"}', '{"status":"ready"}', '{"status":"not_ready"}']) {
@@ -756,6 +774,34 @@ test('smoke rejects a content URL that does not match its document id', async ()
   assert.match(result.stderr, /exactly one Markdown, one HTML, and zero errors with canonical content URLs/)
   assert.doesNotMatch(result.stderr, /22222222|33333333|"items"/)
   assert.doesNotMatch(result.curlLog, /^GET .*\/api\/v1\/documents\//m)
+})
+
+test('Aliyun deploy entrypoint is syntactically valid and exposes a safe dry run', async () => {
+  const deployer = await read('scripts/deploy-aliyun-ecs.sh')
+  const syntax = await execFileAsync('bash', ['-n', 'scripts/deploy-aliyun-ecs.sh'], {
+    cwd: repositoryRoot,
+  })
+  const dryRun = await execFileAsync('bash', ['scripts/deploy-aliyun-ecs.sh', '--dry-run'], {
+    cwd: repositoryRoot,
+  })
+
+  assert.equal(syntax.stderr, '')
+  for (const contract of [
+    /ControlMaster=auto/,
+    /make -C "\$ROOT" check/,
+    /company-backup/,
+    /rsync -az --delete/,
+    /build-ecs-image-bundle\.sh/,
+    /sha256sum -c/,
+    /load-ecs-image-bundle\.sh/,
+    /SESSION_COOKIE_SECURE=true/,
+    /systemctl reload nginx/,
+    /write_status.*401/s,
+  ]) assert.match(deployer, contract)
+  assert.match(dryRun.stdout, /构建 linux\/amd64 离线镜像包/)
+  assert.match(dryRun.stdout, /更新宿主机 Nginx/)
+  assert.doesNotMatch(deployer, /114\.55\.141\.118/)
+  assert.doesNotMatch(deployer, /ADMIN_PASSWORD_HASH='\$argon2/)
 })
 
 test('documents every quality command and concrete setup recovery steps', async () => {

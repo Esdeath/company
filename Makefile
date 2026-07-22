@@ -1,7 +1,7 @@
 UV ?= uv
 PNPM ?= corepack pnpm
 
-.PHONY: setup dev-infra dev dev-web dev-admin db-upgrade dev-api check compose-up compose-smoke compose-down require-env
+.PHONY: setup dev-infra dev dev-web dev-admin db-upgrade dev-api check compose-up compose-smoke compose-down require-env admin-password-hash deploy-aliyun
 
 setup:
 	@printf 'Expected Node 24.18.0; found '
@@ -21,6 +21,12 @@ setup:
 
 require-env:
 	@test -f .env || { echo 'Missing .env. Run: cp .env.example .env' >&2; exit 1; }
+
+admin-password-hash:
+	./scripts/hash-admin-password.sh
+
+deploy-aliyun:
+	./scripts/deploy-aliyun-ecs.sh
 
 dev-infra: require-env
 	docker compose --env-file .env up -d postgres

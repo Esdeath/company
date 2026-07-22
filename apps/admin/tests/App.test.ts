@@ -9,11 +9,29 @@ import type { Company, DocumentItem, UploadBatch } from '../src/types'
 vi.mock('../src/api', () => ({
   createCompany: vi.fn(),
   deleteDocument: vi.fn(),
+  getSession: vi.fn(),
+  isAuthenticationRequired: vi.fn(() => false),
   listCompanies: vi.fn(),
   listDocuments: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
   renameDocument: vi.fn(),
   uploadDocuments: vi.fn(),
 }))
+
+const authenticatedSession = {
+  authenticated: true,
+  username: 'admin',
+  csrf_token: 'session-csrf',
+  expires_at: '2026-07-21T20:00:00Z',
+}
+
+const anonymousSession = {
+  authenticated: false,
+  username: null,
+  csrf_token: 'login-csrf',
+  expires_at: null,
+}
 
 const companies: Company[] = [
   { id: 'company-1', name: '山河研究', ticker: '600001', market: '上交所' },
@@ -50,6 +68,10 @@ async function mountWorkspace() {
 
 describe('资料管理工作台', () => {
   beforeEach(() => {
+    vi.mocked(api.getSession).mockReset().mockResolvedValue(authenticatedSession)
+    vi.mocked(api.login).mockReset().mockResolvedValue(authenticatedSession)
+    vi.mocked(api.logout).mockReset().mockResolvedValue(undefined)
+    vi.mocked(api.isAuthenticationRequired).mockReset().mockReturnValue(false)
     vi.mocked(api.listCompanies).mockReset().mockResolvedValue(companies)
     vi.mocked(api.listDocuments).mockReset().mockResolvedValue(documents)
     vi.mocked(api.createCompany).mockReset().mockResolvedValue(companies[1]!)
@@ -68,13 +90,55 @@ describe('资料管理工作台', () => {
 
     expect(api.listCompanies).toHaveBeenCalledOnce()
     expect(api.listDocuments).toHaveBeenCalledWith('company-1')
-    expect(wrapper.findAll('h1')).toHaveLength(1)
-    expect(wrapper.get('h1').text()).toBe('资料归档台')
+    expect(wrapper.find('.page-intro').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('资料入库与整理')
+    expect(wrapper.text()).not.toContain('资料归档台')
+    expect(wrapper.text()).not.toContain('按公司收纳 HTML 与 Markdown 原文件，文件会直接出现在公开资料库中。')
     expect(wrapper.get('label[for="company-select"]').text()).toContain('当前公司')
     expect(wrapper.get('input[type="file"]').attributes()).toMatchObject({ accept: '.html,.md', multiple: '' })
     expect(wrapper.get('[aria-live="polite"]').exists()).toBe(true)
     expect(wrapper.get('a[href="/"]').text()).toContain('公开站点')
-    expect(wrapper.text()).toContain('仅供本地开发环境使用')
+    expect(wrapper.text()).toContain('所有资料变更均要求有效管理员会话')
+    expect(wrapper.text()).toContain('admin')
+  })
+
+  it('shows the login form before loading private workspace data', async () => {
+    vi.mocked(api.getSession).mockResolvedValueOnce(anonymousSession)
+
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.get('form[aria-label="管理员登录"]').exists()).toBe(true)
+    expect(wrapper.get('input[autocomplete="username"]').exists()).toBe(true)
+    expect(wrapper.get('input[autocomplete="current-password"]').exists()).toBe(true)
+    expect(api.listCompanies).not.toHaveBeenCalled()
+  })
+
+  it('logs in and loads the workspace only after authentication succeeds', async () => {
+    vi.mocked(api.getSession).mockResolvedValueOnce(anonymousSession)
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('input[name="username"]').setValue('admin')
+    await wrapper.get('input[name="password"]').setValue('secret')
+    await wrapper.get('form[aria-label="管理员登录"]').trigger('submit')
+    await flushPromises()
+
+    expect(api.login).toHaveBeenCalledWith({ username: 'admin', password: 'secret' })
+    expect(api.listCompanies).toHaveBeenCalledOnce()
+    expect(wrapper.find('.page-intro').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('资料归档台')
+  })
+
+  it('revokes the session and returns to the login form', async () => {
+    vi.mocked(api.getSession)
+      .mockResolvedValueOnce(authenticatedSession)
+      .mockResolvedValueOnce(anonymousSession)
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('.session-mark button').trigger('click')
+    await flushPromises()
+
+    expect(api.logout).toHaveBeenCalledOnce()
+    expect(wrapper.get('form[aria-label="管理员登录"]').exists()).toBe(true)
   })
 
   it('keeps uploaded content out of unsandboxed top-level navigation', async () => {

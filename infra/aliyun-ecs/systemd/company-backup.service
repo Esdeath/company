@@ -1,0 +1,11 @@
+[Unit]
+Description=Company research library backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/company-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

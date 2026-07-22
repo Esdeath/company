@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from company_api.auth import NewSession, SessionRecord, token_hash
 from company_api.config import Settings
 from company_api.library_service import CompanyNotEmpty, DocumentNotFound, UploadInput
 from company_api.main import create_app
@@ -19,11 +20,50 @@ from company_api.schemas import (
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
 NOW = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
+ADMIN_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$"
+    "aXR5J2OvFOW7Bb653Nn6mQ$Mjw20TGkSlMBsX4JsoCVfOe1DH6Cedzk01lTosf8YPU"
+)
+CSRF_TOKEN = "test-csrf-token"
 
 
 class SuccessfulProbe:
     async def check(self) -> None:
         return None
+
+
+class FakeAuthService:
+    def __init__(self) -> None:
+        self.logged_out = False
+
+    async def issue_login_challenge(self) -> str:
+        return "login-challenge"
+
+    async def login(self, username: str, password: str, challenge: str) -> NewSession:
+        assert (username, password, challenge) == ("admin", "secret", "login-challenge")
+        return NewSession(
+            session_token="valid-session",
+            username="admin",
+            csrf_token=CSRF_TOKEN,
+            expires_at=NOW,
+        )
+
+    async def authenticate(self, session_token: str) -> SessionRecord | None:
+        if session_token != "valid-session":
+            return None
+        return SessionRecord(
+            token_hash=token_hash(session_token),
+            username="admin",
+            credential_fingerprint="test-fingerprint",
+            csrf_token=CSRF_TOKEN,
+            expires_at=NOW,
+        )
+
+    def csrf_is_valid(self, session: SessionRecord, submitted_token: str) -> bool:
+        return session.csrf_token == submitted_token
+
+    async def logout(self, session: SessionRecord) -> None:
+        self.logged_out = True
 
 
 class FakeService:
@@ -122,19 +162,33 @@ def document_read(
 def settings(content_root: Path) -> Settings:
     return Settings(
         database_url="postgresql+psycopg://company:local@postgres:5432/company",
+        admin_username="admin",
+        admin_password_hash=ADMIN_HASH,
         cors_origins="http://localhost:3000",
         content_root=content_root,
+        session_cookie_secure=False,
     )
 
 
-def client_for(service: FakeService, content_root: Path) -> TestClient:
-    return TestClient(
+def client_for(
+    service: FakeService,
+    content_root: Path,
+    auth_service: FakeAuthService | None = None,
+) -> TestClient:
+    client = TestClient(
         create_app(
             settings(content_root),
             readiness_probe=SuccessfulProbe(),
             library_service=service,
+            auth_service=auth_service or FakeAuthService(),
         )
     )
+    client.cookies.set("company-admin-session", "valid-session")
+    return client
+
+
+def csrf_headers() -> dict[str, str]:
+    return {"X-CSRF-Token": CSRF_TOKEN}
 
 
 def test_company_routes(tmp_path: Path) -> None:
@@ -144,8 +198,9 @@ def test_company_routes(tmp_path: Path) -> None:
         created = client.post(
             "/api/v1/companies",
             json={"name": "New Co", "ticker": None, "market": "HKEX"},
+            headers=csrf_headers(),
         )
-        deleted = client.delete(f"/api/v1/companies/{COMPANY_ID}")
+        deleted = client.delete(f"/api/v1/companies/{COMPANY_ID}", headers=csrf_headers())
 
     assert listed.status_code == 200
     assert listed.json()[0]["id"] == str(COMPANY_ID)
@@ -159,7 +214,7 @@ def test_company_routes(tmp_path: Path) -> None:
 def test_non_empty_company_delete_returns_conflict(tmp_path: Path) -> None:
     service = NonEmptyCompanyService(tmp_path / "content.html")
     with client_for(service, tmp_path) as client:
-        response = client.delete(f"/api/v1/companies/{COMPANY_ID}")
+        response = client.delete(f"/api/v1/companies/{COMPANY_ID}", headers=csrf_headers())
 
     assert response.status_code == 409
     assert response.json() == {"detail": "公司仍有资料，无法删除"}
@@ -175,6 +230,7 @@ def test_document_list_and_upload_routes(tmp_path: Path) -> None:
                 ("files", ("talk.md", b"# Talk", "text/markdown")),
                 ("files", ("page.html", b"<title>Page</title>", "text/html")),
             ],
+            headers=csrf_headers(),
         )
 
     assert listed.status_code == 200
@@ -199,8 +255,9 @@ def test_document_rename_and_delete_routes(tmp_path: Path) -> None:
         renamed = client.patch(
             f"/api/v1/documents/{DOCUMENT_ID}",
             json={"title": "New title"},
+            headers=csrf_headers(),
         )
-        deleted = client.delete(f"/api/v1/documents/{DOCUMENT_ID}")
+        deleted = client.delete(f"/api/v1/documents/{DOCUMENT_ID}", headers=csrf_headers())
 
     assert renamed.status_code == 200
     assert renamed.json()["title"] == "New title"
@@ -247,3 +304,45 @@ def test_missing_content_returns_not_found(tmp_path: Path) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "资料不存在"}
+
+
+def test_mutations_require_a_session_and_csrf(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    with client_for(service, tmp_path) as client:
+        client.cookies.clear()
+        unauthenticated = client.post("/api/v1/companies", json={"name": "Blocked"})
+        client.cookies.set("company-admin-session", "valid-session")
+        missing_csrf = client.post("/api/v1/companies", json={"name": "Blocked"})
+
+    assert unauthenticated.status_code == 401
+    assert missing_csrf.status_code == 403
+
+
+def test_auth_session_login_and_logout_routes(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    auth_service = FakeAuthService()
+    with client_for(service, tmp_path, auth_service) as client:
+        client.cookies.clear()
+        anonymous = client.get("/api/v1/auth/session")
+        logged_in = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "secret"},
+            headers={"X-CSRF-Token": anonymous.json()["csrf_token"]},
+        )
+        logged_out = client.post(
+            "/api/v1/auth/logout",
+            headers={"X-CSRF-Token": logged_in.json()["csrf_token"]},
+        )
+
+    assert anonymous.json() == {
+        "authenticated": False,
+        "username": None,
+        "csrf_token": "login-challenge",
+        "expires_at": None,
+    }
+    assert logged_in.status_code == 200
+    assert logged_in.json()["authenticated"] is True
+    assert "HttpOnly" in logged_in.headers["set-cookie"]
+    assert "SameSite=strict" in logged_in.headers["set-cookie"]
+    assert logged_out.status_code == 204
+    assert auth_service.logged_out is True

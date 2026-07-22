@@ -7,12 +7,16 @@ BASE_URL=${BASE_URL:-http://127.0.0.1:8080}
 SMOKE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/company-smoke.XXXXXX")
 BODY_FILE="$SMOKE_DIR/body"
 HEADERS_FILE="$SMOKE_DIR/headers"
+COOKIE_FILE="$SMOKE_DIR/cookies"
 ADMIN_INDEX_FILE="$SMOKE_DIR/admin-index"
 UPLOAD_ITEMS_FILE="$SMOKE_DIR/upload-items"
 CLEANUP_IDS_FILE="$SMOKE_DIR/cleanup-document-ids"
 postgres_stopped=0
 company_id=
 company_name=
+csrf_token=
+SMOKE_ADMIN_USERNAME=${SMOKE_ADMIN_USERNAME:-admin}
+SMOKE_ADMIN_PASSWORD=${SMOKE_ADMIN_PASSWORD:-company_local_only}
 
 cd "$ROOT_DIR"
 
@@ -66,10 +70,10 @@ print(raw_id)' "$BODY_FILE" "$company_name" 2>/dev/null) || candidate_id=
         python3 -c 'import json, sys; print(*(item["id"] for item in json.load(open(sys.argv[1], encoding="utf-8"))), sep="\n")' "$BODY_FILE" > "$CLEANUP_IDS_FILE" 2>/dev/null || true
         while IFS= read -r document_id; do
           [[ -n "$document_id" ]] || continue
-          request_http "$BASE_URL/api/v1/documents/$document_id" 10 --request DELETE
+          request_admin "$BASE_URL/api/v1/documents/$document_id" 10 --request DELETE
         done < "$CLEANUP_IDS_FILE"
       fi
-      request_http "$BASE_URL/api/v1/companies/$company_id" 10 --request DELETE
+      request_admin "$BASE_URL/api/v1/companies/$company_id" 10 --request DELETE
     fi
   fi
 
@@ -84,8 +88,14 @@ request_http() {
   local connect_timeout=$request_timeout
   (( connect_timeout > 3 )) && connect_timeout=3
   HTTP_CODE=$(
-    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$@" "$url" || true
+    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --cookie "$COOKIE_FILE" --cookie-jar "$COOKIE_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$@" "$url" || true
   )
+}
+
+request_admin() {
+  local url=$1 request_timeout=$2
+  shift 2
+  request_http "$url" "$request_timeout" --header "X-CSRF-Token: $csrf_token" "$@"
 }
 
 wait_for_http() {
@@ -200,6 +210,28 @@ assert_body '{"status":"live"}'
 wait_for_http "$BASE_URL/api/health/ready" 200 60 || fail 'API readiness failed'
 assert_body '{"status":"ready"}'
 
+request_http "$BASE_URL/api/v1/auth/session" 30
+[[ "$HTTP_CODE" == "200" ]] || fail "anonymous auth session returned ${HTTP_CODE:-no status}"
+login_challenge=$(python3 -c 'import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+token = data.get("csrf_token")
+if data.get("authenticated") is not False or not isinstance(token, str) or not token:
+    raise SystemExit(1)
+print(token)' "$BODY_FILE" 2>/dev/null) || fail 'could not obtain login challenge'
+
+request_http "$BASE_URL/api/v1/auth/login" 30 \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --header "X-CSRF-Token: $login_challenge" \
+  --data "{\"username\":\"$SMOKE_ADMIN_USERNAME\",\"password\":\"$SMOKE_ADMIN_PASSWORD\"}"
+[[ "$HTTP_CODE" == "200" ]] || fail "administrator login returned ${HTTP_CODE:-no status}"
+csrf_token=$(python3 -c 'import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+token = data.get("csrf_token")
+if data.get("authenticated") is not True or not isinstance(token, str) or not token:
+    raise SystemExit(1)
+print(token)' "$BODY_FILE" 2>/dev/null) || fail 'could not validate administrator login'
+
 for mapping in 'web 3000' 'admin 8080' 'api 8000'; do
   set -- $mapping
   assert_no_host_mapping "$1" "$2"
@@ -221,7 +253,7 @@ wait_for_http "$BASE_URL/api/health/ready" 200 60 || fail 'API readiness did not
 assert_body '{"status":"ready"}'
 
 company_name="compose-smoke-$(date +%s)-$$-$RANDOM"
-request_http "$BASE_URL/api/v1/companies" 30 \
+request_admin "$BASE_URL/api/v1/companies" 30 \
   --request POST \
   --header 'Content-Type: application/json' \
   --data "{\"name\":\"$company_name\"}"
@@ -237,7 +269,7 @@ print(raw_id)' "$BODY_FILE" "$company_name" 2>/dev/null) \
   || fail 'could not validate created company'
 [[ -n "$company_id" ]] || fail 'could not validate created company'
 
-request_http "$BASE_URL/api/v1/companies/$company_id/documents" 60 \
+request_admin "$BASE_URL/api/v1/companies/$company_id/documents" 60 \
   --request POST \
   --form "files=@$ROOT_DIR/doc/templates/markdown/examples/ceo-interview.md;type=text/markdown" \
   --form "files=@$ROOT_DIR/doc/templates/markdown/showcase.html;type=text/html"
@@ -278,11 +310,11 @@ done < "$UPLOAD_ITEMS_FILE"
 
 while IFS=$'\t' read -r document_id _; do
   [[ -n "$document_id" ]] || continue
-  request_http "$BASE_URL/api/v1/documents/$document_id" 30 --request DELETE
+  request_admin "$BASE_URL/api/v1/documents/$document_id" 30 --request DELETE
   [[ "$HTTP_CODE" == "204" ]] || fail "document cleanup returned ${HTTP_CODE:-no status}"
 done < "$UPLOAD_ITEMS_FILE"
 
-request_http "$BASE_URL/api/v1/companies/$company_id" 30 --request DELETE
+request_admin "$BASE_URL/api/v1/companies/$company_id" 30 --request DELETE
 [[ "$HTTP_CODE" == "204" ]] || fail "company cleanup returned ${HTTP_CODE:-no status}"
 company_id=
 company_name=

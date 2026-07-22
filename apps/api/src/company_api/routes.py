@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
+from company_api.auth_routes import AdminCsrfDependency
 from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
@@ -40,12 +41,17 @@ async def list_companies(service: LibraryServiceDependency) -> list[CompanyRead]
 async def create_company(
     data: CompanyCreate,
     service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
 ) -> CompanyRead:
     return await service.create_company(data)
 
 
 @router.delete("/companies/{company_id}", status_code=204)
-async def delete_company(company_id: UUID, service: LibraryServiceDependency) -> Response:
+async def delete_company(
+    company_id: UUID,
+    service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
+) -> Response:
     try:
         await service.delete_company(company_id)
     except CompanyNotFound as error:
@@ -74,6 +80,7 @@ async def upload_documents(
     company_id: UUID,
     files: Annotated[list[UploadFile], File()],
     service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
 ) -> UploadBatchResponse:
     uploads = [
         UploadInput(filename=file.filename or "upload", content=await file.read()) for file in files
@@ -89,6 +96,7 @@ async def rename_document(
     document_id: UUID,
     data: DocumentRename,
     service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
 ) -> DocumentRead:
     try:
         return await service.rename_document(document_id, data.title)
@@ -97,7 +105,11 @@ async def rename_document(
 
 
 @router.delete("/documents/{document_id}", status_code=204)
-async def delete_document(document_id: UUID, service: LibraryServiceDependency) -> Response:
+async def delete_document(
+    document_id: UUID,
+    service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
+) -> Response:
     try:
         await service.delete_document(document_id)
     except DocumentNotFound as error:
