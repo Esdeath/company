@@ -2,9 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { listCompanies, listDocuments } from './api/library'
-import CompanyDirectory from './components/CompanyDirectory.vue'
-import DocumentDirectory from './components/DocumentDirectory.vue'
 import DocumentReader from './components/DocumentReader.vue'
+import LibraryDirectory from './components/LibraryDirectory.vue'
 import type { Company, DocumentItem } from './types/content'
 
 const companies = ref<Company[]>([])
@@ -158,18 +157,15 @@ onMounted(() => {
 
     <main class="library-main">
       <div class="library-workspace">
-        <CompanyDirectory
+        <LibraryDirectory
           :companies="companies"
-          :selected-id="selectedCompanyId"
-          :loading="companiesLoading"
-          @select="selectCompany"
-        />
-        <DocumentDirectory
-          :company-name="selectedCompany?.name ?? null"
           :documents="documents"
-          :selected-id="selectedDocumentId"
-          :loading="documentsLoading"
-          @select="selectedDocumentId = $event"
+          :selected-company-id="selectedCompanyId"
+          :selected-document-id="selectedDocumentId"
+          :companies-loading="companiesLoading"
+          :documents-loading="documentsLoading"
+          @select-company="selectCompany"
+          @select-document="selectedDocumentId = $event"
         />
         <DocumentReader
           :document="selectedDocument"

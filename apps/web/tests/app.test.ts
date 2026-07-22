@@ -121,8 +121,12 @@ describe('公开资料阅读工作台', () => {
     expect(wrapper.find('.library-intro').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Public research desk')
     expect(wrapper.text()).not.toContain('按公司查找研究资料，在独立阅读页中连续阅读。')
-    expect(wrapper.get('[data-company-id="company-1"]').attributes('aria-current')).toBe('true')
+    expect(wrapper.get('[data-company-id="company-1"]').attributes('aria-expanded')).toBe('true')
     expect(wrapper.get('[data-document-id="document-1"]').attributes('aria-current')).toBe('true')
+    expect(wrapper.find('.library-directory').exists()).toBe(true)
+    expect(wrapper.find('.company-directory').exists()).toBe(false)
+    expect(wrapper.find('.document-directory').exists()).toBe(false)
+    expect(wrapper.findAll('.document-branch')).toHaveLength(1)
     expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
   })
 
@@ -247,18 +251,18 @@ describe('公开资料阅读工作台', () => {
     expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
   })
 
-  it('opens one labeled company drawer with initial focus and restores focus on Escape', async () => {
+  it('opens one labeled library drawer with initial focus and restores focus on Escape', async () => {
     vi.mocked(library.listDocuments).mockResolvedValueOnce([])
     document.body.style.overflow = 'clip'
     const wrapper = await mountWorkspace(true)
-    const trigger = wrapper.get('button[name="open-company-drawer"]')
+    const trigger = wrapper.get('button[name="open-library-directory"]')
 
     await trigger.trigger('click')
     await nextTick()
 
-    expect(wrapper.findAll('[aria-label="公司目录"]')).toHaveLength(1)
+    expect(wrapper.findAll('[aria-label="公司与资料"]')).toHaveLength(1)
     expect(wrapper.get('[role="dialog"]').attributes('aria-modal')).toBe('true')
-    expect(document.activeElement).toBe(wrapper.get('button[name="close-company-drawer"]').element)
+    expect(document.activeElement).toBe(wrapper.get('button[name="close-library-directory"]').element)
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await nextTick()
@@ -268,24 +272,44 @@ describe('公开资料阅读工作台', () => {
     expect(document.body.style.overflow).toBe('clip')
   })
 
-  it('dismisses the company drawer by backdrop and close button', async () => {
+  it('dismisses the library drawer by backdrop and close button', async () => {
     vi.mocked(library.listDocuments).mockResolvedValueOnce([])
     document.body.style.overflow = 'clip'
     const wrapper = await mountWorkspace(true)
-    const trigger = wrapper.get('button[name="open-company-drawer"]')
+    const trigger = wrapper.get('button[name="open-library-directory"]')
 
     await trigger.trigger('click')
-    await wrapper.get('.company-backdrop').trigger('click')
+    await wrapper.get('.library-backdrop').trigger('click')
     await nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
     expect(document.body.style.overflow).toBe('clip')
 
     await trigger.trigger('click')
-    await wrapper.get('button[name="close-company-drawer"]').trigger('click')
+    await wrapper.get('button[name="close-library-directory"]').trigger('click')
     await nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
     expect(document.body.style.overflow).toBe('clip')
+  })
+
+  it('keeps the unified drawer open for company selection and closes after document selection', async () => {
+    vi.mocked(library.listDocuments)
+      .mockResolvedValueOnce(companyOneDocuments)
+      .mockResolvedValueOnce(companyTwoDocuments)
+    const wrapper = await mountWorkspace(true)
+    const trigger = wrapper.get('button[name="open-library-directory"]')
+
+    await trigger.trigger('click')
+    await wrapper.get('[data-company-id="company-2"]').trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    await flushPromises()
+    await wrapper.get('[data-document-id="document-3"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(trigger.element)
+    expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-3/content')
   })
 })
