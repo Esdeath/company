@@ -93,6 +93,24 @@ describe('LibraryDirectory', () => {
     expect(wrapper.text()).toContain('贵州茅台财报')
   })
 
+  it('keeps an unbroken company name inside the wrapping company copy element', () => {
+    stubMediaQuery(true)
+    const longName = 'AnExtraordinarilyLongCompanyNameWithoutBreaks'
+    const wrapper = mount(LibraryDirectory, {
+      props: {
+        companies: [{ ...companies[0], name: longName }],
+        documents: [],
+        selectedCompanyId: 'company-1',
+        selectedDocumentId: null,
+        companiesLoading: false,
+        documentsLoading: false,
+      },
+    })
+    mountedWrappers.push(wrapper)
+
+    expect(wrapper.get('.company-entry__copy strong').text()).toBe(longName)
+  })
+
   it('keeps the mobile drawer open after selecting a company', async () => {
     const wrapper = mountDirectory()
     await wrapper.get('button[name="open-library-directory"]').trigger('click')
