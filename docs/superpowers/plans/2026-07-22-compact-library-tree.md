@@ -72,6 +72,7 @@ const documents: DocumentItem[] = [
 ]
 
 let changeListener: ((event: MediaQueryListEvent) => void) | undefined
+const mountedWrappers: Array<{ unmount: () => void }> = []
 
 function stubMediaQuery(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -85,7 +86,7 @@ function stubMediaQuery(matches: boolean) {
 
 function mountDirectory(matches = false) {
   stubMediaQuery(matches)
-  return mount(LibraryDirectory, {
+  const wrapper = mount(LibraryDirectory, {
     attachTo: document.body,
     props: {
       companies,
@@ -96,6 +97,8 @@ function mountDirectory(matches = false) {
       documentsLoading: false,
     },
   })
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
 
 describe('LibraryDirectory', () => {
@@ -104,6 +107,7 @@ describe('LibraryDirectory', () => {
   })
 
   afterEach(() => {
+    for (const wrapper of mountedWrappers.splice(0).reverse()) wrapper.unmount()
     document.body.innerHTML = ''
     document.body.style.overflow = ''
     vi.restoreAllMocks()
@@ -170,6 +174,45 @@ describe('LibraryDirectory', () => {
   })
 })
 ```
+
+Also migrate the existing `CompanyDirectory.test.ts` lifecycle assertions into this file using the new selectors. The final Task 1 test file must retain explicit cases for:
+
+```ts
+it('closes by Escape, backdrop, and close button while restoring the prior body overflow', async () => {
+  document.body.style.overflow = 'clip'
+  const wrapper = mountDirectory()
+  const trigger = wrapper.get<HTMLButtonElement>('button[name="open-library-directory"]')
+
+  await trigger.trigger('click')
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+  await nextTick()
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  expect(document.activeElement).toBe(trigger.element)
+  expect(document.body.style.overflow).toBe('clip')
+
+  await trigger.trigger('click')
+  await wrapper.get('.library-backdrop').trigger('click')
+  await nextTick()
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+
+  await trigger.trigger('click')
+  await wrapper.get('button[name="close-library-directory"]').trigger('click')
+  await nextTick()
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+})
+
+it('closes and releases the body lock when the desktop breakpoint becomes active', async () => {
+  const wrapper = mountDirectory()
+  await wrapper.get('button[name="open-library-directory"]').trigger('click')
+  changeListener?.({ matches: true } as MediaQueryListEvent)
+  await nextTick()
+
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  expect(document.body.style.overflow).toBe('')
+})
+```
+
+Keep the existing listener-removal assertion as well: spy on `window.addEventListener` and `window.removeEventListener`, unmount the wrapper, and verify the same `keydown` callback is removed. These migrated tests are required before deleting `CompanyDirectory.test.ts` in Task 2.
 
 - [ ] **Step 2: Run the test and verify the component is missing**
 
