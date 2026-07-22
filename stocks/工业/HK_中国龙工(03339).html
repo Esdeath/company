@@ -1,0 +1,100 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HK_中国龙工(03339)财报</title><style>
+:root{
+  --ink:#111; --muted:#6b7280; --border:#e5e0d8; --bg:#f7f5f1; --card:#fff;
+  --eye:#b7791f; --eyebg:#fff8e8; --eyeline:#f0c869;
+  --skip:#c53030; --pass:#2f855a; --watch:#b7791f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+
+.head{background:#111;color:#fff;border-radius:10px;padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px}
+.head h1{font-size:1.35rem;letter-spacing:-0.5px}
+.head h1 small{font-weight:400;font-size:0.8rem;opacity:.65;margin-left:8px}
+.head .kv{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.head .kv div{text-align:center}
+.head .kv .l{font-size:0.66rem;opacity:.6}
+.head .kv .v{font-size:1.25rem;font-weight:700}
+.head .kv .s{font-size:0.62rem;opacity:.55}
+
+.verdict-bar{margin-top:14px;background:var(--eyebg);border:2px solid var(--eyeline);border-radius:10px;padding:14px 18px}
+.verdict-bar .vhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-bar .vhead h2{font-size:1rem;color:var(--eye)}
+/* 印章:通过=--pass绿色"进入第二轮";否决=--skip红色"翻 页"(border/color同步改) */
+.verdict-bar .stamp{margin-left:auto;border:3px solid var(--pass);color:var(--pass);font-weight:800;font-size:1rem;padding:2px 14px;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.verdict-bar p{font-size:0.86rem}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps a{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--eyeline);border-radius:16px;padding:4px 12px;font-size:0.76rem}
+.steps a b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.7rem}
+.steps a .r{font-weight:700}
+.r.pass{color:var(--pass)} .r.fail{color:var(--skip)} .r.watch{color:var(--watch)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px}
+.card-title{display:flex;align-items:baseline;gap:10px;font-size:1rem;font-weight:700;padding-bottom:8px;margin-bottom:6px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.card-title .q{font-size:0.78rem;font-weight:400;color:var(--muted)}
+.snapshot-card{border:3px solid var(--eye);box-shadow:0 4px 16px rgba(183,121,31,.12)}
+.snapshot-card>.card-title{border-bottom-color:var(--eye);color:var(--eye)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:0.74rem;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:3px 5px;text-align:center}
+th{background:#f3efe8;font-size:0.68rem;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
+th:first-child{background:#f3efe8}
+tr.hl td{background:var(--eyebg);font-weight:700}
+tr.hl td:first-child{border-left:4px solid var(--eye);background:var(--eyebg)}
+td.neg{color:var(--skip)}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.66rem;font-style:normal;margin-right:5px;vertical-align:1px}
+.note{margin-top:10px;background:var(--eyebg);border:1px dashed var(--eyeline);border-radius:8px;padding:10px 14px;font-size:0.82rem}
+.note b{color:var(--eye)}
+.note .badge{vertical-align:-3px}
+.tag{font-weight:800}
+.tag.pass{color:var(--pass)} .tag.fail{color:var(--skip)} .tag.watch{color:var(--watch)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0}
+@media(max-width:820px){.duo{grid-template-columns:1fr}.head .kv{margin-left:0}}
+
+.capital p{font-size:0.82rem;margin:3px 0}
+.biz{font-size:0.85rem}
+
+/* 五问表：允许换行 */
+table.qa{white-space:normal;table-layout:auto}
+table.qa th{text-align:center}
+table.qa td{white-space:normal;text-align:left;line-height:1.55;padding:6px 8px}
+table.qa th:first-child,table.qa td:first-child{width:28px;text-align:center;position:static}
+table.qa td:nth-child(2){min-width:130px;font-weight:600}
+table.qa td:nth-child(3){white-space:nowrap;text-align:center}
+
+.foot{margin-top:18px;font-size:0.7rem;color:var(--muted);line-height:1.6}
+</style></head><body><div class="wrap">
+<div class="head"><h1>HK_中国龙工(03339)财报<small>Lonking Holdings Limited · 2026/07/22 11:59:59</small></h1><div class="kv">
+<div><div class="l">近期股价</div><div class="v">HK$3.12</div><div class="s">52周区间 2.31 – 3.33</div></div>
+<div><div class="l">市盈率 (TTM)</div><div class="v">9.27</div><div class="s">历史曾 7.32–10.82倍</div></div>
+<div><div class="l">市净率</div><div class="v">1.05</div><div class="s">历史曾 0.70–1.03倍</div></div>
+<div><div class="l">股息率</div><div class="v">6.4%</div><div class="s">最新DPS HK$0.20</div></div>
+<div><div class="l">总市值</div><div class="v">HK$133.54亿</div><div class="s">≈122.51亿人民币</div></div></div></div>
+<div class="verdict-bar"><div class="vhead"><h2>30 秒结论（先看这里，再往下核对证据）</h2><span class="stamp" style="border-color:var(--pass);color:var(--pass)">进入第二轮</span></div>
+<p><b>未进渔场：</b>现价距52周低点高35.1%，距高点低6.7%；PE 9.27倍、PB 1.05倍，年度历史参照分别为7.32–10.82倍与0.70–1.03倍。</p><p><b>30 秒结论：</b>最新营收112.15亿元、归母净利润13.01亿元，ROE 11.7%，净现比1.54倍；主要疑点是收益波动与未到低位，本页回答不了行业竞争和资产/分部质量。</p><div class="steps"><a><b>1</b>长期记录 <span class="r watch">△ 收益波动</span></a><a><b>2</b>ROE与杠杆 <span class="r watch">△ 回报待核</span></a><a><b>3</b>股本变化 <span class="r pass">✓ 股本稳定</span></a><a><b>4</b>利润率 <span class="r watch">△ 利润波动</span></a><a><b>5</b>估值锚 <span class="r watch">△ 未到低位</span></a></div></div>
+<div class="card"><div class="card-title">公司业务与商业模式</div><p class="biz">中国龙工于2005-11-17在港交所上市，源清单归入工业行业。是一家从事工程机械业务的投资控股公司。该公司通过三个分部运营其业务。销售工程机械分部从事包括轮式装载机、挖掘机、叉车及压路机、滑移装载机等工程机械的销售。工程机械融资租赁分部从事为工程机械提供融资租赁。该公司还运营金融投资分部。该公司在国内和国外市场开展业务。分部占比、费用结构与非经常项仍需回到年报正文核对。</p><div class="note"><b>读快照前先在脑中放一句话：</b>这是一门以工业经营资产形成收入和现金流的生意——上限由利润率与资本回报决定，下限由杠杆和现金覆盖决定；带着“利润能否持续转成现金”看下面每一行。</div></div>
+<div class="card snapshot-card" id="m-snapshot"><div class="card-title">★ 企业快照 · 上半部（每股数据，人民币元；股息为港元）<span class="q">接口年度序列均采用净利÷EPS推算历史加权股本</span></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr class="hl"><td>①每股营收</td><td>1.74</td><td>1.13</td><td>1.20</td><td>2.10</td><td>2.77</td><td>2.74</td><td>3.01</td><td>3.20</td><td>2.61</td><td>2.46</td><td>2.39</td><td>2.62</td></tr><tr class="hl"><td>①每股收益（基本）</td><td>0.10</td><td>0.03</td><td>0.11</td><td>0.24</td><td>0.27</td><td>0.38</td><td>0.46</td><td>0.30</td><td>0.09</td><td>0.15</td><td>0.24</td><td>0.30</td></tr><tr><td>每股经营现金流</td><td>0.46</td><td>0.40</td><td>0.46</td><td>0.37</td><td>0.19</td><td>0.37</td><td>0.25</td><td>0.10</td><td>0.43</td><td>0.46</td><td>0.32</td><td>0.29</td></tr><tr><td>每股股息 HK$</td><td>0.07</td><td>0.02</td><td>0.06</td><td>0.16</td><td>0.20</td><td>0.25</td><td>0.33</td><td>0.22</td><td>0.10</td><td>0.08</td><td>0.13</td><td>0.20</td></tr><tr><td>每股净资产</td><td>1.64</td><td>1.55</td><td>1.57</td><td>1.81</td><td>1.92</td><td>2.12</td><td>2.36</td><td>2.38</td><td>2.28</td><td>2.33</td><td>2.50</td><td>2.68</td></tr><tr class="hl"><td>③加权平均股本（亿股）</td><td>41.69</td><td>38.85</td><td>41.98</td><td>43.57</td><td>42.37</td><td>43.25</td><td>42.59</td><td>42.51</td><td>44.49</td><td>43.03</td><td>42.43</td><td>43.35</td></tr><tr class="hl"><td>②净资产收益率（平均）</td><td>6.0%</td><td>1.7%</td><td>6.9%</td><td>14.5%</td><td>14.4%</td><td>19.0%</td><td>20.4%</td><td>12.6%</td><td>4.0%</td><td>6.5%</td><td>9.8%</td><td>11.7%</td></tr></tbody></table></div><div class="note"><b><span class="badge">1</span>长期记录 ——</b> 上市后口径列出12期，EPS从0.10元到0.30元；最深一期为2015年EPS 0.03元，序列存在明显波动。 <span class="tag watch">△</span></div><div class="note"><b><span class="badge">3</span>股本变化 ——</b> 净利÷基本EPS推算的加权股本从41.69亿股到43.35亿股，累计变化4.0%；最新每股股息为HK$0.20。 <span class="tag pass">✓</span></div><div class="note"><b><span class="badge">5</span>估值锚 ——</b> 当前PE 9.27倍、PB 1.05倍，相对年度历史参照PE 7.32–10.82倍、PB 0.70–1.03倍；最新归母净利润13.01亿元，估值必须与当前利润所处状态一并核对。 <span class="tag watch">△</span></div></div>
+<div class="card snapshot-card" id="m-operating"><div class="card-title">★ 企业快照 · 下半部（年度经营数据，人民币）<span class="q">全部12年历史</span></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr><td>营业收入（亿元）</td><td>74.27</td><td>48.29</td><td>51.46</td><td>89.94</td><td>118.68</td><td>117.44</td><td>128.80</td><td>136.91</td><td>111.50</td><td>105.23</td><td>102.14</td><td>112.15</td></tr><tr><td>营收同比</td><td class="neg">-9.0%</td><td class="neg">-35.0%</td><td>6.6%</td><td>74.8%</td><td>32.0%</td><td class="neg">-1.0%</td><td>9.7%</td><td>6.3%</td><td class="neg">-18.6%</td><td class="neg">-5.6%</td><td class="neg">-2.9%</td><td>9.8%</td></tr><tr><td>归母净利润（亿元）(A)</td><td>4.17</td><td>1.17</td><td>4.62</td><td>10.46</td><td>11.44</td><td>16.43</td><td>19.59</td><td>12.75</td><td>4.00</td><td>6.45</td><td>10.18</td><td>13.01</td></tr><tr><td>净利润同比</td><td class="neg">-13.2%</td><td class="neg">-72.0%</td><td>296.2%</td><td>126.4%</td><td>9.4%</td><td>43.7%</td><td>19.2%</td><td class="neg">-34.9%</td><td class="neg">-68.6%</td><td>61.2%</td><td>57.8%</td><td>27.7%</td></tr><tr class="hl"><td>④毛利率</td><td>25.5%</td><td>22.8%</td><td>24.2%</td><td>26.6%</td><td>23.0%</td><td>23.9%</td><td>23.4%</td><td>17.9%</td><td>16.7%</td><td>17.5%</td><td>19.6%</td><td>21.4%</td></tr><tr class="hl"><td>④净利率</td><td>5.6%</td><td>2.4%</td><td>9.0%</td><td>11.6%</td><td>9.6%</td><td>14.0%</td><td>15.2%</td><td>9.3%</td><td>3.6%</td><td>6.1%</td><td>10.0%</td><td>11.6%</td></tr><tr class="hl"><td>②净资产收益率（平均）(A)</td><td>6.0%</td><td>1.7%</td><td>6.9%</td><td>14.5%</td><td>14.4%</td><td>19.0%</td><td>20.4%</td><td>12.6%</td><td>4.0%</td><td>6.5%</td><td>9.8%</td><td>11.7%</td></tr><tr class="hl"><td>②投入资本回报率</td><td>3.4%</td><td>1.0%</td><td>4.3%</td><td>9.4%</td><td>9.7%</td><td>13.9%</td><td>14.7%</td><td>8.8%</td><td>2.9%</td><td>5.2%</td><td>8.3%</td><td>10.9%</td></tr><tr><td>资产负债率(A)</td><td>46.6%</td><td>47.1%</td><td>40.0%</td><td>44.1%</td><td>41.7%</td><td>37.9%</td><td>41.6%</td><td>38.5%</td><td>36.6%</td><td>36.1%</td><td>30.8%</td><td>32.1%</td></tr><tr><td>经营现金流（亿元）</td><td>19.61</td><td>17.22</td><td>19.60</td><td>15.92</td><td>8.11</td><td>15.71</td><td>10.71</td><td>4.20</td><td>18.57</td><td>19.84</td><td>13.66</td><td>12.45</td></tr><tr><td>存货周转天数</td><td>2.67</td><td>2.42</td><td>2.80</td><td>3.34</td><td>3.45</td><td>3.05</td><td>2.92</td><td>2.87</td><td>2.43</td><td>2.68</td><td>3.18</td><td>3.88</td></tr></tbody></table></div><div class="note"><b><span class="badge">2</span>ROE 与杠杆 ——</b> 最新ROE 11.7%、ROIC 10.9%、资产负债率32.1%；全期经营现金流/归母净利润为1.54倍，累计利润有现金覆盖。 <span class="tag watch">△</span></div><div class="note"><b><span class="badge">4</span>利润率 ——</b> 毛利率从25.5%到21.4%，总体下行；净利率最新为11.6%，费用与非经常项目的影响仍需回到年报附注。 <span class="tag watch">△</span></div></div>
+<div class="card"><div class="card-title">5 秒心算</div><div class="scroll"><table><thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead><tbody>
+<tr><td>市值(所有者视角)</td><td>HK$3.12 × 42.80亿股</td><td>≈ 122.51亿元人民币</td></tr>
+<tr><td>息税前利润</td><td>按税前利润近似并明确口径</td><td>≈ 15.27亿元</td></tr><tr><td>你付的价格</td><td>EV=市值−期末现金</td><td>EV/EBIT≈5.17×</td></tr>
+<tr class="hl"><td>生意本身的回报</td><td>EBIT÷(归母净资产−期末现金)</td><td>≈21.5%</td></tr><tr class="hl"><td>回报的历史区间</td><td>披露ROIC</td><td>0.99% – 14.73%</td></tr></tbody></table></div>
+<div class="note"><b>心算的结论：</b>EV/EBIT仅是披露数的直接运算；金融、地产或现金超过净资产时解释力弱，分歧应回到利润分母、资产质量和经营资本口径。</div></div>
+<div class="duo"><div class="card"><div class="card-title">资本结构与流动性（人民币）</div><div class="capital">
+<p><b>已发行股本：</b>42.80亿股（每手1000股）。</p><p><b>负债结构：</b>总负债54.33亿元，资产负债率32.1%；细项待查年报。</p>
+<p><b>股息：</b>最新年度每股HK$0.20，历史按DPS_HKD_LY串接。</p><p><b>市值：</b>约133.54亿港元。</p></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr><td>总资产（亿元）</td><td>156.24</td><td>154.75</td><td>169.15</td></tr><tr><td>总负债（亿元）</td><td>56.42</td><td>47.71</td><td>54.33</td></tr><tr class="hl"><td>资产负债率</td><td>36.1%</td><td>30.8%</td><td>32.1%</td></tr><tr><td>流动比率</td><td>2.23</td><td>2.64</td><td>2.46</td></tr><tr class="hl"><td>期末现金（亿元）</td><td>34.71</td><td>12.18</td><td>43.65</td></tr><tr><td>归母净资产（亿元）</td><td>99.79</td><td>107.01</td><td>114.79</td></tr></tbody></table></div><div class="note"><b>怎么读：</b>近三期总资产总体扩张；流动性是安全带，不是护城河。</div></div>
+<div class="card"><div class="card-title">年均变化率（2014→2025）</div><div class="scroll"><table><thead><tr><th>指标</th><th>年复合</th></tr></thead><tbody>
+<tr class="hl"><td>①营收</td><td>3.8%</td></tr><tr class="hl"><td>①净利润</td><td>10.9%</td></tr><tr><td>每股营收</td><td>3.8%</td></tr><tr><td>每股净资产</td><td>4.6%</td></tr><tr><td>每股股息</td><td>10.8%</td></tr></tbody></table></div>
+<div class="note"><b>怎么读：</b>公司与每股口径落差反映股本变化；负值或零起点不强算CAGR，起止周期状态会影响结果。</div></div></div>
+<div class="card"><div class="card-title">五问检查清单</div><table class="qa"><thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>中国龙工的答案 / 去处</th></tr></thead><tbody>
+<tr><td>1</td><td>价格是否便宜?</td><td>✓ 页面内</td><td>尚未进入价格筛选区：距52周低点35.1%，PE/PB为9.27/1.05倍；只与自身历史参照比较，不形成目标价。</td></tr><tr><td>2</td><td>这是不是一桩好生意?</td><td>✓ 页面内</td><td>最强证据是ROE 11.7%、ROIC 10.9%；最弱证据是净现比1.54倍且毛利率总体下行。</td></tr>
+<tr><td>3</td><td>管理层是否值得信任?</td><td>✋ 页面外</td><td>页面内股本累计变化4.0%、最新DPS为HK$0.20；页面外逐年对照股东信、公开承诺、配售/回购公告与实际资本分配。</td></tr><tr><td>4</td><td>我还遗漏了什么?</td><td>✋ 页面外</td><td>补查中国龙工的产品/客户体验、竞争格局与渠道、年报分部和费用附注、重大非经常项；对最不踏实的资产质量或现金流项目做专项验证，并单独判断未来10–20年现金流与机会成本。</td></tr><tr><td>5</td><td>为什么这个机会被我发现?</td><td>✋ 页面外</td><td>当前价格信号不成立；优势只能来自对工业竞争、资产质量、管理层言行和长期现金流的独立核验，不来自本页的历史数字。</td></tr></tbody></table>
+<div class="note"><b>交接棒规则：</b>前两问未被直接否决，进入第二轮；若继续，核心是核对中国龙工年报分部、资产附注、竞争格局和资本分配公告。准确的信息、完整的信息——逆势重仓的底气只能来自这里。</div></div>
+<div class="foot">本页为按“企业快照”框架重排的极简筛选版。财报数据为人民币（东方财富港股F10公开接口，2014–2025年报），股价、52周区间与行情日期来自腾讯行情，股价与股息为港元，汇率按1人民币=1.09港元折算；心算与增长率均为实际披露数据直接运算，无估算与预测。(A) 历史股本用归母净利润÷基本EPS推算。判词为方法论演示，不构成任何投资建议。</div>
+<!-- snapshot-data:dd5c2e25b35efb1a source-order:497 --></div></body></html>

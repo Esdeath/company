@@ -1,0 +1,100 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HK_易鑫集团(02858)财报</title><style>
+:root{
+  --ink:#111; --muted:#6b7280; --border:#e5e0d8; --bg:#f7f5f1; --card:#fff;
+  --eye:#b7791f; --eyebg:#fff8e8; --eyeline:#f0c869;
+  --skip:#c53030; --pass:#2f855a; --watch:#b7791f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+
+.head{background:#111;color:#fff;border-radius:10px;padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px}
+.head h1{font-size:1.35rem;letter-spacing:-0.5px}
+.head h1 small{font-weight:400;font-size:0.8rem;opacity:.65;margin-left:8px}
+.head .kv{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.head .kv div{text-align:center}
+.head .kv .l{font-size:0.66rem;opacity:.6}
+.head .kv .v{font-size:1.25rem;font-weight:700}
+.head .kv .s{font-size:0.62rem;opacity:.55}
+
+.verdict-bar{margin-top:14px;background:var(--eyebg);border:2px solid var(--eyeline);border-radius:10px;padding:14px 18px}
+.verdict-bar .vhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-bar .vhead h2{font-size:1rem;color:var(--eye)}
+/* 印章:通过=--pass绿色"进入第二轮";否决=--skip红色"翻 页"(border/color同步改) */
+.verdict-bar .stamp{margin-left:auto;border:3px solid var(--pass);color:var(--pass);font-weight:800;font-size:1rem;padding:2px 14px;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.verdict-bar p{font-size:0.86rem}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps a{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--eyeline);border-radius:16px;padding:4px 12px;font-size:0.76rem}
+.steps a b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.7rem}
+.steps a .r{font-weight:700}
+.r.pass{color:var(--pass)} .r.fail{color:var(--skip)} .r.watch{color:var(--watch)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px}
+.card-title{display:flex;align-items:baseline;gap:10px;font-size:1rem;font-weight:700;padding-bottom:8px;margin-bottom:6px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.card-title .q{font-size:0.78rem;font-weight:400;color:var(--muted)}
+.snapshot-card{border:3px solid var(--eye);box-shadow:0 4px 16px rgba(183,121,31,.12)}
+.snapshot-card>.card-title{border-bottom-color:var(--eye);color:var(--eye)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:0.74rem;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:3px 5px;text-align:center}
+th{background:#f3efe8;font-size:0.68rem;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
+th:first-child{background:#f3efe8}
+tr.hl td{background:var(--eyebg);font-weight:700}
+tr.hl td:first-child{border-left:4px solid var(--eye);background:var(--eyebg)}
+td.neg{color:var(--skip)}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.66rem;font-style:normal;margin-right:5px;vertical-align:1px}
+.note{margin-top:10px;background:var(--eyebg);border:1px dashed var(--eyeline);border-radius:8px;padding:10px 14px;font-size:0.82rem}
+.note b{color:var(--eye)}
+.note .badge{vertical-align:-3px}
+.tag{font-weight:800}
+.tag.pass{color:var(--pass)} .tag.fail{color:var(--skip)} .tag.watch{color:var(--watch)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0}
+@media(max-width:820px){.duo{grid-template-columns:1fr}.head .kv{margin-left:0}}
+
+.capital p{font-size:0.82rem;margin:3px 0}
+.biz{font-size:0.85rem}
+
+/* 五问表：允许换行 */
+table.qa{white-space:normal;table-layout:auto}
+table.qa th{text-align:center}
+table.qa td{white-space:normal;text-align:left;line-height:1.55;padding:6px 8px}
+table.qa th:first-child,table.qa td:first-child{width:28px;text-align:center;position:static}
+table.qa td:nth-child(2){min-width:130px;font-weight:600}
+table.qa td:nth-child(3){white-space:nowrap;text-align:center}
+
+.foot{margin-top:18px;font-size:0.7rem;color:var(--muted);line-height:1.6}
+</style></head><body><div class="wrap">
+<div class="head"><h1>HK_易鑫集团(02858)财报<small>YIXIN GROUP LIMITED · 2026/07/22 11:59:59</small></h1><div class="kv">
+<div><div class="l">近期股价</div><div class="v">HK$1.54</div><div class="s">52周区间 1.14 – 3.16</div></div>
+<div><div class="l">市盈率 (TTM)</div><div class="v">7.90</div><div class="s">历史曾 19.75–20.53倍</div></div>
+<div><div class="l">市净率</div><div class="v">0.56</div><div class="s">历史曾 0.97–1.01倍</div></div>
+<div><div class="l">股息率</div><div class="v">2.6%</div><div class="s">最新DPS HK$0.04</div></div>
+<div><div class="l">总市值</div><div class="v">HK$104.81亿</div><div class="s">≈96.16亿人民币</div></div></div></div>
+<div class="verdict-bar"><div class="vhead"><h2>30 秒结论（先看这里，再往下核对证据）</h2><span class="stamp" style="border-color:var(--pass);color:var(--pass)">进入第二轮</span></div>
+<p><b>进入渔场：</b>现价距52周低点高35.1%，距高点低105.2%；PE 7.90倍、PB 0.56倍，年度历史参照分别为19.75–20.53倍与0.97–1.01倍。</p><p><b>30 秒结论：</b>最新营收115.60亿元、归母净利润11.99亿元，ROE 7.2%，净现比—倍；主要疑点是收益上行与估值偏低，本页回答不了行业竞争和资产/分部质量。</p><div class="steps"><a><b>1</b>长期记录 <span class="r pass">✓ 收益上行</span></a><a><b>2</b>ROE与杠杆 <span class="r watch">△ 回报待核</span></a><a><b>3</b>股本变化 <span class="r watch">△ 轻度稀释</span></a><a><b>4</b>利润率 <span class="r watch">△ 利润波动</span></a><a><b>5</b>估值锚 <span class="r pass">✓ 估值偏低</span></a></div></div>
+<div class="card"><div class="card-title">公司业务与商业模式</div><p class="biz">易鑫集团于2017-11-16在港交所上市，源清单归入金融行业。是一家AI驱动的金融科技平台。该公司以科技驱动业务创新,致力于为消费者提供汽车融资及增值服务,并通过AI驱动、科技赋能,为汽车金融产业链合作伙伴提供金融科技解决方案。该公司经营的业务分为两大分部。交易平台业务分部主要包括贷款促成业务,负责促成合作金融机构向消费者发放汽车贷款。该分部还包括软件即服务(SaaS)服务和担保服务、汽车增值服务等在内的其他交易平台业务。自营融资业务分部主要包括融资租赁服务、以及经营租赁服务、汽车销售服务等其他自营服务。分部占比、费用结构与非经常项仍需回到年报正文核对。</p><div class="note"><b>读快照前先在脑中放一句话：</b>这是一门以金融经营资产形成收入和现金流的生意——上限由利润率与资本回报决定，下限由杠杆和现金覆盖决定；带着“利润能否持续转成现金”看下面每一行。</div></div>
+<div class="card snapshot-card" id="m-snapshot"><div class="card-title">★ 企业快照 · 上半部（每股数据，人民币元；股息为港元）<span class="q">上市后口径；识别到IPO/优先股会计断点，早期每股数据不列</span></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr class="hl"><td>①每股营收</td><td>0.52</td><td>0.54</td><td>0.80</td><td>1.02</td><td>1.52</td><td>1.70</td></tr><tr class="hl"><td>①每股收益（基本）</td><td class="neg">-0.18</td><td>0.01</td><td>0.06</td><td>0.09</td><td>0.12</td><td>0.18</td></tr><tr><td>每股经营现金流</td><td>1.92</td><td>0.22</td><td class="neg">-0.31</td><td class="neg">-1.33</td><td class="neg">-0.31</td><td class="neg">-0.07</td></tr><tr><td>每股股息 HK$</td><td>—</td><td>—</td><td>0.02</td><td>0.03</td><td>0.07</td><td>0.04</td></tr><tr><td>每股净资产</td><td>2.14</td><td>2.15</td><td>2.25</td><td>2.32</td><td>2.42</td><td>2.49</td></tr><tr class="hl"><td>③加权平均股本（亿股）</td><td>62.81</td><td>57.91</td><td>63.93</td><td>64.53</td><td>64.80</td><td>67.35</td></tr><tr class="hl"><td>②净资产收益率（平均）</td><td class="neg">-7.6%</td><td>0.2%</td><td>2.5%</td><td>3.6%</td><td>5.0%</td><td>7.2%</td></tr></tbody></table></div><div class="note"><b><span class="badge">1</span>长期记录 ——</b> 上市后口径列出6期，EPS从-0.18元到0.18元；最深一期为2020年EPS -0.18元，序列接近上行。 <span class="tag pass">✓</span></div><div class="note"><b><span class="badge">3</span>股本变化 ——</b> 净利÷基本EPS推算的加权股本从62.81亿股到67.35亿股，累计变化7.2%；最新每股股息为HK$0.04。 <span class="tag watch">△</span></div><div class="note"><b><span class="badge">5</span>估值锚 ——</b> PB 0.56倍，市值104.81亿港元对应归母净资产169.54亿元人民币；现金45.06亿元、总资产543.61亿元。资产细项、商誉及持股市值需在页面外拆解。 <span class="tag pass">✓</span></div></div>
+<div class="card snapshot-card" id="m-operating"><div class="card-title">★ 企业快照 · 下半部（年度经营数据，人民币）<span class="q">全部12年历史</span></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr><td>营业收入（亿元）</td><td>0.48</td><td>2.71</td><td>14.88</td><td>39.06</td><td>55.33</td><td>58.00</td><td>33.25</td><td>34.94</td><td>52.02</td><td>66.86</td><td>98.88</td><td>115.60</td></tr><tr><td>营收同比</td><td>—</td><td>465.3%</td><td>448.5%</td><td>162.5%</td><td>41.7%</td><td>4.8%</td><td class="neg">-42.7%</td><td>5.1%</td><td>48.9%</td><td>28.5%</td><td>47.9%</td><td>16.9%</td></tr><tr><td>归母净利润（亿元）(A)</td><td>0.00</td><td class="neg">-0.28</td><td class="neg">-14.01</td><td class="neg">-183.31</td><td class="neg">-1.67</td><td>0.31</td><td class="neg">-11.56</td><td>0.29</td><td>3.71</td><td>5.55</td><td>8.10</td><td>11.99</td></tr><tr><td>净利润同比</td><td>—</td><td class="neg">-43,493.8%</td><td class="neg">-4,868.2%</td><td class="neg">-1,208.1%</td><td>99.1%</td><td>118.6%</td><td class="neg">-3,835.9%</td><td>102.5%</td><td>1,180.7%</td><td>49.7%</td><td>45.9%</td><td>48.0%</td></tr><tr class="hl"><td>④毛利率</td><td>85.5%</td><td>85.3%</td><td>49.4%</td><td>56.1%</td><td>44.7%</td><td>47.7%</td><td>46.8%</td><td>50.9%</td><td>55.5%</td><td>48.6%</td><td>46.9%</td><td>55.9%</td></tr><tr class="hl"><td>④净利率</td><td>0.1%</td><td class="neg">-10.4%</td><td class="neg">-94.4%</td><td class="neg">-469.5%</td><td class="neg">-3.0%</td><td>0.5%</td><td class="neg">-34.8%</td><td>0.8%</td><td>7.1%</td><td>8.3%</td><td>8.2%</td><td>10.4%</td></tr><tr class="hl"><td>②净资产收益率（平均）(A)</td><td>0.0%</td><td class="neg">-20.2%</td><td>221.2%</td><td class="neg">-262.9%</td><td class="neg">-1.1%</td><td>0.2%</td><td class="neg">-7.6%</td><td>0.2%</td><td>2.5%</td><td>3.6%</td><td>5.0%</td><td>7.2%</td></tr><tr class="hl"><td>②投入资本回报率</td><td>0.1%</td><td class="neg">-1.8%</td><td class="neg">-12.4%</td><td class="neg">-65.0%</td><td class="neg">-0.4%</td><td>0.1%</td><td class="neg">-3.7%</td><td>0.1%</td><td>1.4%</td><td>1.6%</td><td>1.9%</td><td>2.5%</td></tr><tr><td>资产负债率(A)</td><td>39.2%</td><td>96.6%</td><td>106.9%</td><td>64.2%</td><td>69.5%</td><td>60.3%</td><td>47.2%</td><td>46.8%</td><td>52.4%</td><td>63.8%</td><td>66.1%</td><td>68.8%</td></tr><tr><td>经营现金流（亿元）</td><td class="neg">-0.01</td><td class="neg">-27.61</td><td class="neg">-113.02</td><td class="neg">-156.23</td><td class="neg">-41.37</td><td>114.97</td><td>122.52</td><td>14.60</td><td class="neg">-20.38</td><td class="neg">-86.51</td><td class="neg">-19.98</td><td class="neg">-5.00</td></tr><tr><td>存货周转天数</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div><div class="note"><b><span class="badge">2</span>ROE 与杠杆 ——</b> 最新ROE 7.2%、ROIC 2.5%、资产负债率68.8%；全期经营现金流/归母净利润为—倍，累计利润为负或缺失，净现比不具解释力。 <span class="tag watch">△</span></div><div class="note"><b><span class="badge">4</span>利润率 ——</b> 毛利率从85.5%到55.9%，总体下行；净利率最新为10.4%，费用与非经常项目的影响仍需回到年报附注。 <span class="tag watch">△</span></div></div>
+<div class="card"><div class="card-title">5 秒心算</div><div class="scroll"><table><thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead><tbody>
+<tr><td>市值(所有者视角)</td><td>HK$1.54 × 68.06亿股</td><td>≈ 96.16亿元人民币</td></tr>
+<tr><td>息税前利润</td><td>按税前利润近似并明确口径</td><td>≈ 17.13亿元</td></tr><tr><td>你付的价格</td><td>EV=市值−期末现金</td><td>EV/EBIT≈2.98×</td></tr>
+<tr class="hl"><td>生意本身的回报</td><td>EBIT÷(归母净资产−期末现金)</td><td>≈13.8%</td></tr><tr class="hl"><td>回报的历史区间</td><td>披露ROIC</td><td>-64.98% – 2.54%</td></tr></tbody></table></div>
+<div class="note"><b>心算的结论：</b>EV/EBIT仅是披露数的直接运算；金融、地产或现金超过净资产时解释力弱，分歧应回到利润分母、资产质量和经营资本口径。</div></div>
+<div class="duo"><div class="card"><div class="card-title">资本结构与流动性（人民币）</div><div class="capital">
+<p><b>已发行股本：</b>68.06亿股（每手500股）。</p><p><b>负债结构：</b>总负债374.08亿元，资产负债率68.8%；细项待查年报。</p>
+<p><b>股息：</b>最新年度每股HK$0.04，历史按DPS_HKD_LY串接。</p><p><b>市值：</b>约104.81亿港元。</p></div>
+<div class="scroll"><table><thead><tr><th>指标</th><th>2023</th><th>2024</th><th>2025</th></tr></thead><tbody><tr><td>总资产（亿元）</td><td>435.75</td><td>485.91</td><td>543.61</td></tr><tr><td>总负债（亿元）</td><td>278.10</td><td>321.11</td><td>374.08</td></tr><tr class="hl"><td>资产负债率</td><td>63.8%</td><td>66.1%</td><td>68.8%</td></tr><tr><td>流动比率</td><td>1.33</td><td>1.25</td><td>1.15</td></tr><tr class="hl"><td>期末现金（亿元）</td><td>34.80</td><td>42.13</td><td>45.06</td></tr><tr><td>归母净资产（亿元）</td><td>157.65</td><td>164.80</td><td>169.54</td></tr></tbody></table></div><div class="note"><b>怎么读：</b>近三期总资产总体扩张；流动性是安全带，不是护城河。</div></div>
+<div class="card"><div class="card-title">年均变化率（2020→2025）</div><div class="scroll"><table><thead><tr><th>指标</th><th>年复合</th></tr></thead><tbody>
+<tr class="hl"><td>①营收</td><td>28.3%</td></tr><tr class="hl"><td>①净利润</td><td>—</td></tr><tr><td>每股营收</td><td>26.7%</td></tr><tr><td>每股净资产</td><td>3.1%</td></tr><tr><td>每股股息</td><td>—</td></tr></tbody></table></div>
+<div class="note"><b>怎么读：</b>公司与每股口径落差反映股本变化；负值或零起点不强算CAGR，起止周期状态会影响结果。</div></div></div>
+<div class="card"><div class="card-title">五问检查清单</div><table class="qa"><thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>易鑫集团的答案 / 去处</th></tr></thead><tbody>
+<tr><td>1</td><td>价格是否便宜?</td><td>✓ 页面内</td><td>进入价格筛选区：距52周低点35.1%，PE/PB为7.90/0.56倍；只与自身历史参照比较，不形成目标价。</td></tr><tr><td>2</td><td>这是不是一桩好生意?</td><td>✓ 页面内</td><td>最强证据是ROE 7.2%、ROIC 2.5%；最弱证据是净现比—倍且毛利率总体下行。</td></tr>
+<tr><td>3</td><td>管理层是否值得信任?</td><td>✋ 页面外</td><td>页面内股本累计变化7.2%、最新DPS为HK$0.04；页面外逐年对照股东信、公开承诺、配售/回购公告与实际资本分配。</td></tr><tr><td>4</td><td>我还遗漏了什么?</td><td>✋ 页面外</td><td>补查易鑫集团的产品/客户体验、竞争格局与渠道、年报分部和费用附注、重大非经常项；对最不踏实的资产质量或现金流项目做专项验证，并单独判断未来10–20年现金流与机会成本。</td></tr><tr><td>5</td><td>为什么这个机会被我发现?</td><td>✋ 页面外</td><td>全市场分歧；优势只能来自对金融竞争、资产质量、管理层言行和长期现金流的独立核验，不来自本页的历史数字。</td></tr></tbody></table>
+<div class="note"><b>交接棒规则：</b>前两问未被直接否决，进入第二轮；若继续，核心是核对易鑫集团年报分部、资产附注、竞争格局和资本分配公告。准确的信息、完整的信息——逆势重仓的底气只能来自这里。</div></div>
+<div class="foot">本页为按“企业快照”框架重排的极简筛选版。财报数据为人民币（东方财富港股F10公开接口，2014–2025年报），股价、52周区间与行情日期来自腾讯行情，股价与股息为港元，汇率按1人民币=1.09港元折算；心算与增长率均为实际披露数据直接运算，无估算与预测。(A) 上市前失真期保留在经营表、每股表从识别到的IPO断点起列；IPO当年加权股本受时点影响。判词为方法论演示，不构成任何投资建议。</div>
+<!-- snapshot-data:520734200714ed93 source-order:350 --></div></body></html>
