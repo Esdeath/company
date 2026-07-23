@@ -24,9 +24,10 @@ def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
 
 
 class FakeSession:
-    def __init__(self, *, fail_refresh: bool = False) -> None:
+    def __init__(self, *, fail_refresh: bool = False, max_sort_order: int | None = 3) -> None:
         self.events: list[str] = []
         self.fail_refresh = fail_refresh
+        self.max_sort_order = max_sort_order
         self.committed = False
 
     async def __aenter__(self) -> "FakeSession":
@@ -42,6 +43,16 @@ class FakeSession:
 
     def add(self, document: Document) -> None:
         self.events.append("add")
+
+    async def scalar(self, statement: object) -> object:
+        sql = str(statement)
+        if "FROM companies" in sql and "FOR UPDATE" in sql:
+            self.events.append("lock_company")
+            return COMPANY_ID
+        if "max(documents.sort_order)" in sql:
+            self.events.append("read_max_sort_order")
+            return self.max_sort_order
+        raise AssertionError(f"Unexpected scalar statement: {sql}")
 
     async def flush(self) -> None:
         self.events.append("flush")
@@ -105,7 +116,16 @@ def test_insert_materializes_before_commit_and_has_no_post_commit_round_trip(
     saved = run(repository.insert_document(new_document()))
 
     assert saved.uploaded_at == NOW
-    assert session.events == ["add", "flush", "refresh", "materialize", "commit"]
+    assert saved.sort_order == 4
+    assert session.events == [
+        "lock_company",
+        "read_max_sort_order",
+        "add",
+        "flush",
+        "refresh",
+        "materialize",
+        "commit",
+    ]
     assert session.committed is True
 
 
@@ -116,7 +136,13 @@ def test_refresh_failure_never_commits_document() -> None:
     with pytest.raises(RuntimeError, match="refresh failed"):
         run(repository.insert_document(new_document()))
 
-    assert session.events == ["add", "flush", "refresh"]
+    assert session.events == [
+        "lock_company",
+        "read_max_sort_order",
+        "add",
+        "flush",
+        "refresh",
+    ]
     assert session.committed is False
 
 

@@ -34,6 +34,7 @@ class NewDocumentRecord:
 
 @dataclass(frozen=True, slots=True)
 class DocumentRecord(NewDocumentRecord):
+    sort_order: int
     uploaded_at: datetime
 
 
@@ -99,6 +100,14 @@ class SqlAlchemyLibraryRepository:
 
     async def insert_document(self, record: NewDocumentRecord) -> DocumentRecord:
         async with self._session_factory() as session:
+            await session.scalar(
+                select(Company.id).where(Company.id == record.company_id).with_for_update()
+            )
+            current_max = await session.scalar(
+                select(func.max(Document.sort_order)).where(
+                    Document.company_id == record.company_id
+                )
+            )
             document = Document(
                 id=record.id,
                 company_id=record.company_id,
@@ -107,6 +116,7 @@ class SqlAlchemyLibraryRepository:
                 source_path=record.source_path,
                 rendered_path=record.rendered_path,
                 original_filename=record.original_filename,
+                sort_order=(current_max if current_max is not None else -1) + 1,
             )
             session.add(document)
             await session.flush()
@@ -169,5 +179,6 @@ def _document_record(document: Document) -> DocumentRecord:
         source_path=document.source_path,
         rendered_path=document.rendered_path,
         original_filename=document.original_filename,
+        sort_order=document.sort_order,
         uploaded_at=document.uploaded_at,
     )
