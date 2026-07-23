@@ -79,3 +79,40 @@ def test_admin_password_must_be_an_argon2_hash() -> None:
 def test_cookie_name_uses_host_prefix_only_for_https() -> None:
     assert settings(session_cookie_secure=True).session_cookie_name.startswith("__Host-")
     assert settings(session_cookie_secure=False).session_cookie_name == "company-admin-session"
+
+
+def test_production_rejects_non_smtp_email_backend() -> None:
+    with pytest.raises(ValidationError, match="SMTP"):
+        settings(app_environment="production", email_backend="console")
+
+
+def test_production_registration_requires_complete_smtp_and_public_https_url() -> None:
+    with pytest.raises(ValidationError, match="SMTP"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=True,
+        )
+
+
+def test_production_rejects_the_local_user_token_signing_key() -> None:
+    with pytest.raises(ValidationError, match="signing key"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="local-development-only-signing-key",
+        )
+
+
+def test_test_environment_allows_file_email_backend() -> None:
+    configured = settings(app_environment="test", email_backend="file")
+
+    assert configured.smtp_configured is False
+
+
+def test_user_cookie_is_separate_from_admin_cookie() -> None:
+    configured = settings(session_cookie_secure=True)
+
+    assert configured.user_session_cookie_name == "__Host-company-user-session"
+    assert configured.user_session_cookie_name != configured.session_cookie_name
