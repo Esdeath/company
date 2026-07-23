@@ -19,6 +19,7 @@ export type DocumentItem = {
   title: string
   format: DocumentFormat
   original_filename: string
+  sort_order: number
   uploaded_at: string
   content_url: string
 }

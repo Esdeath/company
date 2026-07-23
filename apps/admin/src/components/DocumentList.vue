@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   rename: [document: DocumentItem, title: string]
   delete: [document: DocumentItem]
+  reorder: [documentIds: string[]]
 }>()
 
 function rename(document: DocumentItem, source: Event | HTMLInputElement) {

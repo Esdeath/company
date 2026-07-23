@@ -9,6 +9,7 @@ import {
   login,
   logout,
   renameDocument,
+  reorderDocuments,
   uploadDocuments,
 } from '../src/api'
 
@@ -129,6 +130,26 @@ describe('management API client', () => {
       ],
       ['/api/v1/documents/document-1', expect.objectContaining({ method: 'DELETE' })],
     ])
+  })
+
+  it('replaces one company complete document order', async () => {
+    const reordered = [
+      { id: 'document-2', sort_order: 0 },
+      { id: 'document-1', sort_order: 1 },
+    ]
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(reordered)))
+
+    await expect(
+      reorderDocuments('company-1', ['document-2', 'document-1'], fetchMock),
+    ).resolves.toEqual(reordered)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/companies/company-1/documents/order',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ document_ids: ['document-2', 'document-1'] }),
+      }),
+    )
   })
 
   it('surfaces a useful API error message', async () => {

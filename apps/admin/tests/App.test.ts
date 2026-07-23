@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from '../src/App.vue'
 import * as api from '../src/api'
+import DocumentList from '../src/components/DocumentList.vue'
 import DocumentUpload from '../src/components/DocumentUpload.vue'
 import type { Company, DocumentItem, UploadBatch } from '../src/types'
 
@@ -16,6 +17,7 @@ vi.mock('../src/api', () => ({
   login: vi.fn(),
   logout: vi.fn(),
   renameDocument: vi.fn(),
+  reorderDocuments: vi.fn(),
   uploadDocuments: vi.fn(),
 }))
 
@@ -45,8 +47,21 @@ const documents: DocumentItem[] = [
     title: '年度报告',
     format: 'markdown',
     original_filename: 'annual.md',
+    sort_order: 0,
     uploaded_at: '2026-07-20T08:00:00Z',
     content_url: '/api/v1/documents/document-1/content',
+  },
+]
+
+const twoDocuments: DocumentItem[] = [
+  documents[0]!,
+  {
+    ...documents[0]!,
+    id: 'document-2',
+    title: '访谈记录',
+    original_filename: 'interview.md',
+    sort_order: 1,
+    content_url: '/api/v1/documents/document-2/content',
   },
 ]
 
@@ -77,6 +92,7 @@ describe('资料管理工作台', () => {
     vi.mocked(api.createCompany).mockReset().mockResolvedValue(companies[1]!)
     vi.mocked(api.uploadDocuments).mockReset().mockResolvedValue({ items: [], errors: [] })
     vi.mocked(api.renameDocument).mockReset().mockResolvedValue(documents[0]!)
+    vi.mocked(api.reorderDocuments).mockReset().mockResolvedValue(documents)
     vi.mocked(api.deleteDocument).mockReset().mockResolvedValue(undefined)
   })
 
@@ -344,6 +360,94 @@ describe('资料管理工作台', () => {
     expect(api.renameDocument).toHaveBeenCalledWith('document-1', '年度复盘')
     expect(api.listDocuments).toHaveBeenCalledTimes(2)
     expect((wrapper.get('#company-select').element as HTMLSelectElement).value).toBe('company-1')
+  })
+
+  it('optimistically reorders documents and adopts the server response', async () => {
+    const reorderRequest = deferred<DocumentItem[]>()
+    vi.mocked(api.listDocuments).mockResolvedValue(twoDocuments)
+    vi.mocked(api.reorderDocuments).mockReturnValue(reorderRequest.promise)
+    const wrapper = await mountWorkspace()
+
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.vm.$nextTick()
+
+    expect(api.reorderDocuments).toHaveBeenCalledWith('company-1', [
+      'document-2',
+      'document-1',
+    ])
+    expect(wrapper.findAll('.document-title').map((node) => node.text())).toEqual([
+      '访谈记录',
+      '年度报告',
+    ])
+
+    reorderRequest.resolve([
+      { ...twoDocuments[0]!, sort_order: 0 },
+      { ...twoDocuments[1]!, sort_order: 1 },
+    ])
+    await flushPromises()
+
+    expect(wrapper.findAll('.document-title').map((node) => node.text())).toEqual([
+      '年度报告',
+      '访谈记录',
+    ])
+  })
+
+  it('restores the previous order when saving a reorder fails', async () => {
+    vi.mocked(api.listDocuments).mockResolvedValue(twoDocuments)
+    vi.mocked(api.reorderDocuments).mockRejectedValue(new Error('顺序保存失败'))
+    const wrapper = await mountWorkspace()
+
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await flushPromises()
+
+    expect(wrapper.findAll('.document-title').map((node) => node.text())).toEqual([
+      '年度报告',
+      '访谈记录',
+    ])
+    expect(wrapper.get('.page-error').text()).toContain('顺序保存失败')
+  })
+
+  it('blocks duplicate reorder requests while one is pending', async () => {
+    const reorderRequest = deferred<DocumentItem[]>()
+    vi.mocked(api.listDocuments).mockResolvedValue(twoDocuments)
+    vi.mocked(api.reorderDocuments).mockReturnValue(reorderRequest.promise)
+    const wrapper = await mountWorkspace()
+    const list = wrapper.findComponent(DocumentList)
+
+    list.vm.$emit('reorder', ['document-2', 'document-1'])
+    list.vm.$emit('reorder', ['document-1', 'document-2'])
+    await wrapper.vm.$nextTick()
+
+    expect(api.reorderDocuments).toHaveBeenCalledOnce()
+    expect(list.props('busy')).toBe(true)
+
+    reorderRequest.resolve(twoDocuments)
+    await flushPromises()
+  })
+
+  it('ignores a reorder response after selecting another company', async () => {
+    const reorderRequest = deferred<DocumentItem[]>()
+    const companyTwoDocument = {
+      ...documents[0]!,
+      id: 'company-2-document',
+      company_id: 'company-2',
+      title: '第二家公司资料',
+    }
+    vi.mocked(api.listDocuments)
+      .mockResolvedValueOnce(twoDocuments)
+      .mockResolvedValueOnce([companyTwoDocument])
+    vi.mocked(api.reorderDocuments).mockReturnValue(reorderRequest.promise)
+    const wrapper = await mountWorkspace()
+
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.get('#company-select').setValue('company-2')
+    await flushPromises()
+    reorderRequest.resolve([...twoDocuments].reverse())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('第二家公司资料')
+    expect(wrapper.text()).not.toContain('年度报告')
+    expect(wrapper.text()).not.toContain('访谈记录')
   })
 
   it('blocks duplicate rename requests and disables document actions through the refresh', async () => {
