@@ -17,6 +17,7 @@ from company_api.models import DocumentFormat
 from company_api.repository import (
     CompanyRecord,
     DocumentRecord,
+    InvalidDocumentOrder,
     LibraryRepository,
     NewDocumentRecord,
 )
@@ -47,6 +48,10 @@ class DocumentNotFound(Exception):
     pass
 
 
+class DocumentOrderMismatch(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class UploadInput:
     filename: str
@@ -61,6 +66,12 @@ class LibraryOperations(Protocol):
     async def delete_company(self, company_id: UUID) -> None: ...
 
     async def list_documents(self, company_id: UUID) -> list[DocumentRead]: ...
+
+    async def reorder_documents(
+        self,
+        company_id: UUID,
+        document_ids: list[UUID],
+    ) -> list[DocumentRead]: ...
 
     async def upload_documents(
         self, company_id: UUID, uploads: list[UploadInput]
@@ -97,7 +108,19 @@ class LibraryService:
         if not await self._repository.company_exists(company_id):
             raise CompanyNotFound
         records = await self._repository.list_documents(company_id)
-        records.sort(key=lambda record: (record.uploaded_at, record.id), reverse=True)
+        return [_document_read(record) for record in records]
+
+    async def reorder_documents(
+        self,
+        company_id: UUID,
+        document_ids: list[UUID],
+    ) -> list[DocumentRead]:
+        try:
+            records = await self._repository.reorder_documents(company_id, document_ids)
+        except InvalidDocumentOrder as error:
+            raise DocumentOrderMismatch from error
+        if records is None:
+            raise CompanyNotFound
         return [_document_read(record) for record in records]
 
     async def upload_documents(
@@ -267,5 +290,6 @@ def _document_read(record: DocumentRecord) -> DocumentRead:
         title=record.title,
         format=record.format,
         original_filename=record.original_filename,
+        sort_order=record.sort_order,
         uploaded_at=record.uploaded_at,
     )

@@ -11,6 +11,7 @@ import {
   login,
   logout,
   renameDocument,
+  reorderDocuments,
   uploadDocuments,
 } from './api'
 import CompanyPicker from './components/CompanyPicker.vue'
@@ -29,6 +30,8 @@ const loading = ref(true)
 const documentsLoading = ref(false)
 const creating = ref(false)
 const uploading = ref(false)
+const reordering = ref(false)
+const orderFeedback = ref<{ sequence: number; message: string } | null>(null)
 const pendingDocumentIds = ref<string[]>([])
 const pageError = ref('')
 const refreshWarning = ref('')
@@ -38,6 +41,7 @@ const loginBusy = ref(false)
 const loginError = ref('')
 const logoutBusy = ref(false)
 let documentRequestGeneration = 0
+let orderFeedbackSequence = 0
 
 const selectedCompany = computed(
   () => companies.value.find((company) => company.id === selectedCompanyId.value) ?? null,
@@ -58,6 +62,7 @@ function clearWorkspace() {
   uploadResults.value = null
   pageError.value = ''
   refreshWarning.value = ''
+  orderFeedback.value = null
 }
 
 async function returnToLogin() {
@@ -282,6 +287,52 @@ async function rename(document: DocumentItem, title: string) {
   finishDocumentMutation(document.id)
 }
 
+async function reorder(documentIds: string[]) {
+  if (reordering.value || hasDocumentMutation.value || !selectedCompanyId.value) return
+  if (documentIds.length !== documents.value.length || new Set(documentIds).size !== documentIds.length) {
+    return
+  }
+  const byId = new Map(documents.value.map((document) => [document.id, document]))
+  const reordered = documentIds.map((documentId) => byId.get(documentId))
+  if (reordered.some((document) => document === undefined)) return
+
+  const companyId = selectedCompanyId.value
+  const requestGeneration = documentRequestGeneration
+  const previous = documents.value
+  documents.value = reordered as DocumentItem[]
+  reordering.value = true
+  orderFeedback.value = null
+  pageError.value = ''
+  try {
+    const saved = await reorderDocuments(companyId, documentIds)
+    if (
+      selectedCompanyId.value === companyId &&
+      documentRequestGeneration === requestGeneration
+    ) {
+      documents.value = saved
+      orderFeedback.value = {
+        sequence: ++orderFeedbackSequence,
+        message: '资料顺序已保存',
+      }
+    }
+  } catch (error) {
+    const message = errorMessage(error)
+    if (
+      selectedCompanyId.value === companyId &&
+      documentRequestGeneration === requestGeneration
+    ) {
+      documents.value = previous
+      pageError.value = message
+      orderFeedback.value = {
+        sequence: ++orderFeedbackSequence,
+        message: '顺序保存失败，已恢复原顺序',
+      }
+    }
+  } finally {
+    reordering.value = false
+  }
+}
+
 async function remove(document: DocumentItem) {
   if (pendingDocumentIds.value.includes(document.id)) return
   if (!window.confirm(`确认删除《${document.title}》？此操作无法撤销。`)) return
@@ -358,7 +409,7 @@ onMounted(initializeAuthentication)
 
           <template v-if="selectedCompany">
             <DocumentUpload
-              :disabled="creating || documentsLoading || hasDocumentMutation"
+              :disabled="creating || documentsLoading || hasDocumentMutation || reordering"
               :uploading="uploading"
               :results="uploadResults"
               :reset-key="uploadResetKey"
@@ -366,8 +417,10 @@ onMounted(initializeAuthentication)
             />
             <DocumentList
               :documents="documents"
-              :busy="documentsLoading || creating || uploading"
+              :busy="documentsLoading || creating || uploading || reordering || hasDocumentMutation"
+              :order-feedback="orderFeedback"
               :pending-ids="pendingDocumentIds"
+              @reorder="reorder"
               @rename="rename"
               @delete="remove"
             />

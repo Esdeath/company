@@ -126,6 +126,22 @@ export function renameDocument(
   )
 }
 
+export function reorderDocuments(
+  companyId: string,
+  documentIds: string[],
+  fetcher: Fetcher = fetch,
+): Promise<DocumentItem[]> {
+  return request(
+    `/api/v1/companies/${companyId}/documents/order`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_ids: documentIds }),
+    },
+    fetcher,
+  )
+}
+
 export function deleteDocument(documentId: string, fetcher: Fetcher = fetch): Promise<void> {
   return request(`/api/v1/documents/${documentId}`, { method: 'DELETE' }, fetcher)
 }

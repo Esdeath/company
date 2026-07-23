@@ -14,11 +14,17 @@ from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
     DocumentNotFound,
+    DocumentOrderMismatch,
     LibraryService,
     UploadInput,
 )
 from company_api.models import DocumentFormat
-from company_api.repository import CompanyRecord, DocumentRecord, NewDocumentRecord
+from company_api.repository import (
+    CompanyRecord,
+    DocumentRecord,
+    InvalidDocumentOrder,
+    NewDocumentRecord,
+)
 from company_api.schemas import CompanyCreate, UploadError
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
@@ -80,6 +86,15 @@ class FakeRepository:
             source_path=record.source_path,
             rendered_path=record.rendered_path,
             original_filename=record.original_filename,
+            sort_order=max(
+                (
+                    document.sort_order
+                    for document in self.documents
+                    if document.company_id == record.company_id
+                ),
+                default=-1,
+            )
+            + 1,
             uploaded_at=NOW,
         )
         self.documents.append(saved)
@@ -94,6 +109,30 @@ class FakeRepository:
             None,
         )
 
+    async def reorder_documents(
+        self,
+        company_id: uuid.UUID,
+        document_ids: list[uuid.UUID],
+    ) -> list[DocumentRecord] | None:
+        if not await self.company_exists(company_id):
+            return None
+        company_documents = [
+            document for document in self.documents if document.company_id == company_id
+        ]
+        if len(document_ids) != len(set(document_ids)) or set(document_ids) != {
+            document.id for document in company_documents
+        }:
+            raise InvalidDocumentOrder
+        by_id = {document.id: document for document in company_documents}
+        ordered = [
+            replace(by_id[document_id], sort_order=sort_order)
+            for sort_order, document_id in enumerate(document_ids)
+        ]
+        self.documents = [
+            document for document in self.documents if document.company_id != company_id
+        ] + ordered
+        return ordered
+
     async def rename_document(self, document_id: uuid.UUID, title: str) -> DocumentRecord | None:
         record = await self.get_document(document_id)
         if record is None:
@@ -106,6 +145,7 @@ class FakeRepository:
             source_path=record.source_path,
             rendered_path=record.rendered_path,
             original_filename=record.original_filename,
+            sort_order=record.sort_order,
             uploaded_at=record.uploaded_at,
         )
         self.documents[self.documents.index(record)] = renamed
@@ -141,6 +181,7 @@ def document(
     company_id: uuid.UUID = COMPANY_ID,
     title: str = "Document",
     uploaded_at: datetime = NOW,
+    sort_order: int = 0,
     document_format: DocumentFormat = DocumentFormat.HTML,
 ) -> DocumentRecord:
     directory = f"companies/{company_id}/{document_id}"
@@ -156,6 +197,7 @@ def document(
             None if document_format is DocumentFormat.HTML else f"{directory}/rendered.html"
         ),
         original_filename="document.html",
+        sort_order=sort_order,
         uploaded_at=uploaded_at,
     )
 
@@ -186,19 +228,52 @@ def test_company_list_sorts_normalized_name_then_uuid(tmp_path: Path) -> None:
     assert [item.id for item in result] == [DOCUMENT_ID, OTHER_COMPANY_ID, COMPANY_ID]
 
 
-def test_document_list_sorts_newest_then_id(tmp_path: Path) -> None:
-    oldest = document(DOCUMENT_ID, uploaded_at=NOW - timedelta(days=1))
-    tied_low = document(OTHER_COMPANY_ID)
-    tied_high = document(COMPANY_ID)
+def test_document_list_preserves_repository_sort_order(tmp_path: Path) -> None:
+    first = document(DOCUMENT_ID, uploaded_at=NOW - timedelta(days=1), sort_order=0)
+    second = document(OTHER_COMPANY_ID, uploaded_at=NOW, sort_order=1)
     repository = FakeRepository(
         companies=[company(COMPANY_ID, "Acme")],
-        documents=[oldest, tied_low, tied_high],
+        documents=[first, second],
     )
     service = LibraryService(repository, ContentStore(tmp_path))
 
     result = run(service.list_documents(COMPANY_ID))
 
-    assert [item.id for item in result] == [COMPANY_ID, OTHER_COMPANY_ID, DOCUMENT_ID]
+    assert [item.id for item in result] == [DOCUMENT_ID, OTHER_COMPANY_ID]
+    assert [item.sort_order for item in result] == [0, 1]
+
+
+def test_reorder_documents_replaces_complete_company_order(tmp_path: Path) -> None:
+    first = document(DOCUMENT_ID, sort_order=0)
+    second = document(OTHER_COMPANY_ID, sort_order=1)
+    repository = FakeRepository(
+        companies=[company(COMPANY_ID, "Acme")],
+        documents=[first, second],
+    )
+    service = LibraryService(repository, ContentStore(tmp_path))
+
+    result = run(service.reorder_documents(COMPANY_ID, [second.id, first.id]))
+
+    assert [item.id for item in result] == [second.id, first.id]
+    assert [item.sort_order for item in result] == [0, 1]
+
+
+def test_reorder_documents_rejects_mismatched_document_set(tmp_path: Path) -> None:
+    repository = FakeRepository(
+        companies=[company(COMPANY_ID, "Acme")],
+        documents=[document(DOCUMENT_ID)],
+    )
+    service = LibraryService(repository, ContentStore(tmp_path))
+
+    with pytest.raises(DocumentOrderMismatch):
+        run(service.reorder_documents(COMPANY_ID, [OTHER_COMPANY_ID]))
+
+
+def test_reorder_documents_requires_existing_company(tmp_path: Path) -> None:
+    service = LibraryService(FakeRepository(), ContentStore(tmp_path))
+
+    with pytest.raises(CompanyNotFound):
+        run(service.reorder_documents(COMPANY_ID, []))
 
 
 def test_batch_upload_keeps_successful_sibling(tmp_path: Path) -> None:

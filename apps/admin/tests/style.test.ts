@@ -16,4 +16,14 @@ describe('responsive workspace styles', () => {
       /@media \(min-width: 64rem\)[\s\S]*?\.mobile-company-select\s*\{\s*display:\s*none;/,
     )
   })
+
+  it('shows stable row dragging, insertion, and keyboard focus states', () => {
+    expect(stylesheet).toMatch(/\.document-row:not\(\.document-row--busy\)[\s\S]*?cursor:\s*grab/)
+    expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?cursor:\s*grabbing/)
+    expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?box-shadow:/)
+    expect(stylesheet).toMatch(/\.document-row:focus-visible[\s\S]*?outline:/)
+    expect(stylesheet).toMatch(
+      /\.document-row:not\(\.document-row--busy\)\s*\{[^}]*touch-action:\s*none/,
+    )
+  })
 })

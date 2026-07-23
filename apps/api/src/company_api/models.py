@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -45,6 +45,7 @@ class Document(Base):
     source_path: Mapped[str] = mapped_column(String(1000), unique=True)
     rendered_path: Mapped[str | None] = mapped_column(String(1000), unique=True)
     original_filename: Mapped[str] = mapped_column(String(500))
+    sort_order: Mapped[int] = mapped_column(BigInteger)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
