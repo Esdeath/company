@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -19,7 +19,8 @@ const documents: DocumentItem[] = [
     title: '贵州茅台财报',
     format: 'html',
     original_filename: 'moutai.html',
-    uploaded_at: '2026-07-21T08:00:00Z',
+    sort_order: 0,
+    uploaded_at: '2026-06-18T08:00:00Z',
     content_url: '/api/v1/documents/document-1/content',
   },
   {
@@ -28,7 +29,8 @@ const documents: DocumentItem[] = [
     title: '管理层访谈',
     format: 'markdown',
     original_filename: 'interview.md',
-    uploaded_at: '2026-06-18T08:00:00Z',
+    sort_order: 1,
+    uploaded_at: '2026-07-21T08:00:00Z',
     content_url: '/api/v1/documents/document-2/content',
   },
 ]
@@ -93,6 +95,16 @@ describe('LibraryDirectory', () => {
     expect(wrapper.findAll('.document-branch')).toHaveLength(1)
     expect(wrapper.get('[data-document-id="document-1"]').attributes('aria-current')).toBe('true')
     expect(wrapper.text()).toContain('贵州茅台财报')
+  })
+
+  it('keeps the API document order even when upload timestamps disagree', () => {
+    expectTypeOf<DocumentItem>().toHaveProperty('sort_order')
+    const wrapper = mountDirectory(true)
+
+    expect(documents.map((document) => document.sort_order)).toEqual([0, 1])
+    expect(
+      wrapper.findAll('[data-document-id]').map((entry) => entry.attributes('data-document-id')),
+    ).toEqual(['document-1', 'document-2'])
   })
 
   it('renders document entries as title-only buttons', () => {

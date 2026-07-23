@@ -10,6 +10,7 @@ const DOCUMENT: DocumentItem = {
   title: '管理层访谈',
   format: 'markdown',
   original_filename: 'interview.md',
+  sort_order: 0,
   uploaded_at: '2026-07-20T08:00:00Z',
   content_url: '/api/v1/documents/document-1/content',
 }
@@ -18,6 +19,7 @@ const SECOND_DOCUMENT: DocumentItem = {
   ...DOCUMENT,
   id: 'document-2',
   title: '年度报告',
+  sort_order: 1,
   content_url: '/api/v1/documents/document-2/content',
 }
 

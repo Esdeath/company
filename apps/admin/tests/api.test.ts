@@ -109,6 +109,7 @@ describe('management API client', () => {
       title: '年度报告',
       format: 'markdown',
       original_filename: 'annual.md',
+      sort_order: 0,
       uploaded_at: '2026-07-20T08:00:00Z',
       content_url: '/api/v1/documents/document-1/content',
     }
