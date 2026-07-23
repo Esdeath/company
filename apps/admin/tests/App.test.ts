@@ -390,6 +390,7 @@ describe('资料管理工作台', () => {
       '年度报告',
       '访谈记录',
     ])
+    expect(wrapper.get('.document-order-status').text()).toContain('资料顺序已保存')
   })
 
   it('restores the previous order when saving a reorder fails', async () => {
@@ -405,6 +406,7 @@ describe('资料管理工作台', () => {
       '访谈记录',
     ])
     expect(wrapper.get('.page-error').text()).toContain('顺序保存失败')
+    expect(wrapper.get('.document-order-status').text()).toContain('已恢复原顺序')
   })
 
   it('blocks duplicate reorder requests while one is pending', async () => {
@@ -448,6 +450,99 @@ describe('资料管理工作台', () => {
     expect(wrapper.text()).toContain('第二家公司资料')
     expect(wrapper.text()).not.toContain('年度报告')
     expect(wrapper.text()).not.toContain('访谈记录')
+  })
+
+  it('ignores an old reorder response after switching away and back', async () => {
+    const reorderRequest = deferred<DocumentItem[]>()
+    const companyTwoDocument = {
+      ...documents[0]!,
+      id: 'company-2-document',
+      company_id: 'company-2',
+      title: '第二家公司资料',
+    }
+    const refreshedCompanyOne = [
+      { ...documents[0]!, id: 'fresh-document', title: '重新读取的资料' },
+    ]
+    vi.mocked(api.listDocuments)
+      .mockResolvedValueOnce(twoDocuments)
+      .mockResolvedValueOnce([companyTwoDocument])
+      .mockResolvedValueOnce(refreshedCompanyOne)
+    vi.mocked(api.reorderDocuments).mockReturnValue(reorderRequest.promise)
+    const wrapper = await mountWorkspace()
+
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.get('#company-select').setValue('company-2')
+    await flushPromises()
+    await wrapper.get('#company-select').setValue('company-1')
+    await flushPromises()
+    reorderRequest.resolve([...twoDocuments].reverse())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('重新读取的资料')
+    expect(wrapper.text()).not.toContain('年度报告')
+    expect(wrapper.text()).not.toContain('访谈记录')
+  })
+
+  it('does not restore an old snapshot after switching away and back', async () => {
+    const reorderRequest = deferred<DocumentItem[]>()
+    const refreshedCompanyOne = [
+      { ...documents[0]!, id: 'fresh-document', title: '重新读取的资料' },
+    ]
+    vi.mocked(api.listDocuments)
+      .mockResolvedValueOnce(twoDocuments)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(refreshedCompanyOne)
+    vi.mocked(api.reorderDocuments).mockReturnValue(reorderRequest.promise)
+    const wrapper = await mountWorkspace()
+
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.get('#company-select').setValue('company-2')
+    await flushPromises()
+    await wrapper.get('#company-select').setValue('company-1')
+    await flushPromises()
+    reorderRequest.reject(new Error('旧请求失败'))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('重新读取的资料')
+    expect(wrapper.text()).not.toContain('年度报告')
+    expect(wrapper.find('.page-error').exists()).toBe(false)
+  })
+
+  it('blocks reordering while a rename is pending', async () => {
+    const renameRequest = deferred<DocumentItem>()
+    vi.mocked(api.listDocuments).mockResolvedValue(twoDocuments)
+    vi.mocked(api.renameDocument).mockReturnValue(renameRequest.promise)
+    const wrapper = await mountWorkspace()
+    const input = wrapper.get('input[aria-label="重命名 年度报告"]')
+
+    await input.setValue('年度复盘')
+    await input.trigger('keydown.enter')
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent(DocumentList).props('busy')).toBe(true)
+    expect(api.reorderDocuments).not.toHaveBeenCalled()
+
+    renameRequest.resolve({ ...documents[0]!, title: '年度复盘' })
+    await flushPromises()
+  })
+
+  it('blocks reordering while a delete is pending', async () => {
+    const deleteRequest = deferred<void>()
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+    vi.mocked(api.listDocuments).mockResolvedValue(twoDocuments)
+    vi.mocked(api.deleteDocument).mockReturnValue(deleteRequest.promise)
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('button[aria-label="删除 年度报告"]').trigger('click')
+    wrapper.findComponent(DocumentList).vm.$emit('reorder', ['document-2', 'document-1'])
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent(DocumentList).props('busy')).toBe(true)
+    expect(api.reorderDocuments).not.toHaveBeenCalled()
+
+    deleteRequest.resolve()
+    await flushPromises()
   })
 
   it('blocks duplicate rename requests and disables document actions through the refresh', async () => {

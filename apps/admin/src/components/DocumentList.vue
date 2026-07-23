@@ -6,6 +6,7 @@ import type { DocumentItem } from '../types'
 const props = defineProps<{
   documents: DocumentItem[]
   busy?: boolean
+  orderFeedback?: { sequence: number; message: string } | null
   pendingIds: string[]
 }>()
 
@@ -26,6 +27,13 @@ watch(
     previewIds.value = documents.map((document) => document.id)
   },
   { immediate: true },
+)
+
+watch(
+  () => props.orderFeedback,
+  (feedback) => {
+    if (feedback) statusMessage.value = feedback.message
+  },
 )
 
 const orderedDocuments = computed(() => {
@@ -159,7 +167,9 @@ function formatUploadedAt(value: string): string {
     <span id="document-order-instructions" class="visually-hidden">
       按住资料行拖动排序，或使用 Alt 加上下方向键移动。
     </span>
-    <span class="visually-hidden" role="status" aria-live="polite">{{ statusMessage }}</span>
+    <span class="document-order-status visually-hidden" role="status" aria-live="polite">
+      {{ statusMessage }}
+    </span>
 
     <ul v-if="documents.length > 0" ref="listElement" class="document-list">
       <li

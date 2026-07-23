@@ -510,9 +510,6 @@ input[type="file"]::file-selector-button {
 
 .document-row:not(.document-row--busy) {
   cursor: grab;
-}
-
-.document-row:not(.document-row--busy) :is(.document-row__heading, .document-meta) {
   touch-action: none;
 }
 

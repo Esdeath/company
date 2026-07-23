@@ -22,5 +22,8 @@ describe('responsive workspace styles', () => {
     expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?cursor:\s*grabbing/)
     expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?box-shadow:/)
     expect(stylesheet).toMatch(/\.document-row:focus-visible[\s\S]*?outline:/)
+    expect(stylesheet).toMatch(
+      /\.document-row:not\(\.document-row--busy\)\s*\{[^}]*touch-action:\s*none/,
+    )
   })
 })
