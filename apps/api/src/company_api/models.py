@@ -122,6 +122,7 @@ class LoginChallenge(Base):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_users"),
         UniqueConstraint("normalized_email", name="uq_users_normalized_email"),
         UniqueConstraint("normalized_username", name="uq_users_normalized_username"),
     )
@@ -146,10 +147,15 @@ class User(Base):
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
+    __table_args__ = (PrimaryKeyConstraint("token_hash", name="pk_user_sessions"),)
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            name="fk_user_sessions_user_id_users",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     csrf_token: Mapped[str] = mapped_column(String(128))
@@ -159,6 +165,7 @@ class UserSession(Base):
 
 class UserAuthChallenge(Base):
     __tablename__ = "user_auth_challenges"
+    __table_args__ = (PrimaryKeyConstraint("token_hash", name="pk_user_auth_challenges"),)
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -167,7 +174,10 @@ class UserAuthChallenge(Base):
 
 class UserToken(Base):
     __tablename__ = "user_tokens"
-    __table_args__ = (UniqueConstraint("token_hash", name="uq_user_tokens_token_hash"),)
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_user_tokens"),
+        UniqueConstraint("token_hash", name="uq_user_tokens_token_hash"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     token_hash: Mapped[str] = mapped_column(String(64))
@@ -175,7 +185,11 @@ class UserToken(Base):
         Enum(UserTokenPurpose, name="user_token_purpose")
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            name="fk_user_tokens_user_id_users",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -186,23 +200,36 @@ class UserToken(Base):
 class Comment(Base):
     __tablename__ = "comments"
     __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_comments"),
         CheckConstraint(
-            "body IS NULL OR char_length(body) BETWEEN 1 AND 2000",
+            "status = 'DELETED' OR (body IS NOT NULL AND char_length(body) BETWEEN 1 AND 2000)",
             name="ck_comments_body_length",
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE"),
+        ForeignKey(
+            "documents.id",
+            name="fk_comments_document_id_documents",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     author_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey(
+            "users.id",
+            name="fk_comments_author_id_users",
+            ondelete="SET NULL",
+        ),
         index=True,
     )
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("comments.id", ondelete="SET NULL"),
+        ForeignKey(
+            "comments.id",
+            name="fk_comments_parent_id_comments",
+            ondelete="SET NULL",
+        ),
         index=True,
     )
     body: Mapped[str | None] = mapped_column(String(2000))
@@ -226,16 +253,25 @@ class Comment(Base):
 class CommentReport(Base):
     __tablename__ = "comment_reports"
     __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_comment_reports"),
         UniqueConstraint("comment_id", "reporter_id", name="uq_comment_reports_comment_reporter"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     comment_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("comments.id", ondelete="CASCADE"),
+        ForeignKey(
+            "comments.id",
+            name="fk_comment_reports_comment_id_comments",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     reporter_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            name="fk_comment_reports_reporter_id_users",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     reason: Mapped[str] = mapped_column(String(100))
@@ -252,10 +288,15 @@ class CommentReport(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = (PrimaryKeyConstraint("id", name="pk_notifications"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     recipient_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            name="fk_notifications_recipient_id_users",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     type: Mapped[NotificationType] = mapped_column(
@@ -263,15 +304,27 @@ class Notification(Base):
         index=True,
     )
     actor_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey(
+            "users.id",
+            name="fk_notifications_actor_id_users",
+            ondelete="SET NULL",
+        ),
         index=True,
     )
     comment_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("comments.id", ondelete="CASCADE"),
+        ForeignKey(
+            "comments.id",
+            name="fk_notifications_comment_id_comments",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     document_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE"),
+        ForeignKey(
+            "documents.id",
+            name="fk_notifications_document_id_documents",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -284,10 +337,15 @@ class Notification(Base):
 
 class EmailOutbox(Base):
     __tablename__ = "email_outbox"
+    __table_args__ = (PrimaryKeyConstraint("id", name="pk_email_outbox"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     token_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("user_tokens.id", ondelete="CASCADE"),
+        ForeignKey(
+            "user_tokens.id",
+            name="fk_email_outbox_token_id_user_tokens",
+            ondelete="CASCADE",
+        ),
         index=True,
     )
     template: Mapped[str] = mapped_column(String(100))

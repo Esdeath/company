@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
+from email_validator import EmailNotValidError, validate_email
 from pwdlib import PasswordHash
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,6 +13,42 @@ ALLOWED_CORS_ORIGINS = frozenset(
         "http://localhost:5173",
     }
 )
+
+
+def is_valid_host(value: str) -> bool:
+    if not value or any(character.isspace() for character in value):
+        return False
+
+    if value.endswith("."):
+        value = value[:-1]
+    if not value or len(value) > 253:
+        return False
+
+    labels = value.split(".")
+    return all(
+        0 < len(label) <= 63
+        and label[0].isalnum()
+        and label[-1].isalnum()
+        and all(character.isalnum() or character == "-" for character in label)
+        for label in labels
+    )
+
+
+def is_valid_https_base_url(value: str) -> bool:
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return False
+
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname is not None
+        and is_valid_host(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+        and (port is None or 1 <= port <= 65_535)
+    )
 
 
 class Settings(BaseSettings):
@@ -56,6 +94,11 @@ class Settings(BaseSettings):
             raise ValueError("CORS origins must use approved local development URLs")
         return value
 
+    @field_validator("smtp_host", "smtp_sender", "public_base_url")
+    @classmethod
+    def strip_community_connection_settings(cls, value: str) -> str:
+        return value.strip()
+
     @model_validator(mode="after")
     def validate_community_production_settings(self) -> "Settings":
         if self.app_environment != "production":
@@ -63,12 +106,17 @@ class Settings(BaseSettings):
 
         if self.email_backend != "smtp":
             raise ValueError("Production requires an SMTP email backend")
-        if self.user_token_signing_key.get_secret_value() == "local-development-only-signing-key":
+        signing_key = self.user_token_signing_key.get_secret_value()
+        if (
+            signing_key == "local-development-only-signing-key"
+            or not signing_key.strip()
+            or len(signing_key) < 32
+        ):
             raise ValueError("Production requires a non-local user token signing key")
         if self.user_registration_enabled:
             if not self.smtp_configured:
                 raise ValueError("Production registration requires SMTP host and sender")
-            if not self.public_base_url.startswith("https://"):
+            if not is_valid_https_base_url(self.public_base_url):
                 raise ValueError("Production registration requires an HTTPS public base URL")
 
         return self
@@ -91,4 +139,11 @@ class Settings(BaseSettings):
 
     @property
     def smtp_configured(self) -> bool:
-        return bool(self.smtp_host and self.smtp_sender)
+        if not is_valid_host(self.smtp_host):
+            return False
+
+        try:
+            validate_email(self.smtp_sender, check_deliverability=False)
+        except EmailNotValidError:
+            return False
+        return True

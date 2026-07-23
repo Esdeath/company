@@ -105,6 +105,72 @@ def test_production_rejects_the_local_user_token_signing_key() -> None:
         )
 
 
+@pytest.mark.parametrize("signing_key", ["", " " * 32, "x" * 31])
+def test_production_rejects_blank_or_short_user_token_signing_keys(signing_key: str) -> None:
+    with pytest.raises(ValidationError, match="signing key"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key=signing_key,
+        )
+
+
+def test_smtp_configured_strips_and_validates_host_and_sender() -> None:
+    configured = settings(
+        smtp_host=" smtp.example.com ",
+        smtp_sender=" sender@example.com ",
+    )
+
+    assert configured.smtp_host == "smtp.example.com"
+    assert configured.smtp_sender == "sender@example.com"
+    assert configured.smtp_configured is True
+
+
+@pytest.mark.parametrize(
+    ("smtp_host", "smtp_sender"),
+    [
+        (" ", "sender@example.com"),
+        ("smtp://example.com", "sender@example.com"),
+        ("smtp.example.com", "not-an-email"),
+    ],
+)
+def test_smtp_configured_rejects_invalid_host_or_sender(
+    smtp_host: str,
+    smtp_sender: str,
+) -> None:
+    configured = settings(smtp_host=smtp_host, smtp_sender=smtp_sender)
+
+    assert configured.smtp_configured is False
+
+
+@pytest.mark.parametrize("public_base_url", ["https://", "https://:443", "https://example.com:bad"])
+def test_production_registration_rejects_malformed_https_base_urls(public_base_url: str) -> None:
+    with pytest.raises(ValidationError, match="HTTPS"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=True,
+            smtp_host="smtp.example.com",
+            smtp_sender="sender@example.com",
+            public_base_url=public_base_url,
+        )
+
+
+def test_production_registration_accepts_validated_smtp_and_https_base_url() -> None:
+    configured = settings(
+        app_environment="production",
+        email_backend="smtp",
+        user_token_signing_key="x" * 32,
+        user_registration_enabled=True,
+        smtp_host="smtp.example.com",
+        smtp_sender="sender@example.com",
+        public_base_url="https://research.example.com",
+    )
+
+    assert configured.smtp_configured is True
+
+
 def test_test_environment_allows_file_email_backend() -> None:
     configured = settings(app_environment="test", email_backend="file")
 

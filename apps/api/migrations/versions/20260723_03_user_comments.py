@@ -88,7 +88,12 @@ def upgrade() -> None:
         sa.Column("csrf_token", sa.String(length=128), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name="fk_user_sessions_user_id_users",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("token_hash", name="pk_user_sessions"),
     )
     op.create_index("ix_user_sessions_user_id", "user_sessions", ["user_id"], unique=False)
@@ -115,7 +120,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name="fk_user_tokens_user_id_users",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_user_tokens"),
         sa.UniqueConstraint("token_hash", name="uq_user_tokens_token_hash"),
     )
@@ -136,12 +146,27 @@ def upgrade() -> None:
         sa.Column("moderation_reason", sa.String(length=500), nullable=True),
         sa.Column("moderated_by", sa.String(length=100), nullable=True),
         sa.CheckConstraint(
-            "body IS NULL OR char_length(body) BETWEEN 1 AND 2000",
+            "status = 'DELETED' OR (body IS NOT NULL AND char_length(body) BETWEEN 1 AND 2000)",
             name="ck_comments_body_length",
         ),
-        sa.ForeignKeyConstraint(["author_id"], ["users.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["parent_id"], ["comments.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["author_id"],
+            ["users.id"],
+            name="fk_comments_author_id_users",
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["document_id"],
+            ["documents.id"],
+            name="fk_comments_document_id_documents",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_id"],
+            ["comments.id"],
+            name="fk_comments_parent_id_comments",
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_comments"),
     )
     op.create_index("ix_comments_document_id", "comments", ["document_id"], unique=False)
@@ -160,8 +185,18 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("resolved_by", sa.String(length=100), nullable=True),
-        sa.ForeignKeyConstraint(["comment_id"], ["comments.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["reporter_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["comment_id"],
+            ["comments.id"],
+            name="fk_comment_reports_comment_id_comments",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["reporter_id"],
+            ["users.id"],
+            name="fk_comment_reports_reporter_id_users",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_comment_reports"),
         sa.UniqueConstraint(
             "comment_id", "reporter_id", name="uq_comment_reports_comment_reporter"
@@ -184,10 +219,30 @@ def upgrade() -> None:
         sa.Column("document_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["actor_id"], ["users.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["comment_id"], ["comments.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["recipient_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["actor_id"],
+            ["users.id"],
+            name="fk_notifications_actor_id_users",
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["comment_id"],
+            ["comments.id"],
+            name="fk_notifications_comment_id_comments",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["document_id"],
+            ["documents.id"],
+            name="fk_notifications_document_id_documents",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["recipient_id"],
+            ["users.id"],
+            name="fk_notifications_recipient_id_users",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_notifications"),
     )
     op.create_index(
@@ -211,7 +266,12 @@ def upgrade() -> None:
         sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sent_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error", sa.String(length=100), nullable=True),
-        sa.ForeignKeyConstraint(["token_id"], ["user_tokens.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["token_id"],
+            ["user_tokens.id"],
+            name="fk_email_outbox_token_id_user_tokens",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_email_outbox"),
     )
     op.create_index("ix_email_outbox_token_id", "email_outbox", ["token_id"], unique=False)

@@ -68,6 +68,34 @@ def test_community_foreign_keys_preserve_lifecycle_rules() -> None:
     }
     assert foreign_keys["email_outbox"] == {"token_id": ("user_tokens.id", "CASCADE")}
 
+    assert {
+        foreign_key.constraint.name
+        for table in Base.metadata.tables.values()
+        for foreign_key in table.foreign_keys
+        if table.name
+        in {
+            "user_sessions",
+            "user_tokens",
+            "comments",
+            "comment_reports",
+            "notifications",
+            "email_outbox",
+        }
+    } == {
+        "fk_comment_reports_comment_id_comments",
+        "fk_comment_reports_reporter_id_users",
+        "fk_comments_author_id_users",
+        "fk_comments_document_id_documents",
+        "fk_comments_parent_id_comments",
+        "fk_email_outbox_token_id_user_tokens",
+        "fk_notifications_actor_id_users",
+        "fk_notifications_comment_id_comments",
+        "fk_notifications_document_id_documents",
+        "fk_notifications_recipient_id_users",
+        "fk_user_sessions_user_id_users",
+        "fk_user_tokens_user_id_users",
+    }
+
 
 def test_community_constraints_protect_normalized_identity_and_comments() -> None:
     users = Base.metadata.tables["users"]
@@ -82,7 +110,46 @@ def test_community_constraints_protect_normalized_identity_and_comments() -> Non
         constraint.name == "uq_comment_reports_comment_reporter"
         for constraint in reports.constraints
     )
-    assert any(constraint.name == "ck_comments_body_length" for constraint in comments.constraints)
+    body_length_constraint = next(
+        constraint
+        for constraint in comments.constraints
+        if constraint.name == "ck_comments_body_length"
+    )
+    assert comments.c.body.nullable is True
+    assert str(body_length_constraint.sqltext) == (
+        "status = 'DELETED' OR (body IS NOT NULL AND char_length(body) BETWEEN 1 AND 2000)"
+    )
+
+
+def test_new_tables_use_stable_primary_key_constraint_names() -> None:
+    primary_key_names = {
+        table_name: table.primary_key.name
+        for table_name, table in Base.metadata.tables.items()
+        if table_name
+        in {
+            "users",
+            "user_sessions",
+            "user_auth_challenges",
+            "user_tokens",
+            "comments",
+            "comment_reports",
+            "notifications",
+            "email_outbox",
+            "rate_limit_buckets",
+        }
+    }
+
+    assert primary_key_names == {
+        "users": "pk_users",
+        "user_sessions": "pk_user_sessions",
+        "user_auth_challenges": "pk_user_auth_challenges",
+        "user_tokens": "pk_user_tokens",
+        "comments": "pk_comments",
+        "comment_reports": "pk_comment_reports",
+        "notifications": "pk_notifications",
+        "email_outbox": "pk_email_outbox",
+        "rate_limit_buckets": "pk_rate_limit_buckets",
+    }
 
 
 def test_rate_limit_bucket_uses_a_composite_primary_key() -> None:
