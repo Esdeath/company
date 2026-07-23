@@ -145,6 +145,18 @@ describe('公开资料阅读工作台', () => {
     expect(brand.text()).toContain('企业研究资料库')
   })
 
+  it('opens the ICP filing page from the footer in a new tab', async () => {
+    const wrapper = await mountWorkspace()
+    const filingLink = wrapper.get('footer.footer a.footer__icp')
+
+    expect(filingLink.text()).toBe('浙ICP备17053536号-2')
+    expect(filingLink.attributes()).toMatchObject({
+      href: 'https://beian.miit.gov.cn/',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+  })
+
   it('clears old documents while changing company and selects the new first document', async () => {
     const nextDocuments = deferred<DocumentItem[]>()
     vi.mocked(library.listDocuments)
