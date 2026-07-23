@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import LibraryDirectory from '../app/components/LibraryDirectory.vue'
 import type { Company, DocumentItem } from '../app/types/content'
@@ -93,22 +95,39 @@ describe('LibraryDirectory', () => {
     expect(wrapper.text()).toContain('贵州茅台财报')
   })
 
-  it('keeps an unbroken company name inside the wrapping company copy element', () => {
-    stubMediaQuery(true)
-    const longName = 'AnExtraordinarilyLongCompanyNameWithoutBreaks'
-    const wrapper = mount(LibraryDirectory, {
-      props: {
-        companies: [{ ...companies[0], name: longName }],
-        documents: [],
-        selectedCompanyId: 'company-1',
-        selectedDocumentId: null,
-        companiesLoading: false,
-        documentsLoading: false,
-      },
-    })
-    mountedWrappers.push(wrapper)
+  it('renders document entries as title-only buttons', () => {
+    const wrapper = mountDirectory(true)
+    const entry = wrapper.get('[data-document-id="document-1"]')
 
-    expect(wrapper.get('.company-entry__copy strong').text()).toBe(longName)
+    expect(entry.text()).toBe('贵州茅台财报')
+    expect(entry.find('.document-entry__meta').exists()).toBe(false)
+    expect(entry.find('time').exists()).toBe(false)
+  })
+
+  it('keeps document titles on one truncated line', () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), 'app/assets/css/main.css'), 'utf8')
+    const titleRule = stylesheet.match(/\.document-entry__title\s*\{([^}]*)\}/)?.[1]
+
+    expect(titleRule).toContain('white-space: nowrap')
+    expect(titleRule).toContain('overflow: hidden')
+    expect(titleRule).toContain('text-overflow: ellipsis')
+  })
+
+  it('formats company labels as name(ticker) and exposes a single-line truncation target', () => {
+    const wrapper = mountDirectory(true)
+    const labels = wrapper.findAll('.company-entry__label')
+
+    expect(labels.map((label) => label.text())).toEqual(['泡泡玛特(09992)', '贵州茅台(600519)'])
+    expect(wrapper.find('.company-entry small').exists()).toBe(false)
+  })
+
+  it('keeps company labels on one truncated line', () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), 'app/assets/css/main.css'), 'utf8')
+    const labelRule = stylesheet.match(/\.company-entry__label\s*\{([^}]*)\}/)?.[1]
+
+    expect(labelRule).toContain('white-space: nowrap')
+    expect(labelRule).toContain('overflow: hidden')
+    expect(labelRule).toContain('text-overflow: ellipsis')
   })
 
   it('keeps the mobile drawer open after selecting a company', async () => {

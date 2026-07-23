@@ -37,17 +37,6 @@ const triggerLabel = computed(() =>
   [selectedCompany.value?.name, selectedDocument.value?.title].filter(Boolean).join(' · ') || '浏览目录',
 )
 
-const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
-
-function formattedDate(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.valueOf()) ? value : dateFormatter.format(date)
-}
-
 function acquireBodyLock() {
   if (typeof document === 'undefined' || ownsBodyLock) return
   previousBodyOverflow = document.body.style.overflow
@@ -196,9 +185,9 @@ onBeforeUnmount(() => {
               <span class="company-entry__toggle" aria-hidden="true">
                 {{ company.id === selectedCompanyId ? '⌄' : '›' }}
               </span>
-              <span class="company-entry__copy"><strong>{{ company.name }}</strong><small>
-                {{ [company.ticker, company.market].filter(Boolean).join(' · ') || '公司研究' }}
-              </small></span>
+              <span class="company-entry__copy"><strong class="company-entry__label">
+                {{ company.name }}{{ company.ticker ? `(${company.ticker})` : '' }}
+              </strong></span>
             </button>
             <div v-if="company.id === selectedCompanyId" class="document-branch">
               <p v-if="documentsLoading" class="directory-note">资料目录读取中…</p>
@@ -214,9 +203,6 @@ onBeforeUnmount(() => {
                     @click="selectDocument(document.id)"
                   >
                     <span class="document-entry__title">{{ document.title }}</span>
-                    <span class="document-entry__meta"><span class="format-badge">
-                      {{ document.format === 'markdown' ? 'MD' : 'HTML' }}
-                    </span><time :datetime="document.uploaded_at">{{ formattedDate(document.uploaded_at) }}</time></span>
                   </button>
                 </li>
               </ul>

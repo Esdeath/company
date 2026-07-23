@@ -101,8 +101,7 @@ a {
 .masthead > p,
 .footer,
 .directory-heading p,
-.company-entry small,
-.document-entry__meta {
+.company-entry small {
   color: var(--muted);
   font-family: var(--font-utility);
   font-size: 0.64rem;
@@ -291,18 +290,24 @@ h2 {
   gap: 0.35rem;
 }
 
-.company-entry__copy strong {
+.company-entry__label {
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 0.98rem;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-entry__title {
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 0.98rem;
   font-weight: 700;
   line-height: 1.4;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .company-entry small {
@@ -315,28 +320,8 @@ h2 {
   border-left: 1px solid #9eb0a6;
 }
 
-.document-entry {
-  gap: 0.65rem;
-}
-
 .document-branch .document-entry {
   padding-block: 0.85rem;
-}
-
-.document-entry__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem 0.7rem;
-}
-
-.format-badge {
-  padding: 0.12rem 0.28rem;
-  border: 1px solid #9eb0a6;
-  border-radius: 0.12rem;
-  color: var(--green);
-  font-size: 0.56rem;
-  font-weight: 800;
 }
 
 .directory-note {
