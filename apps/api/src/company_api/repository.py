@@ -12,6 +12,10 @@ from company_api.models import Company, Document, DocumentFormat
 from company_api.schemas import CompanyCreate
 
 
+class InvalidDocumentOrder(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class CompanyRecord:
     id: UUID
@@ -50,6 +54,12 @@ class LibraryRepository(Protocol):
     async def insert_document(self, record: NewDocumentRecord) -> DocumentRecord: ...
 
     async def list_documents(self, company_id: UUID) -> list[DocumentRecord]: ...
+
+    async def reorder_documents(
+        self,
+        company_id: UUID,
+        document_ids: list[UUID],
+    ) -> list[DocumentRecord] | None: ...
 
     async def get_document(self, document_id: UUID) -> DocumentRecord | None: ...
 
@@ -130,10 +140,39 @@ class SqlAlchemyLibraryRepository:
             statement = (
                 select(Document)
                 .where(Document.company_id == company_id)
-                .order_by(Document.uploaded_at.desc(), Document.id.desc())
+                .order_by(Document.sort_order.asc(), Document.id.asc())
             )
             documents = (await session.scalars(statement)).all()
             return [_document_record(document) for document in documents]
+
+    async def reorder_documents(
+        self,
+        company_id: UUID,
+        document_ids: list[UUID],
+    ) -> list[DocumentRecord] | None:
+        async with self._session_factory() as session:
+            locked_company_id = await session.scalar(
+                select(Company.id).where(Company.id == company_id).with_for_update()
+            )
+            if locked_company_id is None:
+                return None
+
+            statement = select(Document).where(Document.company_id == company_id)
+            documents = (await session.scalars(statement)).all()
+            by_id = {document.id: document for document in documents}
+            if len(document_ids) != len(set(document_ids)) or set(document_ids) != set(by_id):
+                raise InvalidDocumentOrder
+
+            ordered: list[Document] = []
+            for sort_order, document_id in enumerate(document_ids):
+                document = by_id[document_id]
+                document.sort_order = sort_order
+                ordered.append(document)
+
+            await session.flush()
+            records = [_document_record(document) for document in ordered]
+            await session.commit()
+            return records
 
     async def get_document(self, document_id: UUID) -> DocumentRecord | None:
         async with self._session_factory() as session:

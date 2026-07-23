@@ -11,12 +11,14 @@ from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
     DocumentNotFound,
+    DocumentOrderMismatch,
     LibraryOperations,
     UploadInput,
 )
 from company_api.schemas import (
     CompanyCreate,
     CompanyRead,
+    DocumentOrder,
     DocumentRead,
     DocumentRename,
     UploadBatchResponse,
@@ -89,6 +91,27 @@ async def upload_documents(
         return await service.upload_documents(company_id, uploads)
     except CompanyNotFound as error:
         raise HTTPException(status_code=404, detail="公司不存在") from error
+
+
+@router.put(
+    "/companies/{company_id}/documents/order",
+    response_model=list[DocumentRead],
+)
+async def reorder_documents(
+    company_id: UUID,
+    data: DocumentOrder,
+    service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
+) -> list[DocumentRead]:
+    try:
+        return await service.reorder_documents(company_id, data.document_ids)
+    except CompanyNotFound as error:
+        raise HTTPException(status_code=404, detail="公司不存在") from error
+    except DocumentOrderMismatch as error:
+        raise HTTPException(
+            status_code=422,
+            detail="资料顺序与当前目录不一致",
+        ) from error
 
 
 @router.patch("/documents/{document_id}", response_model=DocumentRead)

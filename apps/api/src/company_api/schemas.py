@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from company_api.models import DocumentFormat
 
@@ -36,11 +36,23 @@ class DocumentRead(ContentLinked):
     title: str
     format: DocumentFormat
     original_filename: str
+    sort_order: int
     uploaded_at: datetime
 
 
 class DocumentRename(BaseModel):
     title: str = Field(min_length=1, max_length=500)
+
+
+class DocumentOrder(BaseModel):
+    document_ids: list[UUID]
+
+    @field_validator("document_ids")
+    @classmethod
+    def unique_ids(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("资料顺序不能包含重复项")
+        return value
 
 
 class UploadItem(ContentLinked):

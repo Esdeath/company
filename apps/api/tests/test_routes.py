@@ -6,7 +6,13 @@ from fastapi.testclient import TestClient
 
 from company_api.auth import NewSession, SessionRecord, token_hash
 from company_api.config import Settings
-from company_api.library_service import CompanyNotEmpty, DocumentNotFound, UploadInput
+from company_api.library_service import (
+    CompanyNotEmpty,
+    CompanyNotFound,
+    DocumentNotFound,
+    DocumentOrderMismatch,
+    UploadInput,
+)
 from company_api.main import create_app
 from company_api.models import DocumentFormat
 from company_api.schemas import (
@@ -19,6 +25,7 @@ from company_api.schemas import (
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
+SECOND_DOCUMENT_ID = uuid.UUID("a0252f1b-fc6e-4d31-8d8e-eb2e65cbe444")
 NOW = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
 ADMIN_HASH = (
     "$argon2id$v=19$m=65536,t=3,p=4$"
@@ -72,6 +79,7 @@ class FakeService:
         self.uploads: list[UploadInput] = []
         self.deleted_company: uuid.UUID | None = None
         self.deleted_document: uuid.UUID | None = None
+        self.document_order: list[uuid.UUID] | None = None
 
     async def list_companies(self) -> list[CompanyRead]:
         return [company_read()]
@@ -104,6 +112,18 @@ class FakeService:
             errors=[],
         )
 
+    async def reorder_documents(
+        self,
+        company_id: uuid.UUID,
+        document_ids: list[uuid.UUID],
+    ) -> list[DocumentRead]:
+        assert company_id == COMPANY_ID
+        self.document_order = document_ids
+        return [
+            document_read(document_id=document_id, sort_order=sort_order)
+            for sort_order, document_id in enumerate(document_ids)
+        ]
+
     async def rename_document(self, document_id: uuid.UUID, title: str) -> DocumentRead:
         assert document_id == DOCUMENT_ID
         return document_read(title=title)
@@ -128,6 +148,26 @@ class MissingDocumentService(FakeService):
         raise DocumentNotFound
 
 
+class MissingCompanyService(FakeService):
+    async def reorder_documents(
+        self,
+        company_id: uuid.UUID,
+        document_ids: list[uuid.UUID],
+    ) -> list[DocumentRead]:
+        del company_id, document_ids
+        raise CompanyNotFound
+
+
+class MismatchedOrderService(FakeService):
+    async def reorder_documents(
+        self,
+        company_id: uuid.UUID,
+        document_ids: list[uuid.UUID],
+    ) -> list[DocumentRead]:
+        del company_id, document_ids
+        raise DocumentOrderMismatch
+
+
 def company_read(
     *,
     name: str = "Acme",
@@ -148,6 +188,7 @@ def document_read(
     document_id: uuid.UUID = DOCUMENT_ID,
     title: str = "Talk",
     document_format: DocumentFormat = DocumentFormat.MARKDOWN,
+    sort_order: int = 0,
 ) -> DocumentRead:
     return DocumentRead(
         id=document_id,
@@ -155,6 +196,7 @@ def document_read(
         title=title,
         format=document_format,
         original_filename="talk.md",
+        sort_order=sort_order,
         uploaded_at=NOW,
     )
 
@@ -264,6 +306,68 @@ def test_document_rename_and_delete_routes(tmp_path: Path) -> None:
     assert renamed.json()["content_url"] == f"/api/v1/documents/{DOCUMENT_ID}/content"
     assert deleted.status_code == 204
     assert service.deleted_document == DOCUMENT_ID
+
+
+def test_document_order_route_replaces_complete_order(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    requested = [SECOND_DOCUMENT_ID, DOCUMENT_ID]
+    with client_for(service, tmp_path) as client:
+        response = client.put(
+            f"/api/v1/companies/{COMPANY_ID}/documents/order",
+            json={"document_ids": [str(document_id) for document_id in requested]},
+            headers=csrf_headers(),
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(item) for item in requested]
+    assert [item["sort_order"] for item in response.json()] == [0, 1]
+    assert service.document_order == requested
+
+
+def test_document_order_route_rejects_duplicate_ids(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    with client_for(service, tmp_path) as client:
+        response = client.put(
+            f"/api/v1/companies/{COMPANY_ID}/documents/order",
+            json={"document_ids": [str(DOCUMENT_ID), str(DOCUMENT_ID)]},
+            headers=csrf_headers(),
+        )
+
+    assert response.status_code == 422
+    assert service.document_order is None
+
+
+def test_document_order_route_maps_company_and_set_errors(tmp_path: Path) -> None:
+    with client_for(MissingCompanyService(tmp_path), tmp_path) as client:
+        missing = client.put(
+            f"/api/v1/companies/{COMPANY_ID}/documents/order",
+            json={"document_ids": []},
+            headers=csrf_headers(),
+        )
+    with client_for(MismatchedOrderService(tmp_path), tmp_path) as client:
+        mismatched = client.put(
+            f"/api/v1/companies/{COMPANY_ID}/documents/order",
+            json={"document_ids": [str(DOCUMENT_ID)]},
+            headers=csrf_headers(),
+        )
+
+    assert missing.status_code == 404
+    assert missing.json() == {"detail": "公司不存在"}
+    assert mismatched.status_code == 422
+    assert mismatched.json() == {"detail": "资料顺序与当前目录不一致"}
+
+
+def test_document_order_route_requires_session_and_csrf(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    path = f"/api/v1/companies/{COMPANY_ID}/documents/order"
+    with client_for(service, tmp_path) as client:
+        client.cookies.clear()
+        unauthenticated = client.put(path, json={"document_ids": []})
+        client.cookies.set("company-admin-session", "valid-session")
+        missing_csrf = client.put(path, json={"document_ids": []})
+
+    assert unauthenticated.status_code == 401
+    assert missing_csrf.status_code == 403
 
 
 def test_content_route_returns_html_with_safe_headers(tmp_path: Path) -> None:
