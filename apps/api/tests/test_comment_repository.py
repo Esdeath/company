@@ -133,13 +133,14 @@ def stored_comment(
     comment_id: UUID,
     *,
     document_id: UUID = DOCUMENT_ID,
+    author_id: UUID = RECIPIENT_ID,
     parent_id: UUID | None = None,
     status: CommentStatus = CommentStatus.PUBLISHED,
 ) -> Comment:
     return Comment(
         id=comment_id,
         document_id=document_id,
-        author_id=RECIPIENT_ID,
+        author_id=author_id,
         parent_id=parent_id,
         body="existing",
         status=status,
@@ -185,6 +186,10 @@ def test_published_reply_notification_and_email_share_comment_commit() -> None:
     saved = run(repository.create_comment(record(), reply_target=parent()))
 
     assert saved.id == COMMENT_ID
+    created = session.added[0]
+    assert isinstance(created, Comment)
+    assert created.parent_id == PARENT_ID
+    assert created.reply_to_id == PARENT_ID
     assert [type(item) for item in session.added] == [Comment, Notification, EmailOutbox]
     outbox = session.added[-1]
     assert isinstance(outbox, EmailOutbox)
@@ -236,10 +241,11 @@ def test_create_relocks_direct_parent_and_rejects_change_after_precheck(
 
 
 def test_reply_to_reply_locks_and_validates_direct_target_then_root() -> None:
+    root_author_id = UUID(int=888)
     session = FakeSession()
     session.locked_comments = {
         PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
-        ROOT_ID: stored_comment(ROOT_ID),
+        ROOT_ID: stored_comment(ROOT_ID, author_id=root_author_id),
     }
     repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
     nested_record = record()
@@ -274,6 +280,45 @@ def test_reply_to_reply_locks_and_validates_direct_target_then_root() -> None:
         ROOT_ID,
     ]
     assert saved.parent_id == ROOT_ID
+    created = session.added[0]
+    assert isinstance(created, Comment)
+    assert created.reply_to_id == PARENT_ID
+    notification = next(item for item in session.added if isinstance(item, Notification))
+    assert notification.recipient_id == RECIPIENT_ID
+    assert notification.recipient_id != root_author_id
+
+
+def test_pending_nested_reply_persists_direct_target_without_publication_side_effects() -> None:
+    session = FakeSession()
+    session.locked_comments = {
+        PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
+        ROOT_ID: stored_comment(ROOT_ID, author_id=UUID(int=888)),
+    }
+    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    nested = record(status=CommentStatus.PENDING)
+    nested = NewCommentRecord(
+        id=nested.id,
+        document_id=nested.document_id,
+        author_id=nested.author_id,
+        author_username=nested.author_username,
+        parent_id=ROOT_ID,
+        body=nested.body,
+        status=nested.status,
+        created_at=nested.created_at,
+    )
+
+    run(
+        repository.create_comment(
+            nested,
+            reply_target=parent_record(PARENT_ID, parent_id=ROOT_ID),
+        )
+    )
+
+    assert [type(item) for item in session.added] == [Comment]
+    created = session.added[0]
+    assert isinstance(created, Comment)
+    assert created.parent_id == ROOT_ID
+    assert created.reply_to_id == PARENT_ID
 
 
 @pytest.mark.parametrize("changed_id", [PARENT_ID, ROOT_ID])

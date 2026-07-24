@@ -9,13 +9,13 @@ from sqlalchemy import Select, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from company_api.comment_notifications import add_reply_publication_side_effects
 from company_api.comment_repository import CommentCursor
 from company_api.models import (
     Comment,
     CommentReport,
     CommentStatus,
     Document,
-    EmailOutbox,
     Notification,
     NotificationType,
     ReportStatus,
@@ -170,7 +170,21 @@ class SqlAlchemyModerationRepository:
                         created_at=now,
                     )
                 )
-            await _add_reply_notification(session, comment, now=now)
+            reply_target = (
+                await session.get(Comment, comment.reply_to_id)
+                if comment.reply_to_id is not None
+                else None
+            )
+            if author is not None:
+                await add_reply_publication_side_effects(
+                    session,
+                    comment_id=comment.id,
+                    document_id=comment.document_id,
+                    actor_id=author.id,
+                    actor_username=author.username,
+                    reply_target=reply_target,
+                    created_at=now,
+                )
             await session.flush()
             saved = await _comment_from_session(session, comment)
             await session.commit()
@@ -412,51 +426,6 @@ async def _remove_locked_comment(
         report.status = ReportStatus.REMOVED
         report.resolved_at = now
         report.resolved_by = administrator
-
-
-async def _add_reply_notification(
-    session: AsyncSession, comment: Comment, *, now: datetime
-) -> None:
-    if comment.parent_id is None or comment.author_id is None:
-        return
-    parent = await session.get(Comment, comment.parent_id)
-    if parent is None or parent.author_id is None or parent.author_id == comment.author_id:
-        return
-    recipient = await session.get(User, parent.author_id)
-    if recipient is None:
-        return
-    session.add(
-        Notification(
-            recipient_id=recipient.id,
-            type=NotificationType.REPLY,
-            actor_id=comment.author_id,
-            comment_id=comment.id,
-            document_id=comment.document_id,
-            created_at=now,
-        )
-    )
-    if not recipient.reply_email_enabled:
-        return
-    author_username = await session.scalar(
-        select(User.username).where(User.id == comment.author_id)
-    )
-    document = await session.get(Document, comment.document_id)
-    payload: dict[str, object] = {
-        "username": recipient.username,
-        "actor_username": author_username or "一位读者",
-        "document_id": str(comment.document_id),
-        "comment_id": str(comment.id),
-    }
-    if document is not None:
-        payload["company_id"] = str(document.company_id)
-    session.add(
-        EmailOutbox(
-            template="comment_reply",
-            recipient=recipient.email,
-            payload=payload,
-            available_at=now,
-        )
-    )
 
 
 async def _comment_from_session(session: AsyncSession, comment: Comment) -> ModerationCommentRecord:

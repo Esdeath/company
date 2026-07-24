@@ -55,6 +55,7 @@ def test_community_foreign_keys_preserve_lifecycle_rules() -> None:
         "author_id": ("users.id", "SET NULL"),
         "document_id": ("documents.id", "CASCADE"),
         "parent_id": ("comments.id", "SET NULL"),
+        "reply_to_id": ("comments.id", "SET NULL"),
     }
     assert foreign_keys["comment_reports"] == {
         "comment_id": ("comments.id", "CASCADE"),
@@ -87,6 +88,7 @@ def test_community_foreign_keys_preserve_lifecycle_rules() -> None:
         "fk_comments_author_id_users",
         "fk_comments_document_id_documents",
         "fk_comments_parent_id_comments",
+        "fk_comments_reply_to_id_comments",
         "fk_email_outbox_token_id_user_tokens",
         "fk_notifications_actor_id_users",
         "fk_notifications_comment_id_comments",
@@ -119,6 +121,7 @@ def test_community_constraints_protect_normalized_identity_and_comments() -> Non
     assert str(body_length_constraint.sqltext) == (
         "status = 'DELETED' OR (body IS NOT NULL AND char_length(body) BETWEEN 1 AND 2000)"
     )
+    assert "ix_comments_reply_to_id" in {index.name for index in comments.indexes}
 
 
 def test_new_tables_use_stable_primary_key_constraint_names() -> None:

@@ -487,16 +487,30 @@ def test_reject_requires_pending_state_records_reason_and_notifies_once() -> Non
 
 def test_pending_reply_notification_is_created_only_when_approval_publishes() -> None:
     reply = stored_comment()
-    parent_id = UUID(int=333)
+    root_id = UUID(int=332)
+    direct_reply_id = UUID(int=333)
     recipient_id = UUID(int=334)
-    reply.parent_id = parent_id
+    root_author_id = UUID(int=336)
+    reply.parent_id = root_id
+    reply.reply_to_id = direct_reply_id
     session = TransitionSession(reply, user())
     session.parent = Comment(
-        id=parent_id,
+        id=direct_reply_id,
         document_id=DOCUMENT_ID,
         author_id=recipient_id,
+        parent_id=root_id,
+        reply_to_id=root_id,
+        body="direct reply",
+        status=CommentStatus.PUBLISHED,
+        created_at=NOW,
+    )
+    session.root = Comment(
+        id=root_id,
+        document_id=DOCUMENT_ID,
+        author_id=root_author_id,
         parent_id=None,
-        body="parent",
+        reply_to_id=None,
+        body="root",
         status=CommentStatus.PUBLISHED,
         created_at=NOW,
     )
@@ -534,7 +548,12 @@ def test_pending_reply_notification_is_created_only_when_approval_publishes() ->
         NotificationType.COMMENT_APPROVED,
         NotificationType.REPLY,
     ]
-    assert len([item for item in session.added if isinstance(item, EmailOutbox)]) == 1
+    reply_notification = notifications[1]
+    assert reply_notification.recipient_id == recipient_id
+    assert reply_notification.recipient_id != root_author_id
+    outboxes = [item for item in session.added if isinstance(item, EmailOutbox)]
+    assert len(outboxes) == 1
+    assert outboxes[0].recipient == "recipient@example.com"
 
 
 def test_remove_soft_deletes_comment_and_resolves_all_open_reports() -> None:

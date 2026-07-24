@@ -137,6 +137,7 @@ def upgrade() -> None:
         sa.Column("document_id", sa.UUID(), nullable=False),
         sa.Column("author_id", sa.UUID(), nullable=True),
         sa.Column("parent_id", sa.UUID(), nullable=True),
+        sa.Column("reply_to_id", sa.UUID(), nullable=True),
         sa.Column("body", sa.String(length=2000), nullable=True),
         sa.Column("status", comment_status, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -167,11 +168,18 @@ def upgrade() -> None:
             name="fk_comments_parent_id_comments",
             ondelete="SET NULL",
         ),
+        sa.ForeignKeyConstraint(
+            ["reply_to_id"],
+            ["comments.id"],
+            name="fk_comments_reply_to_id_comments",
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_comments"),
     )
     op.create_index("ix_comments_document_id", "comments", ["document_id"], unique=False)
     op.create_index("ix_comments_author_id", "comments", ["author_id"], unique=False)
     op.create_index("ix_comments_parent_id", "comments", ["parent_id"], unique=False)
+    op.create_index("ix_comments_reply_to_id", "comments", ["reply_to_id"], unique=False)
     op.create_index("ix_comments_status", "comments", ["status"], unique=False)
     op.create_index("ix_comments_created_at", "comments", ["created_at"], unique=False)
     op.create_table(
@@ -321,6 +329,7 @@ def downgrade() -> None:
     op.drop_table("comment_reports")
     op.drop_index("ix_comments_created_at", table_name="comments")
     op.drop_index("ix_comments_status", table_name="comments")
+    op.drop_index("ix_comments_reply_to_id", table_name="comments")
     op.drop_index("ix_comments_parent_id", table_name="comments")
     op.drop_index("ix_comments_author_id", table_name="comments")
     op.drop_index("ix_comments_document_id", table_name="comments")

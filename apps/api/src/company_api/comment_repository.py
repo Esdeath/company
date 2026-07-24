@@ -10,14 +10,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from company_api.comment_notifications import add_reply_publication_side_effects
 from company_api.models import (
     Comment,
     CommentReport,
     CommentStatus,
     Document,
-    EmailOutbox,
-    Notification,
-    NotificationType,
     ReportStatus,
     User,
 )
@@ -154,47 +152,22 @@ class SqlAlchemyCommentRepository:
                 document_id=record.document_id,
                 author_id=record.author_id,
                 parent_id=locked_root.id if locked_root is not None else None,
+                reply_to_id=locked_target.id if locked_target is not None else None,
                 body=record.body,
                 status=record.status,
                 created_at=record.created_at,
             )
             session.add(comment)
-            if (
-                record.status == CommentStatus.PUBLISHED
-                and locked_target is not None
-                and locked_target.author_id is not None
-                and locked_target.author_id != record.author_id
-            ):
-                recipient = await session.get(User, locked_target.author_id)
-                if recipient is not None:
-                    session.add(
-                        Notification(
-                            recipient_id=recipient.id,
-                            type=NotificationType.REPLY,
-                            actor_id=record.author_id,
-                            comment_id=record.id,
-                            document_id=record.document_id,
-                            created_at=record.created_at,
-                        )
-                    )
-                    if recipient.reply_email_enabled:
-                        document = await session.get(Document, record.document_id)
-                        payload: dict[str, object] = {
-                            "username": recipient.username,
-                            "actor_username": record.author_username,
-                            "document_id": str(record.document_id),
-                            "comment_id": str(record.id),
-                        }
-                        if document is not None:
-                            payload["company_id"] = str(document.company_id)
-                        session.add(
-                            EmailOutbox(
-                                template="comment_reply",
-                                recipient=recipient.email,
-                                payload=payload,
-                                available_at=record.created_at,
-                            )
-                        )
+            if record.status == CommentStatus.PUBLISHED:
+                await add_reply_publication_side_effects(
+                    session,
+                    comment_id=record.id,
+                    document_id=record.document_id,
+                    actor_id=record.author_id,
+                    actor_username=record.author_username,
+                    reply_target=locked_target,
+                    created_at=record.created_at,
+                )
             await session.flush()
             saved = _comment_record(comment, record.author_username)
             await session.commit()

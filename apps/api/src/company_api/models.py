@@ -232,6 +232,14 @@ class Comment(Base):
         ),
         index=True,
     )
+    reply_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "comments.id",
+            name="fk_comments_reply_to_id_comments",
+            ondelete="SET NULL",
+        ),
+        index=True,
+    )
     body: Mapped[str | None] = mapped_column(String(2000))
     status: Mapped[CommentStatus] = mapped_column(
         Enum(CommentStatus, name="comment_status"),
