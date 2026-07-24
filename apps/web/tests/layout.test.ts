@@ -19,12 +19,15 @@ function rule(selector: string): string {
 }
 
 describe('公开资料阅读工作台布局', () => {
-  it('lets the outer page scroll and keeps a stable reader viewport', () => {
-    expect(rule('.site-shell')).toContain('min-height: 100svh')
-    expect(rule('.site-shell')).not.toMatch(/(?:^|\n)\s*height:\s*100svh/)
-    expect(rule('.document-reader')).toContain('height: clamp(32rem, 72svh, 58rem)')
+  it('fills the viewport row and keeps comments after the reader', () => {
+    expect(rule('.site-shell')).toContain('height: 100svh')
+    expect(rule('.library-main')).toContain('min-height: 0')
+    expect(rule('.library-main')).toContain('padding-block: 0')
+    expect(rule('.library-workspace')).toContain('height: 100%')
+    expect(rule('.document-reader')).toContain('height: 100%')
     expect(rule('.document-reader')).toContain('overflow: hidden')
     expect(rule('.document-frame')).toContain('height: 100%')
+    expect(app).toMatch(/class="reading-column"[\s\S]*<DocumentReader[\s\S]*<CommentSection/)
   })
 
   it('places an unframed comment band after the reader in the reading column', () => {
@@ -36,7 +39,7 @@ describe('公开资料阅读工作台布局', () => {
     expect(rule('html,\nbody')).toContain('overflow-x: hidden')
     expect(rule('.library-workspace')).toContain('min-width: 0')
     expect(rule('.reading-column')).toContain('min-width: 0')
-    expect(rule('.library-directory')).toContain('max-height: calc(100svh - 3rem)')
+    expect(rule('.library-directory')).toContain('max-height: 100%')
     expect(css).not.toMatch(/font-size:\s*[^;]*(vw|svw)/)
     const letterSpacingValues = [...css.matchAll(/letter-spacing:\s*([^;}]+)/g)]
       .map((match) => match[1]?.trim())

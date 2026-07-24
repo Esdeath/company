@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业研究资料库 · 系统架构图</title>
+<style>
+  body { margin: 0; padding: 24px; background: #e8edf3; font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif; display: flex; justify-content: center; }
+  .arch-root { width: 1200px; box-sizing: border-box; position: relative; background: #f0f4f8; padding: 20px; border-radius: 8px; border: 1px solid #c8d6e5; }
+  .arch-wrapper { display: flex; gap: 12px; }
+  .arch-sidebar { width: 165px; flex-shrink: 0; }
+  .arch-main { flex: 1; min-width: 0; }
+  .arch-title { text-align: center; font-size: 22px; font-weight: bold; color: #1a365d; margin-bottom: 4px; font-family: Georgia, "PingFang SC", serif; }
+  .arch-subtitle { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .arch-layer { margin: 8px 0; padding: 14px; border-radius: 6px; box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08); }
+  .arch-layer-title { font-size: 13px; font-weight: bold; margin-bottom: 10px; text-align: center; }
+  .arch-grid { display: grid; gap: 8px; }
+  .arch-grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .arch-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .arch-grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .arch-grid-5 { grid-template-columns: repeat(5, 1fr); }
+  .arch-box { border-radius: 4px; padding: 8px; text-align: center; font-size: 11px; font-weight: 600; line-height: 1.4; color: #1e293b; background: #ffffff; border: 1px solid #cbd5e1; }
+  .arch-box.highlight { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 2px solid #2563eb; }
+  .arch-box.tech { font-size: 10px; color: #475569; background: #f1f5f9; }
+  .arch-box small { font-weight: 400; color: #64748b; }
+  .arch-layer.external { background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%); border: 2px dashed #a0aec0; }
+  .arch-layer.external .arch-layer-title { color: #718096; }
+  .arch-layer.user { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 2px solid #3b82f6; }
+  .arch-layer.user .arch-layer-title { color: #1e40af; }
+  .arch-layer.edge { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #d97706; }
+  .arch-layer.edge .arch-layer-title { color: #92400e; }
+  .arch-layer.application { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 2px solid #0284c7; }
+  .arch-layer.application .arch-layer-title { color: #075985; }
+  .arch-layer.ai { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); border: 2px solid #6366f1; }
+  .arch-layer.ai .arch-layer-title { color: #3730a3; }
+  .arch-layer.data { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; }
+  .arch-layer.data .arch-layer-title { color: #065f46; }
+  .arch-layer.infra { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 2px solid #7c3aed; }
+  .arch-layer.infra .arch-layer-title { color: #5b21b6; }
+  .arch-sidebar-panel { border-radius: 6px; padding: 10px; background: linear-gradient(135deg, #edf1f7 0%, #dde3eb 100%); border: 2px solid #8da3bd; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(30, 58, 138, 0.06); }
+  .arch-sidebar-title { font-size: 12px; font-weight: bold; text-align: center; color: #1a365d; margin-bottom: 6px; }
+  .arch-sidebar-item { font-size: 10px; text-align: center; color: #334155; background: #ffffff; padding: 5px; border-radius: 3px; margin: 3px 0; border: 1px solid #d1d9e4; overflow-wrap: anywhere; }
+  .arch-sidebar-item.metric { background: #dbeafe; border: 1px solid #93c5fd; color: #1e40af; font-weight: 600; }
+  .arch-subgroup { display: flex; gap: 8px; }
+  .arch-subgroup-box { flex: 1; border-radius: 6px; padding: 8px; background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(0, 0, 0, 0.08); }
+  .arch-subgroup-title { font-size: 10px; font-weight: bold; color: #374151; text-align: center; margin-bottom: 6px; }
+  .arch-flow-note { text-align: center; font-size: 10px; color: #64748b; margin: 2px 0; }
+  .arch-flow-note b { color: #475569; }
+</style>
+</head>
+<body>
+<div class="arch-root">
+  <div class="arch-title">企业研究资料库 · 系统架构图</div>
+  <div class="arch-subtitle">公开站点按公司浏览研究资料 · 管理端上传 HTML/Markdown · 索引入库、正文落盘</div>
+  <div class="arch-wrapper">
+    <div class="arch-sidebar">
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">🛠️ 工具链</div>
+        <div class="arch-sidebar-item">Node 24.18 / pnpm 10.34</div>
+        <div class="arch-sidebar-item">Python 3.13 / uv</div>
+        <div class="arch-sidebar-item">frozen lockfile 约定</div>
+        <div class="arch-sidebar-item metric">make setup / dev / check</div>
+      </div>
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">✅ 质量检查</div>
+        <div class="arch-sidebar-item">ruff + mypy + pytest</div>
+        <div class="arch-sidebar-item">vitest + typecheck</div>
+        <div class="arch-sidebar-item">根目录契约测试<br>(scaffold / docs / prototype)</div>
+        <div class="arch-sidebar-item">OpenAPI 前后端契约</div>
+      </div>
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">📦 开发模式</div>
+        <div class="arch-sidebar-item">混合开发<br>dev-infra + make dev</div>
+        <div class="arch-sidebar-item">完整 Compose<br>127.0.0.1:8080</div>
+        <div class="arch-sidebar-item">compose-smoke 冒烟</div>
+      </div>
+    </div>
+    <div class="arch-main">
+      <div class="arch-layer user">
+        <div class="arch-layer-title">👥 用户层</div>
+        <div class="arch-grid arch-grid-2">
+          <div class="arch-box">公开访问者<br><small>按公司浏览、阅读研究资料</small></div>
+          <div class="arch-box">管理员(单账号)<br><small>创建公司、上传 HTML/Markdown</small></div>
+        </div>
+      </div>
+      <div class="arch-flow-note">▼ HTTPS(生产:宿主机 Nginx 唯一公网入口)</div>
+      <div class="arch-layer edge">
+        <div class="arch-layer-title">🚪 边缘层 — edge(Nginx, infra/nginx/default.conf)</div>
+        <div class="arch-grid arch-grid-3">
+          <div class="arch-box">/ → web<br><small>公开站点</small></div>
+          <div class="arch-box">/admin/ → admin<br><small>管理端</small></div>
+          <div class="arch-box">/api/ → api<br><small>后端接口</small></div>
+        </div>
+      </div>
+      <div class="arch-flow-note">▼</div>
+      <div class="arch-layer application">
+        <div class="arch-layer-title">🖥️ 前端应用层</div>
+        <div class="arch-grid arch-grid-2">
+          <div class="arch-box highlight">Web 公开站点<br><small>Nuxt 4 · apps/web · 空 sandbox iframe 阅读器</small></div>
+          <div class="arch-box highlight">Admin 管理端<br><small>Vue 3 + Vite · apps/admin · 公司管理与资料上传</small></div>
+        </div>
+      </div>
+      <div class="arch-flow-note">▼ REST(OpenAPI 契约)· 写操作需会话 Cookie + X-CSRF-Token</div>
+      <div class="arch-layer ai">
+        <div class="arch-layer-title">⚙️ API 层 — FastAPI(apps/api/src/company_api,create_app 工厂)</div>
+        <div class="arch-subgroup">
+          <div class="arch-subgroup-box">
+            <div class="arch-subgroup-title">资料主线</div>
+            <div class="arch-grid arch-grid-2">
+              <div class="arch-box tech">routes.py<br><small>路由入口</small></div>
+              <div class="arch-box tech">library_service.py<br><small>业务编排 · 单文件失败隔离</small></div>
+              <div class="arch-box tech">repository.py<br><small>PostgreSQL 索引</small></div>
+              <div class="arch-box tech">content_store.py<br><small>文件系统正文</small></div>
+            </div>
+          </div>
+          <div class="arch-subgroup-box">
+            <div class="arch-subgroup-title">渲染与认证</div>
+            <div class="arch-grid arch-grid-2">
+              <div class="arch-box tech">rendering.py<br><small>Markdown → 展示 HTML(templates/)</small></div>
+              <div class="arch-box tech">auth_routes / auth / auth_repository<br><small>Argon2 · 会话入库 · HttpOnly Cookie</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="arch-flow-note">▼ 索引与会话入库 · 正文按扩展名分流落盘</div>
+      <div class="arch-layer data">
+        <div class="arch-layer-title">🗄️ 数据层</div>
+        <div class="arch-grid arch-grid-3">
+          <div class="arch-box">PostgreSQL<br><small>公司与资料索引 · 管理员会话</small></div>
+          <div class="arch-box">CONTENT_ROOT 文件系统<br><small>HTML 原文 / Markdown 渲染产物</small></div>
+          <div class="arch-box tech">Alembic 迁移<br><small>apps/api/migrations · 容器启动先迁移</small></div>
+        </div>
+      </div>
+      <div class="arch-layer infra">
+        <div class="arch-layer-title">🐳 基础设施层</div>
+        <div class="arch-grid arch-grid-4">
+          <div class="arch-box tech">Docker Compose<br><small>五服务:edge/web/admin/api/postgres</small></div>
+          <div class="arch-box tech">端口边界<br><small>仅发布 127.0.0.1:8080 与 :5432</small></div>
+          <div class="arch-box tech">宿主机 Nginx<br><small>HTTPS 终结 · 唯一公网入口</small></div>
+          <div class="arch-box tech">阿里云 ECS<br><small>make deploy-aliyun 一条命令部署</small></div>
+        </div>
+      </div>
+      <div class="arch-layer external">
+        <div class="arch-layer-title">🔗 站外内容生产(不属于应用运行时)</div>
+        <div class="arch-grid arch-grid-2">
+          <div class="arch-box tech">研究资料生成 Skill<br><small>skills/hk-value-snapshot · 站外运行</small></div>
+          <div class="arch-box tech">stocks/ 内容产物<br><small>按行业存放 HTML/MD → 经管理端上传入库</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-sidebar">
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">🔐 安全</div>
+        <div class="arch-sidebar-item">Argon2 密码哈希</div>
+        <div class="arch-sidebar-item">HttpOnly 会话 Cookie</div>
+        <div class="arch-sidebar-item">写操作双重校验<br>Cookie + CSRF Token</div>
+        <div class="arch-sidebar-item">空 sandbox iframe<br>隔离资料正文</div>
+        <div class="arch-sidebar-item metric">生产 SESSION_COOKIE_SECURE=true</div>
+      </div>
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">📐 关键约定</div>
+        <div class="arch-sidebar-item">Markdown 上传即渲染<br>HTML 保持原文</div>
+        <div class="arch-sidebar-item">Skill 产物视为<br>可信管理员输入</div>
+        <div class="arch-sidebar-item">DB 只存索引<br>正文全在文件系统</div>
+      </div>
+      <div class="arch-sidebar-panel">
+        <div class="arch-sidebar-title">📚 文档依据</div>
+        <div class="arch-sidebar-item">doc/ 当前开发依据</div>
+        <div class="arch-sidebar-item">doc/specs/ 已确认设计</div>
+        <div class="arch-sidebar-item">docs/superpowers/<br>历史决策记录</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -54,7 +54,7 @@ a {
 .site-shell {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: 100svh;
+  height: 100svh;
 }
 
 .masthead,
@@ -138,8 +138,9 @@ a {
 }
 
 .library-main {
+  min-height: 0;
   min-width: 0;
-  padding-block: clamp(1.75rem, 5vw, 3.5rem) 2.5rem;
+  padding-block: 0;
 }
 
 .directory-heading p {
@@ -158,9 +159,12 @@ h2 {
 
 .library-workspace {
   display: grid;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .reading-column {
@@ -360,7 +364,7 @@ h2 {
 
 .document-reader {
   position: relative;
-  height: clamp(32rem, 72svh, 58rem);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   border-top: 0.18rem solid var(--red);
@@ -477,11 +481,13 @@ h2 {
 @media (min-width: 64rem) {
   .library-workspace {
     grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: clamp(1.5rem, 3vw, 2.75rem);
   }
 
   .library-directory-shell {
     grid-column: 1;
+    min-height: 0;
   }
 
   .reading-column {
@@ -496,11 +502,11 @@ h2 {
   .library-directory {
     position: sticky;
     z-index: auto;
-    top: 1.5rem;
+    top: 0;
     inset: auto;
     display: block;
     width: auto;
-    max-height: calc(100svh - 3rem);
+    max-height: 100%;
     padding: 0;
     overflow-y: auto;
     border-right: 0;
