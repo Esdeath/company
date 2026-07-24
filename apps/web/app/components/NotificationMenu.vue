@@ -69,20 +69,21 @@ function toggleMenu() {
   else void openMenu()
 }
 
-async function markOne(item: Notification) {
-  if (item.read_at) return
+async function markOne(item: Notification): Promise<boolean> {
+  if (item.read_at) return true
   try {
     const updated = await markNotificationRead(item.id)
     items.value = items.value.map((existing) => (existing.id === updated.id ? updated : existing))
     publishUnreadCount(Math.max(0, unreadCount.value - 1))
+    return true
   } catch (error) {
     errorMessage.value = errorText(error)
+    return false
   }
 }
 
 async function followNotification(item: Notification) {
-  await markOne(item)
-  window.location.assign(notificationHref(item))
+  if (await markOne(item)) window.location.assign(notificationHref(item))
 }
 
 async function markAll() {
@@ -344,5 +345,13 @@ onBeforeUnmount(() => {
   color: var(--green);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+@media (max-width: 35rem) {
+  .notification-menu {
+    position: fixed;
+    inset: 4.75rem 1rem auto;
+    width: auto;
+  }
 }
 </style>

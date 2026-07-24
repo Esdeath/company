@@ -22,7 +22,17 @@ const state = ref<UserAuthState>({
 })
 
 vi.mock('../app/composables/useUserSession', () => ({
-  useUserSession: () => ({ state }),
+  useUserSession: () => ({
+    state,
+    replaceState: (next: UserAuthState) => {
+      state.value = next
+      return next
+    },
+    replaceUser: (user: NonNullable<UserAuthState['user']>) => {
+      state.value = { ...state.value!, authenticated: true, user }
+      return state.value
+    },
+  }),
 }))
 
 vi.mock('../app/api/community', async (importOriginal) => ({

@@ -14,15 +14,18 @@ const accountOpen = ref(false)
 const menuOpen = ref(false)
 const actionError = ref('')
 const accountTrigger = ref<HTMLButtonElement | null>(null)
+const loginTrigger = ref<HTMLButtonElement | null>(null)
 const accountMenu = ref<HTMLElement | null>(null)
 
 function openLogin() {
   authOpen.value = true
 }
 
-function finishAuthentication(state: UserAuthState) {
-  session.state.value = state
+async function finishAuthentication(state: UserAuthState) {
+  session.replaceState(state)
   authOpen.value = false
+  await nextTick()
+  accountTrigger.value?.focus()
 }
 
 async function openAccountMenu() {
@@ -53,7 +56,14 @@ function openAccountSettings() {
 async function closeAccountSettings() {
   accountOpen.value = false
   await nextTick()
-  accountTrigger.value?.focus()
+  if (session.authenticated.value) accountTrigger.value?.focus()
+  else loginTrigger.value?.focus()
+}
+
+async function finishDeletion() {
+  accountOpen.value = false
+  await nextTick()
+  loginTrigger.value?.focus()
 }
 
 async function logout() {
@@ -129,7 +139,7 @@ defineExpose({ openLogin })
         </div>
       </div>
     </template>
-    <button v-else class="site-login-button" type="button" aria-label="登录" @click="openLogin">
+    <button v-else ref="loginTrigger" class="site-login-button" type="button" aria-label="登录" @click="openLogin">
       <LogIn :size="17" aria-hidden="true" />
       <span>登录</span>
     </button>
@@ -141,7 +151,7 @@ defineExpose({ openLogin })
       @authenticated="finishAuthentication"
       @close="authOpen = false"
     />
-    <AccountDialog :open="accountOpen" @close="closeAccountSettings" />
+    <AccountDialog :open="accountOpen" @close="closeAccountSettings" @deleted="finishDeletion" />
   </div>
 </template>
 

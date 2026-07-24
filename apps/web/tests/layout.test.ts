@@ -1,10 +1,16 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 const css = readFileSync(resolve(process.cwd(), 'app/assets/css/main.css'), 'utf8')
 const app = readFileSync(resolve(process.cwd(), 'app/app.vue'), 'utf8')
+const componentsDirectory = resolve(process.cwd(), 'app/components')
+const componentStyles = readdirSync(componentsDirectory)
+  .filter((name) => name.endsWith('.vue'))
+  .map((name) => readFileSync(resolve(componentsDirectory, name), 'utf8'))
+  .join('\n')
+const notificationMenu = readFileSync(resolve(componentsDirectory, 'NotificationMenu.vue'), 'utf8')
 
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -35,5 +41,17 @@ describe('公开资料阅读工作台布局', () => {
     const letterSpacingValues = [...css.matchAll(/letter-spacing:\s*([^;}]+)/g)]
       .map((match) => match[1]?.trim())
     expect(new Set(letterSpacingValues)).toEqual(new Set(['0']))
+  })
+
+  it('keeps the mobile notification popover inside stable viewport insets', () => {
+    expect(notificationMenu).toMatch(
+      /@media \(max-width: 35rem\)[\s\S]*\.notification-menu\s*\{[\s\S]*position: fixed;[\s\S]*inset: 4\.75rem 1rem auto;/,
+    )
+  })
+
+  it('uses zero letter spacing throughout component styles', () => {
+    const values = [...componentStyles.matchAll(/letter-spacing:\s*([^;}]+)/g)]
+      .map((match) => match[1]?.trim())
+    expect(new Set(values)).toEqual(new Set(['0']))
   })
 })

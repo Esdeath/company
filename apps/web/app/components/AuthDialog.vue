@@ -80,7 +80,9 @@ function closeDialog(force = false) {
   if (busy.value && !force) return
   clearPasswords()
   emit('close')
-  void nextTick(() => restoreFocusTo?.focus())
+  void nextTick(() => {
+    if (restoreFocusTo?.isConnected) restoreFocusTo.focus()
+  })
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -392,7 +394,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .auth-dialog__eyebrow {
   color: var(--green, #285541);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .auth-dialog h2 {

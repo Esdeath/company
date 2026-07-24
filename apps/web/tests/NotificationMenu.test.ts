@@ -80,6 +80,41 @@ describe('NotificationMenu', () => {
     expect(wrapper.text()).toContain('还没有通知')
   })
 
+  it('keeps an unread notification open when marking it read fails', async () => {
+    const navigate = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined)
+    vi.mocked(community.listNotifications).mockResolvedValue({ items: [notification()], unread_count: 1 })
+    vi.mocked(community.markNotificationRead).mockRejectedValueOnce(new Error('已读状态保存失败'))
+    const wrapper = mount(NotificationMenu)
+    await flushPromises()
+    await wrapper.get('button[aria-label="通知，1 条未读"]').trigger('click')
+    await wrapper.get('a[data-notification-id="notification-1"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="menu"]').exists()).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain('已读状态保存失败')
+    expect(wrapper.get('button[aria-label="通知，1 条未读"]').exists()).toBe(true)
+    expect(navigate).not.toHaveBeenCalled()
+    navigate.mockRestore()
+  })
+
+  it('navigates directly when a notification is already read', async () => {
+    const href = '/?company=company-1&document=document-1&comment=comment-1'
+    const navigate = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined)
+    vi.mocked(community.listNotifications).mockResolvedValue({
+      items: [notification({ read_at: '2026-07-24T09:00:00Z' })],
+      unread_count: 0,
+    })
+    const wrapper = mount(NotificationMenu)
+    await flushPromises()
+    await wrapper.get('button[aria-label="通知"]').trigger('click')
+    await wrapper.get('a[data-notification-id="notification-1"]').trigger('click')
+    await flushPromises()
+
+    expect(community.markNotificationRead).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledWith(href)
+    navigate.mockRestore()
+  })
+
   it('returns focus to its Bell button after Escape closes the menu', async () => {
     vi.mocked(community.listNotifications).mockResolvedValue({ items: [], unread_count: 0 })
     const wrapper = mount(NotificationMenu, { attachTo: document.body })

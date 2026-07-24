@@ -15,6 +15,20 @@ const authenticatedSession = {
   registration_enabled: true,
 }
 
+const newerSession = {
+  ...authenticatedSession,
+  user: { ...authenticatedSession.user, username: 'newer-reader' },
+  csrf_token: 'newer-csrf',
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 async function freshSession() {
   vi.resetModules()
   return import('../app/composables/useUserSession')
@@ -48,6 +62,48 @@ describe('useUserSession', () => {
     expect(session.state.value).toEqual(authenticatedSession)
     expect(session.loading.value).toBe(false)
     await expect(session.requireLogin()).resolves.toBe(true)
+  })
+
+  it('does not let a slow restore overwrite a newer login', async () => {
+    const slowRestore = deferred<Response>()
+    const anonymousChallenge = {
+      authenticated: false,
+      user: null,
+      csrf_token: 'challenge-csrf',
+      expires_at: null,
+      registration_enabled: true,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockReturnValueOnce(slowRestore.promise)
+        .mockResolvedValueOnce(new Response(JSON.stringify(anonymousChallenge)))
+        .mockResolvedValueOnce(new Response(JSON.stringify(newerSession))),
+    )
+    const { useUserSession } = await freshSession()
+    const session = useUserSession()
+
+    const restoring = session.restore()
+    await expect(session.login({ email: 'reader@example.com', password: 'password-123' })).resolves.toEqual(newerSession)
+    slowRestore.resolve(new Response(JSON.stringify(authenticatedSession)))
+
+    await expect(restoring).resolves.toEqual(newerSession)
+    expect(session.state.value).toEqual(newerSession)
+  })
+
+  it('does not let a slow restore overwrite a newer account mutation', async () => {
+    const slowRestore = deferred<Response>()
+    vi.stubGlobal('fetch', vi.fn().mockReturnValueOnce(slowRestore.promise))
+    const { useUserSession } = await freshSession()
+    const session = useUserSession()
+    session.replaceState(authenticatedSession)
+
+    const restoring = session.restore()
+    session.replaceUser(newerSession.user)
+    slowRestore.resolve(new Response(JSON.stringify(authenticatedSession)))
+
+    await expect(restoring).resolves.toMatchObject({ user: newerSession.user })
+    expect(session.state.value?.user).toEqual(newerSession.user)
   })
 
   it('clears the user on a 401 without retaining any caller-owned draft state', async () => {

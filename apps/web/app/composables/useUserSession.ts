@@ -17,13 +17,16 @@ import type {
   PasswordResetConfirmInput,
   PasswordResetRequestInput,
   RegisterInput,
+  User,
   UserAuthState,
   VerifyEmailInput,
 } from '../types/community'
 
 const state = ref<UserAuthState | null>(null)
 const loading = ref(false)
-let restoring: Promise<UserAuthState> | null = null
+let sessionGeneration = 0
+let activeRestores = 0
+let restoring: { generation: number; promise: Promise<UserAuthState> } | null = null
 
 function anonymousState(): UserAuthState {
   return {
@@ -35,17 +38,33 @@ function anonymousState(): UserAuthState {
   }
 }
 
-function remember(next: UserAuthState): UserAuthState {
+function replaceState(next: UserAuthState): UserAuthState {
+  sessionGeneration += 1
   state.value = next
   return next
 }
 
+function replaceUser(user: User): UserAuthState | null {
+  sessionGeneration += 1
+  if (!state.value) return null
+  state.value = { ...state.value, authenticated: true, user }
+  return state.value
+}
+
+function invalidateRestore() {
+  sessionGeneration += 1
+}
+
+function clearSession(): UserAuthState {
+  return replaceState(anonymousState())
+}
+
 function clearAfterAuthenticationFailure(error: unknown): void {
-  if (isUserAuthenticationRequired(error)) state.value = anonymousState()
+  if (isUserAuthenticationRequired(error)) clearSession()
 }
 
 onUserAuthenticationRequired(() => {
-  state.value = anonymousState()
+  clearSession()
 })
 
 export function useUserSession() {
@@ -53,24 +72,32 @@ export function useUserSession() {
   const authenticated = computed(() => state.value?.authenticated === true)
 
   async function restore(): Promise<UserAuthState> {
-    if (restoring) return restoring
+    const requestGeneration = sessionGeneration
+    if (restoring?.generation === requestGeneration) return restoring.promise
 
+    activeRestores += 1
     loading.value = true
-    restoring = getUserSession()
-      .then(remember)
+    const promise = getUserSession()
+      .then((next) => {
+        if (sessionGeneration !== requestGeneration) return state.value ?? anonymousState()
+        return replaceState(next)
+      })
       .catch((error: unknown) => {
-        clearAfterAuthenticationFailure(error)
+        if (sessionGeneration === requestGeneration) clearAfterAuthenticationFailure(error)
         throw error
       })
       .finally(() => {
-        loading.value = false
-        restoring = null
+        activeRestores -= 1
+        loading.value = activeRestores > 0
+        if (restoring?.promise === promise) restoring = null
       })
 
-    return restoring
+    restoring = { generation: requestGeneration, promise }
+    return promise
   }
 
   async function register(input: RegisterInput): Promise<MessageResponse> {
+    invalidateRestore()
     try {
       return await registerUser(input)
     } catch (error) {
@@ -80,8 +107,9 @@ export function useUserSession() {
   }
 
   async function verifyEmail(input: VerifyEmailInput): Promise<UserAuthState> {
+    invalidateRestore()
     try {
-      return remember(await verifyEmailRequest(input))
+      return replaceState(await verifyEmailRequest(input))
     } catch (error) {
       clearAfterAuthenticationFailure(error)
       throw error
@@ -89,8 +117,9 @@ export function useUserSession() {
   }
 
   async function login(input: LoginInput): Promise<UserAuthState> {
+    invalidateRestore()
     try {
-      return remember(await loginUser(input))
+      return replaceState(await loginUser(input))
     } catch (error) {
       clearAfterAuthenticationFailure(error)
       throw error
@@ -98,13 +127,14 @@ export function useUserSession() {
   }
 
   async function logout(): Promise<void> {
+    invalidateRestore()
     try {
       await logoutUser()
     } catch (error) {
       clearAfterAuthenticationFailure(error)
       throw error
     } finally {
-      state.value = anonymousState()
+      clearSession()
     }
   }
 
@@ -118,8 +148,9 @@ export function useUserSession() {
   }
 
   async function confirmReset(input: PasswordResetConfirmInput): Promise<UserAuthState> {
+    invalidateRestore()
     try {
-      return remember(await confirmPasswordReset(input))
+      return replaceState(await confirmPasswordReset(input))
     } catch (error) {
       clearAfterAuthenticationFailure(error)
       throw error
@@ -145,5 +176,7 @@ export function useUserSession() {
     requestReset,
     confirmReset,
     requireLogin,
+    replaceState,
+    replaceUser,
   }
 }

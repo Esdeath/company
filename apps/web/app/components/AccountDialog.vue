@@ -37,8 +37,7 @@ function errorText(error: unknown): string {
 }
 
 function updateSessionUser(user: NonNullable<typeof session.state.value>['user']) {
-  if (!session.state.value) return
-  session.state.value = { ...session.state.value, authenticated: Boolean(user), user }
+  if (user) session.replaceUser(user)
 }
 
 async function saveProfile() {
@@ -62,10 +61,10 @@ async function savePassword() {
   busy.value = 'password'
   resetMessages()
   try {
-    session.state.value = await updatePassword({
+    session.replaceState(await updatePassword({
       current_password: currentPassword.value,
       password: newPassword.value,
-    })
+    }))
     currentPassword.value = ''
     newPassword.value = ''
     successMessage.value = '密码已更新'
@@ -99,13 +98,13 @@ async function removeAccount() {
   try {
     await deleteAccount({ password: deletePassword.value })
     const registrationEnabled = session.state.value?.registration_enabled ?? false
-    session.state.value = {
+    session.replaceState({
       authenticated: false,
       user: null,
       csrf_token: null,
       expires_at: null,
       registration_enabled: registrationEnabled,
-    }
+    })
     deletePassword.value = ''
     emit('deleted')
     closeDialog(true)
@@ -122,7 +121,9 @@ function closeDialog(force = false) {
   newPassword.value = ''
   deletePassword.value = ''
   emit('close')
-  void nextTick(() => restoreFocusTo?.focus())
+  void nextTick(() => {
+    if (restoreFocusTo?.isConnected) restoreFocusTo.focus()
+  })
 }
 
 function focusableElements(): HTMLElement[] {
