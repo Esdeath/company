@@ -14,10 +14,21 @@ import {
   uploadDocuments,
 } from './api'
 import CompanyPicker from './components/CompanyPicker.vue'
+import AdminSectionNav from './components/AdminSectionNav.vue'
+import CommentModeration from './components/CommentModeration.vue'
 import DocumentList from './components/DocumentList.vue'
 import DocumentUpload from './components/DocumentUpload.vue'
 import LoginPanel from './components/LoginPanel.vue'
-import type { AuthState, Company, CompanyInput, DocumentItem, LoginInput, UploadBatch } from './types'
+import UserManagement from './components/UserManagement.vue'
+import type {
+  AdminSection,
+  AuthState,
+  Company,
+  CompanyInput,
+  DocumentItem,
+  LoginInput,
+  UploadBatch,
+} from './types'
 
 const companies = ref<Company[]>([])
 const selectedCompanyId = ref('')
@@ -37,6 +48,7 @@ const authLoading = ref(true)
 const loginBusy = ref(false)
 const loginError = ref('')
 const logoutBusy = ref(false)
+const activeSection = ref<AdminSection>('documents')
 let documentRequestGeneration = 0
 
 const selectedCompany = computed(
@@ -58,6 +70,7 @@ function clearWorkspace() {
   uploadResults.value = null
   pageError.value = ''
   refreshWarning.value = ''
+  activeSection.value = 'documents'
 }
 
 async function returnToLogin() {
@@ -338,7 +351,9 @@ onMounted(initializeAuthentication)
         {{ refreshWarning }}。已完成的操作不受影响，可稍后切换公司重试刷新。
       </p>
 
-      <div class="workspace" :aria-busy="loading || documentsLoading">
+      <AdminSectionNav :active="activeSection" @select="activeSection = $event" />
+
+      <div v-if="activeSection === 'documents'" class="workspace" :aria-busy="loading || documentsLoading">
         <CompanyPicker
           :companies="companies"
           :selected-id="selectedCompanyId"
@@ -374,6 +389,12 @@ onMounted(initializeAuthentication)
           </template>
         </div>
       </div>
+
+      <CommentModeration
+        v-else-if="activeSection === 'comments'"
+        @authentication-required="returnToLogin"
+      />
+      <UserManagement v-else @authentication-required="returnToLogin" />
 
       <nav class="public-return" aria-label="站点入口">
         <a href="/"><span aria-hidden="true">←</span> 前往公开站点</a>

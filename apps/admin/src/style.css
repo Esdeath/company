@@ -245,6 +245,175 @@ h1 {
   gap: 3.25rem;
 }
 
+.admin-section-nav {
+  display: flex;
+  gap: 1.1rem;
+  margin-block-end: 2.25rem;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.admin-section-tab,
+.moderation-tab {
+  flex: 0 0 auto;
+  min-height: 2.65rem;
+  padding: 0.6rem 0;
+  border: 0;
+  border-bottom: 0.18rem solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.admin-section-tab:hover,
+.admin-section-tab--active,
+.moderation-tab:hover,
+.moderation-tab--active {
+  border-bottom-color: var(--green);
+  color: var(--green);
+}
+
+.moderation-workspace,
+.user-workspace {
+  min-width: 0;
+}
+
+.moderation-workspace h2,
+.user-workspace h2 {
+  letter-spacing: 0;
+}
+
+.moderation-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-block: 1.15rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.moderation-tab {
+  min-height: 2.35rem;
+  font-size: 0.7rem;
+}
+
+.moderation-count {
+  color: var(--muted);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  letter-spacing: 0;
+}
+
+.moderation-list,
+.user-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moderation-row,
+.user-row {
+  display: grid;
+  gap: 0.6rem;
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.moderation-row__heading,
+.user-row__heading {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.moderation-author {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.moderation-meta,
+.moderation-body {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.moderation-meta {
+  color: var(--muted);
+  font-family: var(--font-utility);
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
+.moderation-body {
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+
+.moderation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+}
+
+.rejection-form {
+  display: grid;
+  gap: 0.5rem;
+  padding-block-start: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.rejection-form label,
+.user-search label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.rejection-form textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #b9c6be;
+  border-radius: 0.25rem;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0;
+}
+
+.moderation-error {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 0.2rem solid var(--red);
+  color: var(--red);
+  background: #fff7f4;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.moderation-more {
+  margin-block-start: 1rem;
+}
+
+.user-search {
+  display: grid;
+  gap: 0.55rem;
+  margin-block: 1.25rem;
+  padding-block-end: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.user-search .text-action {
+  justify-self: start;
+}
+
 .section-label {
   display: grid;
   gap: 0.35rem;

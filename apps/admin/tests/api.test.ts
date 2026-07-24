@@ -1,14 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  approveComment,
   createCompany,
   deleteDocument,
   getSession,
+  isAuthenticationRequired,
+  isModerationConflict,
+  listCommentReports,
   listCompanies,
+  listModerationComments,
+  listModerationUsers,
   listDocuments,
   login,
   logout,
+  rejectComment,
   renameDocument,
+  resolveCommentReport,
+  restoreUser,
+  suspendUser,
   uploadDocuments,
 } from '../src/api'
 
@@ -160,5 +170,73 @@ describe('management API client', () => {
     )
 
     await expect(listCompanies(fetchMock)).rejects.toThrow('请求失败（422）')
+  })
+
+  it('uses exact moderation URLs with encoded cursors', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], next_cursor: null })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], next_cursor: null })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], next_cursor: null })))
+
+    await listModerationComments('pending', 'next+/=', fetchMock)
+    await listCommentReports('open', 'report+/=', fetchMock)
+    await listModerationUsers('Reader One', 'user+/=', fetchMock)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/admin/comments?status=pending&cursor=next%2B%2F%3D',
+      '/api/v1/admin/comment-reports?status=open&cursor=report%2B%2F%3D',
+      '/api/v1/admin/users?q=Reader+One&cursor=user%2B%2F%3D',
+    ])
+  })
+
+  it('uses the administrator CSRF token for moderation and user mutations', async () => {
+    const session = {
+      authenticated: true,
+      username: 'admin',
+      csrf_token: 'admin-csrf',
+      expires_at: '2026-07-21T20:00:00Z',
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(session)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'report-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'user-1' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'user-1' })))
+
+    await getSession(fetchMock)
+    await approveComment('comment-1', fetchMock)
+    await rejectComment('comment-1', 'off topic', fetchMock)
+    await resolveCommentReport('report-1', 'kept', fetchMock)
+    await suspendUser('user-1', fetchMock)
+    await restoreUser('user-1', fetchMock)
+
+    for (const [, init] of fetchMock.mock.calls.slice(1)) {
+      expect(new Headers((init as RequestInit).headers).get('X-CSRF-Token')).toBe('admin-csrf')
+    }
+    expect(fetchMock.mock.calls.slice(1).map(([url]) => url)).toEqual([
+      '/api/v1/admin/comments/comment-1/approve',
+      '/api/v1/admin/comments/comment-1/reject',
+      '/api/v1/admin/comment-reports/report-1/resolve',
+      '/api/v1/admin/users/user-1/suspend',
+      '/api/v1/admin/users/user-1/restore',
+    ])
+    expect(fetchMock.mock.calls[2]![1]).toEqual(
+      expect.objectContaining({ body: JSON.stringify({ reason: 'off topic' }) }),
+    )
+  })
+
+  it('converts 401 to authentication required and 409 to a typed moderation conflict', async () => {
+    const unauthenticated = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: '管理员会话已失效' }), { status: 401 }),
+    )
+    const conflict = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: '内容状态已被其他操作修改' }), { status: 409 }),
+    )
+
+    await expect(approveComment('comment-1', unauthenticated)).rejects.toSatisfy(isAuthenticationRequired)
+    await expect(approveComment('comment-1', conflict)).rejects.toSatisfy(isModerationConflict)
   })
 })
