@@ -26,6 +26,7 @@ from company_api.user_auth import (
     UsernameUnavailable,
     UserRecord,
     UserSessionRecord,
+    normalize_username,
     token_hash,
 )
 
@@ -65,6 +66,8 @@ class InMemoryUserAuthRepository:
         self.tokens: dict[UUID, tuple[str, UserTokenPurpose, UUID, datetime, datetime | None]] = {}
         self.outbox: list[tuple[UUID, str, str, dict[str, object]]] = []
         self.anonymized_users: list[UUID] = []
+        self.password_hash_before_session: str | None = None
+        self.password_hash_before_update: str | None = None
 
     async def create_challenge(
         self,
@@ -187,10 +190,23 @@ class InMemoryUserAuthRepository:
         self,
         session: UserSessionRecord,
         *,
+        expected_password_hash: str,
         created_at: datetime,
-    ) -> None:
+    ) -> UserRecord | None:
         del created_at
+        user = self.users.get(session.user_id)
+        if user is None:
+            return None
+        if self.password_hash_before_session is not None:
+            user = replace(user, password_hash=self.password_hash_before_session)
+            self.users[user.id] = user
+            self.sessions = {
+                key: value for key, value in self.sessions.items() if value.user_id != user.id
+            }
+        if user.password_hash != expected_password_hash or user.status != UserStatus.ACTIVE:
+            return None
         self.sessions[session.token_hash] = session
+        return user
 
     async def get_session(
         self,
@@ -264,6 +280,7 @@ class InMemoryUserAuthRepository:
     async def update_password(
         self,
         user_id: UUID,
+        expected_password_hash: str,
         password_hash: str,
         session: UserSessionRecord,
         *,
@@ -271,6 +288,14 @@ class InMemoryUserAuthRepository:
     ) -> UserRecord | None:
         user = self.users.get(user_id)
         if user is None:
+            return None
+        if self.password_hash_before_update is not None:
+            user = replace(user, password_hash=self.password_hash_before_update)
+            self.users[user_id] = user
+            self.sessions = {
+                key: value for key, value in self.sessions.items() if value.user_id != user_id
+            }
+        if user.password_hash != expected_password_hash:
             return None
         updated = replace(user, password_hash=password_hash, updated_at=now)
         self.users[user_id] = updated
@@ -513,6 +538,20 @@ def test_login_matches_email_case_insensitively_and_consumes_bad_challenge() -> 
         run(auth.login("READER@EXAMPLE.COM", "correct-password", issued))
 
 
+def test_login_rejects_password_hash_changed_after_verification() -> None:
+    repository = InMemoryUserAuthRepository()
+    repository.users[USER_ID] = user_record()
+    reset_hash = PasswordHash.recommended().hash("reset-won-the-race")
+    repository.password_hash_before_session = reset_hash
+    auth = service(repository)
+
+    with pytest.raises(CredentialsInvalid):
+        run(auth.login("reader@example.com", "correct-password", challenge(auth)))
+
+    assert repository.users[USER_ID].password_hash == reset_hash
+    assert repository.sessions == {}
+
+
 @pytest.mark.parametrize("status", [UserStatus.PENDING_VERIFICATION, UserStatus.SUSPENDED])
 def test_login_rejects_ineligible_accounts(status: UserStatus) -> None:
     repository = InMemoryUserAuthRepository()
@@ -553,6 +592,7 @@ def test_password_reset_is_generic_and_success_revokes_old_sessions() -> None:
     assert repository.outbox == []
     run(auth.request_password_reset("READER@example.com", challenge(auth)))
     token_id = next(iter(repository.tokens))
+    assert repository.tokens[token_id][3] == NOW + timedelta(minutes=30)
     token = EmailTokenSigner("x" * 32).issue(token_id, UserTokenPurpose.RESET_PASSWORD)
     reset = run(auth.reset_password(token, "new-secret-password", challenge(auth)))
 
@@ -632,6 +672,22 @@ def test_password_preferences_and_deletion_require_active_account() -> None:
     assert repository.anonymized_users == [USER_ID]
 
 
+def test_password_change_does_not_overwrite_concurrent_reset() -> None:
+    repository = InMemoryUserAuthRepository()
+    auth = service(repository)
+    logged_in = session_for(repository, auth)
+    session = run(auth.authenticate(logged_in.session_token))
+    assert session is not None
+    reset_hash = PasswordHash.recommended().hash("reset-won-the-race")
+    repository.password_hash_before_update = reset_hash
+
+    with pytest.raises(CredentialsInvalid):
+        run(auth.update_password(session, "correct-password", "replacement-password"))
+
+    assert repository.users[USER_ID].password_hash == reset_hash
+    assert repository.sessions == {}
+
+
 def test_rate_limit_failure_is_exposed_for_anonymous_and_account_actions() -> None:
     repository = InMemoryUserAuthRepository()
     limiter = InMemoryRateLimiter()
@@ -664,3 +720,23 @@ def test_suspended_account_cannot_change_username_with_an_existing_session() -> 
 
     with pytest.raises(AccountSuspended):
         run(auth.update_username(stored, "New_Name"))
+
+
+def test_username_normalization_enforces_casefolded_storage_boundary() -> None:
+    assert normalize_username("ß" * 15) == ("ß" * 15, "ss" * 15)
+    repository = InMemoryUserAuthRepository()
+    auth = service(repository)
+
+    with pytest.raises(ValueError, match="username"):
+        run(
+            auth.register(
+                "reader@example.com",
+                "ß" * 30,
+                "secret-password",
+                challenge(auth),
+            )
+        )
+
+    assert repository.users == {}
+    assert repository.tokens == {}
+    assert repository.outbox == []

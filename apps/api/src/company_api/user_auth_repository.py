@@ -1,5 +1,6 @@
 """SQLAlchemy persistence for ordinary-user authentication and accounts."""
 
+import hmac
 from datetime import datetime
 from uuid import UUID
 
@@ -143,8 +144,8 @@ class SqlAlchemyUserAuthRepository:
         now: datetime,
     ) -> None:
         async with self._session_factory() as session:
-            user_exists = await session.scalar(select(User.id).where(User.id == user_id))
-            if user_exists is None:
+            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
                 await session.commit()
                 return
             await self._replace_token_and_enqueue(
@@ -201,12 +202,25 @@ class SqlAlchemyUserAuthRepository:
         self,
         record: UserSessionRecord,
         *,
+        expected_password_hash: str,
         created_at: datetime,
-    ) -> None:
+    ) -> UserRecord | None:
         async with self._session_factory() as session:
+            user = await session.scalar(
+                select(User).where(User.id == record.user_id).with_for_update()
+            )
+            if (
+                user is None
+                or user.status != UserStatus.ACTIVE
+                or not hmac.compare_digest(user.password_hash, expected_password_hash)
+            ):
+                await session.commit()
+                return None
             await session.execute(delete(UserSession).where(UserSession.expires_at <= created_at))
             session.add(_new_session(record, created_at=created_at))
+            result = _user_record(user)
             await session.commit()
+            return result
 
     async def get_session(
         self,
@@ -311,6 +325,7 @@ class SqlAlchemyUserAuthRepository:
     async def update_password(
         self,
         user_id: UUID,
+        expected_password_hash: str,
         password_hash: str,
         session_record: UserSessionRecord,
         *,
@@ -318,7 +333,11 @@ class SqlAlchemyUserAuthRepository:
     ) -> UserRecord | None:
         async with self._session_factory() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
-            if user is None or user.status != UserStatus.ACTIVE:
+            if (
+                user is None
+                or user.status != UserStatus.ACTIVE
+                or not hmac.compare_digest(user.password_hash, expected_password_hash)
+            ):
                 await session.commit()
                 return None
             user.password_hash = password_hash

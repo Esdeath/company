@@ -164,8 +164,9 @@ class UserAuthRepository(Protocol):
         self,
         session: UserSessionRecord,
         *,
+        expected_password_hash: str,
         created_at: datetime,
-    ) -> None: ...
+    ) -> UserRecord | None: ...
 
     async def get_session(
         self,
@@ -199,6 +200,7 @@ class UserAuthRepository(Protocol):
     async def update_password(
         self,
         user_id: UUID,
+        expected_password_hash: str,
         password_hash: str,
         session: UserSessionRecord,
         *,
@@ -479,7 +481,11 @@ class UserAuthService:
         now = self._clock()
         session_token, stored = self._new_session(user.id)
         updated = await self._repository.update_password(
-            user.id, self._password_hash.hash(password), stored, now=now
+            user.id,
+            user.password_hash,
+            self._password_hash.hash(password),
+            stored,
+            now=now,
         )
         if updated is None:
             raise CredentialsInvalid
@@ -560,12 +566,18 @@ class UserAuthService:
     async def _create_session(self, user: UserRecord) -> NewUserSession:
         now = self._clock()
         session_token, stored = self._new_session(user.id)
-        await self._repository.create_session(stored, created_at=now)
+        current = await self._repository.create_session(
+            stored,
+            expected_password_hash=user.password_hash,
+            created_at=now,
+        )
+        if current is None:
+            raise CredentialsInvalid
         return NewUserSession(
             session_token=session_token,
             csrf_token=stored.csrf_token,
             expires_at=stored.expires_at,
-            current_user=to_current_user(user),
+            current_user=to_current_user(current),
         )
 
     def _new_session(self, user_id: UUID) -> tuple[str, UserSessionRecord]:
@@ -592,11 +604,14 @@ def normalize_email(value: str) -> tuple[str, str]:
 
 def normalize_username(value: str) -> tuple[str, str]:
     display = unicodedata.normalize("NFKC", value.strip())
-    if not 3 <= len(display) <= 30 or not all(
-        character.isalnum() or character in {"_", "-"} for character in display
+    normalized = display.casefold()
+    if (
+        not 3 <= len(display) <= 30
+        or not all(character.isalnum() or character in {"_", "-"} for character in display)
+        or len(normalized) > 30
     ):
         raise ValueError("invalid username")
-    return display, display.casefold()
+    return display, normalized
 
 
 def validate_password(value: str) -> None:

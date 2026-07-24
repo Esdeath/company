@@ -230,6 +230,75 @@ def test_reset_locks_token_updates_hash_and_revokes_sessions_in_one_commit() -> 
     assert fake.events == [("commit", 1)]
 
 
+def test_session_creation_locks_user_and_rejects_changed_password_hash() -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    user.password_hash = "$argon2id$concurrent-reset"
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    created = run(
+        repository.create_session(
+            session_record(),
+            expected_password_hash="$argon2id$observed",
+            created_at=NOW,
+        )
+    )
+
+    assert created is None
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    assert fake.added == []
+    assert fake.events == [("commit", 0)]
+
+
+def test_password_update_locks_user_and_does_not_overwrite_changed_hash() -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    user.password_hash = "$argon2id$concurrent-reset"
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    updated = run(
+        repository.update_password(
+            USER_ID,
+            "$argon2id$observed",
+            "$argon2id$replacement",
+            session_record(),
+            now=NOW,
+        )
+    )
+
+    assert updated is None
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    assert user.password_hash == "$argon2id$concurrent-reset"
+    assert fake.added == []
+    assert fake.events == [("commit", 0)]
+
+
+def test_token_replacement_locks_user_before_invalidating_previous_tokens() -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    run(
+        repository.create_user_token(
+            USER_ID,
+            UserTokenPurpose.RESET_PASSWORD,
+            token_id=TOKEN_ID,
+            token_hash="t" * 64,
+            expires_at=NOW + timedelta(minutes=30),
+            email_template="reset_password",
+            recipient="reader@example.com",
+            email_payload={"username": "价值读者"},
+            now=NOW,
+        )
+    )
+
+    assert "FROM users" in sql(fake.statements[0])
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    assert "UPDATE user_tokens" in sql(fake.statements[1])
+    assert len(fake.added) == 2
+    assert fake.events == [("commit", 2)]
+
+
 def test_deletion_locks_account_anonymizes_comments_and_deletes_private_owner() -> None:
     user = user_row(status=UserStatus.ACTIVE)
     fake = FakeSession([user])
