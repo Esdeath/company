@@ -31,6 +31,9 @@ from company_api.email_tokens import EmailTokenSigner
 from company_api.library_service import LibraryOperations, LibraryService
 from company_api.mailer import ConsoleMailer, EmailMessage, FileCaptureMailer, Mailer, SmtpMailer
 from company_api.models import UserTokenPurpose
+from company_api.moderation_repository import SqlAlchemyModerationRepository
+from company_api.moderation_routes import router as moderation_router
+from company_api.moderation_service import ModerationOperations, ModerationService
 from company_api.rate_limit import SqlAlchemyRateLimiter
 from company_api.repository import SqlAlchemyLibraryRepository
 from company_api.routes import router as library_router
@@ -106,6 +109,7 @@ def create_app(
     auth_service: AuthOperations | None = None,
     user_auth_service: UserAuthOperations | None = None,
     comment_service: CommentOperations | None = None,
+    moderation_service: ModerationOperations | None = None,
     email_dispatcher: EmailDispatcher | None = None,
 ) -> FastAPI:
     # BaseSettings supplies required fields from the environment at runtime.
@@ -129,6 +133,7 @@ def create_app(
                 app.state.auth_service = auth_service
                 app.state.user_auth_service = user_auth_service
                 app.state.comment_service = comment_service
+                app.state.moderation_service = moderation_service
             else:
                 engine, session_factory = create_engine_and_session_factory(resolved_settings)
                 app.state.readiness_probe = (
@@ -164,6 +169,11 @@ def create_app(
                 if app.state.comment_service is None:
                     app.state.comment_service = CommentService(
                         SqlAlchemyCommentRepository(session_factory)
+                    )
+                app.state.moderation_service = moderation_service
+                if app.state.moderation_service is None:
+                    app.state.moderation_service = ModerationService(
+                        SqlAlchemyModerationRepository(session_factory)
                     )
                 if dispatcher is None:
                     dispatcher = EmailDispatcher(
@@ -228,6 +238,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(user_auth_router)
     app.include_router(comment_router)
+    app.include_router(moderation_router)
 
     @app.get("/api/health/live", response_model=HealthResponse)
     async def live() -> HealthResponse:

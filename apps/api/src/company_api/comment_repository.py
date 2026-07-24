@@ -1,4 +1,4 @@
-"""PostgreSQL persistence for public article comments."""
+"""PostgreSQL persistence for public comments, author actions, and reports."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -6,16 +6,19 @@ from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import Select, and_, exists, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from company_api.models import (
     Comment,
+    CommentReport,
     CommentStatus,
     Document,
     EmailOutbox,
     Notification,
     NotificationType,
+    ReportStatus,
     User,
 )
 
@@ -60,8 +63,26 @@ class NewCommentRecord:
     created_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class NewCommentReportRecord:
+    id: UUID
+    comment_id: UUID
+    reporter_id: UUID
+    reason: str
+    details: str | None
+    created_at: datetime
+
+
 class ParentCommentInvalid(Exception):
     """The locked reply target or its root cannot receive a reply."""
+
+
+class DuplicateCommentReportError(Exception):
+    """The reporter already reported the comment."""
+
+
+class InvalidCommentReportError(Exception):
+    """The comment cannot be reported by this user."""
 
 
 class CommentRepository(Protocol):
@@ -91,6 +112,16 @@ class CommentRepository(Protocol):
     async def count_published(self, document_id: UUID) -> int: ...
 
     async def get_comment(self, comment_id: UUID) -> CommentRecord | None: ...
+
+    async def update_owned_comment(
+        self, comment_id: UUID, author_id: UUID, body: str, *, now: datetime
+    ) -> CommentRecord | None: ...
+
+    async def delete_owned_comment(
+        self, comment_id: UUID, author_id: UUID, *, now: datetime
+    ) -> CommentRecord | None: ...
+
+    async def create_report(self, record: NewCommentReportRecord) -> None: ...
 
 
 class SqlAlchemyCommentRepository:
@@ -254,6 +285,82 @@ class SqlAlchemyCommentRepository:
                 return None
             comment, username = row
             return _comment_record(comment, username)
+
+    async def update_owned_comment(
+        self, comment_id: UUID, author_id: UUID, body: str, *, now: datetime
+    ) -> CommentRecord | None:
+        async with self._session_factory() as session:
+            comment = await session.scalar(
+                select(Comment)
+                .where(
+                    Comment.id == comment_id,
+                    Comment.author_id == author_id,
+                    Comment.status.in_([CommentStatus.PENDING, CommentStatus.PUBLISHED]),
+                )
+                .with_for_update()
+            )
+            if comment is None:
+                return None
+            comment.body = body
+            comment.edited_at = now
+            username = await session.scalar(select(User.username).where(User.id == author_id))
+            await session.flush()
+            saved = _comment_record(comment, username)
+            await session.commit()
+            return saved
+
+    async def delete_owned_comment(
+        self, comment_id: UUID, author_id: UUID, *, now: datetime
+    ) -> CommentRecord | None:
+        async with self._session_factory() as session:
+            comment = await session.scalar(
+                select(Comment)
+                .where(
+                    Comment.id == comment_id,
+                    Comment.author_id == author_id,
+                    Comment.status.in_([CommentStatus.PENDING, CommentStatus.PUBLISHED]),
+                )
+                .with_for_update()
+            )
+            if comment is None:
+                return None
+            comment.status = CommentStatus.DELETED
+            comment.body = None
+            comment.deleted_at = now
+            username = await session.scalar(select(User.username).where(User.id == author_id))
+            await session.flush()
+            saved = _comment_record(comment, username)
+            await session.commit()
+            return saved
+
+    async def create_report(self, record: NewCommentReportRecord) -> None:
+        async with self._session_factory() as session:
+            comment = await session.scalar(
+                select(Comment).where(Comment.id == record.comment_id).with_for_update()
+            )
+            if (
+                comment is None
+                or comment.status != CommentStatus.PUBLISHED
+                or comment.author_id == record.reporter_id
+            ):
+                raise InvalidCommentReportError
+            session.add(
+                CommentReport(
+                    id=record.id,
+                    comment_id=record.comment_id,
+                    reporter_id=record.reporter_id,
+                    reason=record.reason,
+                    details=record.details,
+                    status=ReportStatus.OPEN,
+                    created_at=record.created_at,
+                )
+            )
+            try:
+                await session.flush()
+            except IntegrityError as error:
+                await session.rollback()
+                raise DuplicateCommentReportError from error
+            await session.commit()
 
 
 def _comment_select() -> Select[tuple[Comment, str]]:

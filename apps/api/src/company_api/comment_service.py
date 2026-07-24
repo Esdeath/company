@@ -12,7 +12,10 @@ from company_api.comment_repository import (
     CommentCursor,
     CommentRecord,
     CommentRepository,
+    DuplicateCommentReportError,
+    InvalidCommentReportError,
     NewCommentRecord,
+    NewCommentReportRecord,
 )
 from company_api.comment_repository import (
     ParentCommentInvalid as ParentCommentInvalid,
@@ -29,12 +32,28 @@ from company_api.user_auth import CurrentUser
 PAGE_SIZE = 20
 
 
+class CursorRecord(Protocol):
+    @property
+    def id(self) -> UUID: ...
+
+    @property
+    def created_at(self) -> datetime: ...
+
+
 class DocumentNotFound(Exception):
     """The requested document does not exist."""
 
 
 class CommentNotFound(Exception):
     """The requested comment is not visible to the viewer."""
+
+
+class DuplicateCommentReport(Exception):
+    """The viewer already reported this comment."""
+
+
+class CommentReportNotAllowed(Exception):
+    """The viewer cannot report this comment."""
 
 
 class CommentOperations(Protocol):
@@ -51,6 +70,20 @@ class CommentOperations(Protocol):
     ) -> CommentRead: ...
 
     async def get_thread(self, comment_id: UUID, viewer_id: UUID | None) -> CommentThreadRead: ...
+
+    async def update_comment(
+        self, comment_id: UUID, actor: CurrentUser, body: str
+    ) -> CommentRead: ...
+
+    async def delete_comment(self, comment_id: UUID, actor: CurrentUser) -> CommentRead: ...
+
+    async def report_comment(
+        self,
+        comment_id: UUID,
+        actor: CurrentUser,
+        reason: str,
+        details: str | None,
+    ) -> None: ...
 
 
 class CommentService:
@@ -103,8 +136,7 @@ class CommentService:
         body: str,
         parent_id: UUID | None,
     ) -> CommentRead:
-        if len(body) > 2_000 or not body.strip():
-            raise ValueError("评论正文必须包含 1 到 2000 个字符")
+        _validate_comment_body(body)
         if not await self._repository.document_exists(document_id):
             raise DocumentNotFound
 
@@ -171,6 +203,52 @@ class CommentService:
             viewer_pending=[self._read(item, viewer_id) for item in thread_pending],
         )
 
+    async def update_comment(self, comment_id: UUID, actor: CurrentUser, body: str) -> CommentRead:
+        _validate_comment_body(body)
+        saved = await self._repository.update_owned_comment(
+            comment_id, actor.id, body, now=self._clock()
+        )
+        if saved is None:
+            raise CommentNotFound
+        return self._read(saved, actor.id)
+
+    async def delete_comment(self, comment_id: UUID, actor: CurrentUser) -> CommentRead:
+        saved = await self._repository.delete_owned_comment(comment_id, actor.id, now=self._clock())
+        if saved is None:
+            raise CommentNotFound
+        return self._read(saved, actor.id)
+
+    async def report_comment(
+        self,
+        comment_id: UUID,
+        actor: CurrentUser,
+        reason: str,
+        details: str | None,
+    ) -> None:
+        clean_reason = reason.strip()
+        clean_details = details.strip() if details is not None else None
+        if not clean_reason or len(clean_reason) > 100:
+            raise ValueError("举报原因必须包含 1 到 100 个字符")
+        if clean_details == "":
+            clean_details = None
+        if clean_details is not None and len(clean_details) > 2_000:
+            raise ValueError("举报说明不能超过 2000 个字符")
+        try:
+            await self._repository.create_report(
+                NewCommentReportRecord(
+                    id=self._uuid_factory(),
+                    comment_id=comment_id,
+                    reporter_id=actor.id,
+                    reason=clean_reason,
+                    details=clean_details,
+                    created_at=self._clock(),
+                )
+            )
+        except DuplicateCommentReportError as error:
+            raise DuplicateCommentReport from error
+        except InvalidCommentReportError as error:
+            raise CommentReportNotAllowed from error
+
     def _read(
         self,
         item: CommentRecord,
@@ -213,7 +291,7 @@ def _is_visible(item: CommentRecord, viewer_id: UUID | None) -> bool:
     )
 
 
-def _encode_cursor(item: CommentRecord) -> str:
+def _encode_cursor(item: CursorRecord) -> str:
     payload = json.dumps([item.created_at.isoformat(), str(item.id)], separators=(",", ":"))
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
@@ -228,3 +306,8 @@ def _decode_cursor(value: str) -> CommentCursor:
         return CommentCursor(created_at=created_at, id=UUID(id_value))
     except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError) as error:
         raise ValueError("评论分页游标无效") from error
+
+
+def _validate_comment_body(body: str) -> None:
+    if len(body) > 2_000 or not body.strip():
+        raise ValueError("评论正文必须包含 1 到 2000 个字符")
