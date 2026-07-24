@@ -27,9 +27,7 @@ describe('responsive workspace styles', () => {
     expect(stylesheet).toMatch(
       /\.moderation-workspace \.section-label > div > p,[\s\S]*?letter-spacing:\s*0;/,
     )
-    expect(stylesheet).toMatch(
-      /\.user-workspace \.section-label > div > p,[\s\S]*?letter-spacing:\s*0;/,
-    )
+    expect(stylesheet).toMatch(/\.user-workspace \.section-label > p[\s\S]*?letter-spacing:\s*0;/)
     expect(stylesheet).toMatch(/\.moderation-notice[\s\S]*?letter-spacing:\s*0;/)
     expect(stylesheet).toMatch(/\.moderation-success[\s\S]*?letter-spacing:\s*0;/)
     for (const component of task12Components) expect(component).not.toContain('letter-spacing')

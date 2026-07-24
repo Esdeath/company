@@ -286,7 +286,7 @@ h1 {
 }
 
 .moderation-workspace .section-label > div > p,
-.user-workspace .section-label > div > p,
+.user-workspace .section-label > p,
 .moderation-workspace .format-badge,
 .user-workspace .format-badge {
   letter-spacing: 0;
