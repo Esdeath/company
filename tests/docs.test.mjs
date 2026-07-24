@@ -105,7 +105,7 @@ test('product UI keeps one sandboxed reader and the mobile company drawer', () =
     assert.match(productUi, new RegExp(phrase));
   }
   assert.match(productUi, /<iframe sandbox="allow-same-origin"><\/iframe>/);
-  assert.match(productUi, /allow-same-origin[^。]+不允许[^。]+脚本/);
+  assert.match(productUi, /allow-same-origin[^。]+不允许[^。]+脚本[^。]+表单[^。]+下载[^。]+弹窗[^。]+导航/);
 });
 
 test('current docs report the completed slice without claiming deferred interactions', () => {
