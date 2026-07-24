@@ -126,7 +126,7 @@ class SqlAlchemyModerationRepository:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         *,
-        unsubscribe_token_factory: Callable[[], tuple[UUID, str]] | None = None,
+        unsubscribe_token_factory: Callable[[], tuple[UUID, str]],
     ) -> None:
         self._session_factory = session_factory
         self._unsubscribe_token_factory = unsubscribe_token_factory

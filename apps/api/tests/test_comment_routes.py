@@ -16,7 +16,7 @@ from company_api.config import Settings
 from company_api.email_outbox import EmailJob
 from company_api.email_tokens import EmailTokenSigner
 from company_api.main import _message_factory, create_app
-from company_api.models import CommentStatus
+from company_api.models import CommentStatus, UserTokenPurpose
 from company_api.user_auth import CurrentUser, UserSessionRecord
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=UTC)
@@ -212,10 +212,12 @@ def test_thread_response_disables_viewer_specific_caching(comments: FakeComments
         assert response.headers["pragma"] == "no-cache"
 
 
-def test_reply_email_message_supports_tokenless_deep_links() -> None:
+def test_reply_email_message_contains_a_token_bound_unsubscribe_link() -> None:
+    token_id = UUID(int=703)
+    signer = EmailTokenSigner("test-signing-key")
     job = EmailJob(
         id=COMMENT_ID,
-        token_id=None,
+        token_id=token_id,
         template="comment_reply",
         recipient="recipient@example.com",
         payload={
@@ -228,11 +230,14 @@ def test_reply_email_message_supports_tokenless_deep_links() -> None:
         attempts=1,
     )
 
-    message = _message_factory(EmailTokenSigner("test-signing-key"), settings())(job)
+    message = _message_factory(signer, settings())(job)
 
     assert message.recipient == "recipient@example.com"
     assert "reader 回复了你的评论" in message.text_body
     assert (
         f"/?company={UUID(int=700)}&document={DOCUMENT_ID}&comment={COMMENT_ID}"
         in message.text_body
+    )
+    assert (
+        f"/?unsubscribe={signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)}" in message.text_body
     )

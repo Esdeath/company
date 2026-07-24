@@ -29,7 +29,7 @@ async def add_reply_publication_side_effects(
     actor_username: str,
     reply_target: Comment | None,
     created_at: datetime,
-    unsubscribe_token_factory: Callable[[], tuple[UUID, str]] | None = None,
+    unsubscribe_token_factory: Callable[[], tuple[UUID, str]],
 ) -> None:
     if reply_target is None or reply_target.author_id is None or reply_target.author_id == actor_id:
         return
@@ -48,19 +48,17 @@ async def add_reply_publication_side_effects(
     )
     if not recipient.reply_email_enabled:
         return
-    token_id: UUID | None = None
-    if unsubscribe_token_factory is not None:
-        token_id, token_hash = unsubscribe_token_factory()
-        session.add(
-            UserToken(
-                id=token_id,
-                token_hash=token_hash,
-                purpose=UserTokenPurpose.UNSUBSCRIBE,
-                user_id=recipient.id,
-                created_at=created_at,
-                expires_at=created_at + UNSUBSCRIBE_LIFETIME,
-            )
+    token_id, token_hash = unsubscribe_token_factory()
+    session.add(
+        UserToken(
+            id=token_id,
+            token_hash=token_hash,
+            purpose=UserTokenPurpose.UNSUBSCRIBE,
+            user_id=recipient.id,
+            created_at=created_at,
+            expires_at=created_at + UNSUBSCRIBE_LIFETIME,
         )
+    )
     document = await session.get(Document, document_id)
     payload: dict[str, object] = {
         "username": recipient.username,

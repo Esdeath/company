@@ -6,9 +6,12 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from company_api.comment_notifications import add_reply_publication_side_effects
+from company_api.email_outbox import EmailDispatcher, EmailJob
 from company_api.email_tokens import EmailTokenSigner
+from company_api.mailer import EmailMessage
 from company_api.models import (
     Comment,
     CommentStatus,
@@ -25,6 +28,7 @@ from company_api.notification_service import (
     NotificationNotFound,
     NotificationRecord,
     NotificationService,
+    SqlAlchemyNotificationRepository,
     UnsubscribeTokenInvalid,
 )
 from company_api.user_auth import token_hash
@@ -35,6 +39,7 @@ OTHER_USER_ID = UUID("00000000-0000-0000-0000-000000000802")
 COMPANY_ID = UUID("00000000-0000-0000-0000-000000000803")
 DOCUMENT_ID = UUID("00000000-0000-0000-0000-000000000804")
 COMMENT_ID = UUID("00000000-0000-0000-0000-000000000805")
+TOKEN_ID = UUID("00000000-0000-0000-0000-000000000806")
 
 
 def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
@@ -199,6 +204,54 @@ def test_unsubscribe_is_one_time_and_only_changes_reply_email_preference(
         run(service.unsubscribe(token, "challenge"))
 
 
+def test_sqlalchemy_unsubscribe_locks_user_before_revalidating_the_token() -> None:
+    session = UnsubscribeSession()
+    repository = SqlAlchemyNotificationRepository(UnsubscribeFactory(session))  # type: ignore[arg-type]
+
+    result = run(
+        repository.unsubscribe(
+            TOKEN_ID,
+            "token-digest",
+            token_hash("challenge"),
+            now=NOW,
+        )
+    )
+
+    statements = [
+        str(statement.compile(dialect=postgresql.dialect())) for statement in session.statements
+    ]
+    assert result is True
+    assert "SELECT user_tokens.user_id" in statements[0]
+    assert "FOR UPDATE" not in statements[0]
+    assert "FROM users" in statements[1] and "FOR UPDATE" in statements[1]
+    assert "FROM user_tokens" in statements[2] and "FOR UPDATE" in statements[2]
+    assert statements[3].startswith("DELETE FROM user_auth_challenges")
+    assert session.user.reply_email_enabled is False
+    assert session.token.consumed_at == NOW
+
+
+@pytest.mark.parametrize("token_after_owner", [None, "changed"])
+def test_sqlalchemy_unsubscribe_rejects_a_token_that_disappears_or_changes_after_owner_lookup(
+    token_after_owner: str | None,
+) -> None:
+    session = UnsubscribeSession(token_after_owner=token_after_owner)
+    repository = SqlAlchemyNotificationRepository(UnsubscribeFactory(session))  # type: ignore[arg-type]
+
+    result = run(
+        repository.unsubscribe(
+            TOKEN_ID,
+            "token-digest",
+            token_hash("challenge"),
+            now=NOW,
+        )
+    )
+
+    assert result is False
+    assert session.user.reply_email_enabled is True
+    assert session.token.consumed_at is None
+    assert session.events == ["commit"]
+
+
 def test_reply_side_effects_keep_the_notification_when_reply_email_is_opted_out() -> None:
     recipient = stored_user(reply_email_enabled=False)
     session = SideEffectSession(recipient)
@@ -212,6 +265,7 @@ def test_reply_side_effects_keep_the_notification_when_reply_email_is_opted_out(
             actor_username="writer",
             reply_target=reply_target(),
             created_at=NOW,
+            unsubscribe_token_factory=lambda: (TOKEN_ID, "unused"),
         )
     )
 
@@ -221,7 +275,7 @@ def test_reply_side_effects_keep_the_notification_when_reply_email_is_opted_out(
 def test_reply_email_defaults_to_enabled_and_stages_a_one_time_unsubscribe_token() -> None:
     recipient = stored_user(reply_email_enabled=True)
     session = SideEffectSession(recipient)
-    token_id = UUID(int=99)
+    signer = EmailTokenSigner("x" * 32)
 
     run(
         add_reply_publication_side_effects(
@@ -232,7 +286,10 @@ def test_reply_email_defaults_to_enabled_and_stages_a_one_time_unsubscribe_token
             actor_username="writer",
             reply_target=reply_target(),
             created_at=NOW,
-            unsubscribe_token_factory=lambda: (token_id, "token-digest"),
+            unsubscribe_token_factory=lambda: (
+                TOKEN_ID,
+                signer.digest(signer.issue(TOKEN_ID, UserTokenPurpose.UNSUBSCRIBE)),
+            ),
         )
     )
 
@@ -240,7 +297,34 @@ def test_reply_email_defaults_to_enabled_and_stages_a_one_time_unsubscribe_token
     token = session.added[1]
     outbox = session.added[2]
     assert isinstance(token, UserToken) and token.purpose == UserTokenPurpose.UNSUBSCRIBE
-    assert isinstance(outbox, EmailOutbox) and outbox.token_id == token_id
+    assert isinstance(outbox, EmailOutbox) and outbox.token_id == TOKEN_ID
+    assert token.token_hash == signer.digest(signer.issue(TOKEN_ID, UserTokenPurpose.UNSUBSCRIBE))
+
+
+def test_email_dispatch_exhaustion_does_not_remove_the_paired_notification() -> None:
+    notification = Notification(
+        id=UUID(int=77),
+        recipient_id=USER_ID,
+        type=NotificationType.REPLY,
+        actor_id=OTHER_USER_ID,
+        comment_id=COMMENT_ID,
+        document_id=DOCUMENT_ID,
+        created_at=NOW,
+    )
+    stop = asyncio.Event()
+    repository = ExhaustingOutbox(notification, stop)
+    dispatcher = EmailDispatcher(
+        repository,  # type: ignore[arg-type]
+        FailingMailer(),
+        lambda job: EmailMessage(recipient=job.recipient, subject="reply", text_body="reply"),
+        clock=lambda: NOW,
+    )
+
+    run(dispatcher.run(stop))
+
+    assert repository.exhausted is True
+    assert notification.id == UUID(int=77)
+    assert notification.read_at is None
 
 
 def stored_user(*, reply_email_enabled: bool) -> User:
@@ -296,3 +380,107 @@ class SideEffectSession:
 
     def add(self, item: object) -> None:
         self.added.append(item)
+
+
+class ScalarResult:
+    def __init__(self, value: object) -> None:
+        self.value = value
+
+    def scalar_one_or_none(self) -> object:
+        return self.value
+
+
+class UnsubscribeSession:
+    def __init__(self, *, token_after_owner: str | None = "token-digest") -> None:
+        self.user = stored_user(reply_email_enabled=True)
+        self.token = UserToken(
+            id=TOKEN_ID,
+            token_hash="token-digest",
+            purpose=UserTokenPurpose.UNSUBSCRIBE,
+            user_id=USER_ID,
+            created_at=NOW,
+            expires_at=NOW + timedelta(days=1),
+        )
+        self.token_after_owner = token_after_owner
+        self.statements: list[object] = []
+        self.events: list[str] = []
+        self.scalar_calls = 0
+
+    async def __aenter__(self) -> "UnsubscribeSession":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        del args
+
+    async def scalar(self, statement: object) -> object | None:
+        self.statements.append(statement)
+        self.scalar_calls += 1
+        if self.scalar_calls == 1:
+            return USER_ID
+        if self.scalar_calls == 2:
+            return self.user
+        if self.token_after_owner is None:
+            return None
+        self.token.token_hash = self.token_after_owner
+        return self.token
+
+    async def execute(self, statement: object) -> ScalarResult:
+        self.statements.append(statement)
+        return ScalarResult(token_hash("challenge"))
+
+    async def commit(self) -> None:
+        self.events.append("commit")
+
+
+class UnsubscribeFactory:
+    def __init__(self, session: UnsubscribeSession) -> None:
+        self.session = session
+
+    def __call__(self) -> UnsubscribeSession:
+        return self.session
+
+
+class FailingMailer:
+    async def send(self, message: EmailMessage) -> None:
+        del message
+        raise RuntimeError("smtp unavailable")
+
+
+class ExhaustingOutbox:
+    def __init__(self, notification: Notification, stop: asyncio.Event) -> None:
+        self.notification = notification
+        self.stop = stop
+        self.claimed = False
+        self.exhausted = False
+
+    async def claim_batch(self, now: datetime, lease_id: UUID, limit: int) -> list[EmailJob]:
+        del now, lease_id, limit
+        if self.claimed:
+            return []
+        self.claimed = True
+        return [
+            EmailJob(
+                id=UUID(int=76),
+                token_id=TOKEN_ID,
+                template="comment_reply",
+                recipient="reader@example.com",
+                payload={},
+                attempts=8,
+            )
+        ]
+
+    async def mark_sent(self, job_id: UUID, lease_id: UUID, sent_at: datetime) -> bool:
+        del job_id, lease_id, sent_at
+        return False
+
+    async def reschedule(
+        self,
+        job_id: UUID,
+        lease_id: UUID,
+        now: datetime,
+        error: Exception,
+    ) -> bool:
+        del job_id, lease_id, now, error
+        self.exhausted = True
+        self.stop.set()
+        return True

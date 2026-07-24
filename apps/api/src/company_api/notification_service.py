@@ -20,6 +20,7 @@ from company_api.models import (
     NotificationType,
     User,
     UserAuthChallenge,
+    UserStatus,
     UserToken,
     UserTokenPurpose,
 )
@@ -191,6 +192,34 @@ class SqlAlchemyNotificationRepository:
         now: datetime,
     ) -> bool:
         async with self._session_factory() as session:
+            user_id: UUID | None = await session.scalar(
+                select(UserToken.user_id).where(UserToken.id == token_id)
+            )
+            if user_id is None:
+                await session.commit()
+                return False
+            user = await session.scalar(
+                select(User)
+                .where(User.id == user_id, User.status == UserStatus.ACTIVE)
+                .with_for_update()
+            )
+            if user is None:
+                await session.commit()
+                return False
+            token = await session.scalar(
+                select(UserToken)
+                .where(UserToken.id == token_id, UserToken.user_id == user.id)
+                .with_for_update()
+            )
+            if (
+                token is None
+                or token.purpose != UserTokenPurpose.UNSUBSCRIBE
+                or token.consumed_at is not None
+                or token.expires_at <= now
+                or not hmac.compare_digest(token.token_hash, token_digest)
+            ):
+                await session.commit()
+                return False
             consumed_challenge = (
                 await session.execute(
                     delete(UserAuthChallenge)
@@ -202,25 +231,6 @@ class SqlAlchemyNotificationRepository:
                 )
             ).scalar_one_or_none()
             if consumed_challenge is None:
-                await session.commit()
-                return False
-
-            token = await session.scalar(
-                select(UserToken).where(UserToken.id == token_id).with_for_update()
-            )
-            if (
-                token is None
-                or token.purpose != UserTokenPurpose.UNSUBSCRIBE
-                or token.consumed_at is not None
-                or token.expires_at <= now
-                or not hmac.compare_digest(token.token_hash, token_digest)
-            ):
-                await session.commit()
-                return False
-            user = await session.scalar(
-                select(User).where(User.id == token.user_id).with_for_update()
-            )
-            if user is None:
                 await session.commit()
                 return False
             token.consumed_at = now

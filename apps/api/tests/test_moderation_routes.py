@@ -56,6 +56,10 @@ def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coroutine)
 
 
+def unsubscribe_token_factory() -> tuple[UUID, str]:
+    return UUID(int=999), "unsubscribe-token-digest"
+
+
 def user(*, status: UserStatus = UserStatus.ACTIVE) -> User:
     return User(
         id=USER_ID,
@@ -447,7 +451,9 @@ def test_stale_moderation_transition_returns_conflict() -> None:
 
 def test_approve_locks_comment_and_author_publishes_only_target_and_trusts_active_author() -> None:
     session = TransitionSession(stored_comment(), user())
-    repository = SqlAlchemyModerationRepository(TransitionFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyModerationRepository(
+        TransitionFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     approved = run(repository.approve(COMMENT_ID, "admin", now=NOW))
 
@@ -467,7 +473,9 @@ def test_approve_locks_comment_and_author_publishes_only_target_and_trusts_activ
 
 def test_reject_requires_pending_state_records_reason_and_notifies_once() -> None:
     session = TransitionSession(stored_comment(), user())
-    repository = SqlAlchemyModerationRepository(TransitionFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyModerationRepository(
+        TransitionFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     rejected = run(repository.reject(COMMENT_ID, "admin", "off topic", now=NOW))
 
@@ -478,7 +486,8 @@ def test_reject_requires_pending_state_records_reason_and_notifies_once() -> Non
 
     stale_session = TransitionSession(stored_comment(status=CommentStatus.PUBLISHED), user())
     stale_repository = SqlAlchemyModerationRepository(
-        TransitionFactory(stale_session)  # type: ignore[arg-type]
+        TransitionFactory(stale_session),  # type: ignore[arg-type]
+        unsubscribe_token_factory=unsubscribe_token_factory,
     )
     with pytest.raises(ModerationStateConflictError):
         run(stale_repository.reject(COMMENT_ID, "admin", "late", now=NOW))
@@ -539,7 +548,9 @@ def test_pending_reply_notification_is_created_only_when_approval_publishes() ->
         uploaded_at=NOW,
     )
     assert session.added == []
-    repository = SqlAlchemyModerationRepository(TransitionFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyModerationRepository(
+        TransitionFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     run(repository.approve(COMMENT_ID, "admin", now=NOW))
 
@@ -558,7 +569,9 @@ def test_pending_reply_notification_is_created_only_when_approval_publishes() ->
 
 def test_remove_soft_deletes_comment_and_resolves_all_open_reports() -> None:
     session = TransitionSession(stored_comment(status=CommentStatus.PUBLISHED), user())
-    repository = SqlAlchemyModerationRepository(TransitionFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyModerationRepository(
+        TransitionFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     removed = run(repository.remove(COMMENT_ID, "admin", now=NOW))
 
@@ -575,7 +588,8 @@ def test_suspend_revokes_sessions_atomically_and_restore_preserves_trust() -> No
     account.first_comment_approved_at = NOW
     suspend_session = UserAdminSession(account)
     suspend_repository = SqlAlchemyModerationRepository(
-        UserAdminFactory(suspend_session)  # type: ignore[arg-type]
+        UserAdminFactory(suspend_session),  # type: ignore[arg-type]
+        unsubscribe_token_factory=unsubscribe_token_factory,
     )
 
     suspended = run(suspend_repository.suspend_user(USER_ID, now=NOW))
@@ -588,7 +602,8 @@ def test_suspend_revokes_sessions_atomically_and_restore_preserves_trust() -> No
 
     restore_session = UserAdminSession(account)
     restore_repository = SqlAlchemyModerationRepository(
-        UserAdminFactory(restore_session)  # type: ignore[arg-type]
+        UserAdminFactory(restore_session),  # type: ignore[arg-type]
+        unsubscribe_token_factory=unsubscribe_token_factory,
     )
     restored = run(restore_repository.restore_user(USER_ID, now=NOW))
 

@@ -22,6 +22,7 @@ from company_api.models import (
     Notification,
     User,
     UserStatus,
+    UserToken,
 )
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=UTC)
@@ -36,6 +37,10 @@ ROOT_ID = UUID("00000000-0000-0000-0000-000000000607")
 
 def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coroutine)
+
+
+def unsubscribe_token_factory() -> tuple[UUID, str]:
+    return UUID(int=999), "unsubscribe-token-digest"
 
 
 class Rows:
@@ -160,7 +165,9 @@ def parent(*, author_id: UUID = RECIPIENT_ID) -> ParentCommentRecord:
 
 def test_top_level_cursor_uses_stable_created_at_and_id_predicate() -> None:
     session = FakeSession()
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     run(
         repository.list_top_level(
@@ -181,7 +188,9 @@ def test_top_level_cursor_uses_stable_created_at_and_id_predicate() -> None:
 
 def test_published_reply_notification_and_email_share_comment_commit() -> None:
     session = FakeSession()
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     saved = run(repository.create_comment(record(), reply_target=parent()))
 
@@ -190,18 +199,27 @@ def test_published_reply_notification_and_email_share_comment_commit() -> None:
     assert isinstance(created, Comment)
     assert created.parent_id == PARENT_ID
     assert created.reply_to_id == PARENT_ID
-    assert [type(item) for item in session.added] == [Comment, Notification, EmailOutbox]
+    assert [type(item) for item in session.added] == [Comment, Notification, UserToken, EmailOutbox]
     outbox = session.added[-1]
     assert isinstance(outbox, EmailOutbox)
     assert outbox.recipient == "recipient@example.com"
     assert outbox.payload is not None
     assert outbox.payload["company_id"] == str(COMPANY_ID)
-    assert session.events == ["Comment", "Notification", "EmailOutbox", "flush", "commit"]
+    assert session.events == [
+        "Comment",
+        "Notification",
+        "UserToken",
+        "EmailOutbox",
+        "flush",
+        "commit",
+    ]
 
 
 def test_pending_or_self_reply_does_not_notify() -> None:
     pending_session = FakeSession()
-    pending_repository = SqlAlchemyCommentRepository(FakeFactory(pending_session))  # type: ignore[arg-type]
+    pending_repository = SqlAlchemyCommentRepository(
+        FakeFactory(pending_session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
     run(
         pending_repository.create_comment(
             record(status=CommentStatus.PENDING), reply_target=parent()
@@ -210,7 +228,9 @@ def test_pending_or_self_reply_does_not_notify() -> None:
 
     self_session = FakeSession()
     self_session.locked_comments[PARENT_ID].author_id = ACTOR_ID
-    self_repository = SqlAlchemyCommentRepository(FakeFactory(self_session))  # type: ignore[arg-type]
+    self_repository = SqlAlchemyCommentRepository(
+        FakeFactory(self_session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
     run(self_repository.create_comment(record(), reply_target=parent(author_id=ACTOR_ID)))
 
     assert [type(item) for item in pending_session.added] == [Comment]
@@ -229,7 +249,9 @@ def test_create_relocks_direct_parent_and_rejects_change_after_precheck(
         session.locked_comments.pop(PARENT_ID)
     else:
         session.locked_comments[PARENT_ID].status = changed_status
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     with pytest.raises(ParentCommentInvalid):
         run(repository.create_comment(record(), reply_target=parent()))
@@ -247,7 +269,9 @@ def test_reply_to_reply_locks_and_validates_direct_target_then_root() -> None:
         PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
         ROOT_ID: stored_comment(ROOT_ID, author_id=root_author_id),
     }
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
     nested_record = record()
     nested_record = NewCommentRecord(
         id=nested_record.id,
@@ -294,7 +318,9 @@ def test_pending_nested_reply_persists_direct_target_without_publication_side_ef
         PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
         ROOT_ID: stored_comment(ROOT_ID, author_id=UUID(int=888)),
     }
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
     nested = record(status=CommentStatus.PENDING)
     nested = NewCommentRecord(
         id=nested.id,
@@ -330,7 +356,9 @@ def test_locked_direct_target_and_root_must_still_match_document(changed_id: UUI
     }
     changed = session.locked_comments[changed_id]
     changed.document_id = UUID(int=999)
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     with pytest.raises(ParentCommentInvalid):
         run(
@@ -367,7 +395,9 @@ def test_reply_to_reply_rejects_nonpublished_locked_root(
     }
     if changed_status is not None:
         session.locked_comments[ROOT_ID] = stored_comment(ROOT_ID, status=changed_status)
-    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    repository = SqlAlchemyCommentRepository(
+        FakeFactory(session), unsubscribe_token_factory=unsubscribe_token_factory
+    )  # type: ignore[arg-type]
 
     with pytest.raises(ParentCommentInvalid):
         run(

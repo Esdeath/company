@@ -9,7 +9,7 @@ from company_api.config import Settings
 from company_api.email_outbox import EmailJob
 from company_api.email_tokens import EmailTokenSigner
 from company_api.main import _message_factory, create_app
-from company_api.models import NotificationType, UserTokenPurpose
+from company_api.models import NotificationType, UserToken, UserTokenPurpose
 from company_api.notification_service import NotificationNotFound
 from company_api.user_auth import CurrentUser, UserSessionRecord
 from company_api.user_schemas import NotificationPage, NotificationRead
@@ -204,7 +204,7 @@ def test_unsubscribe_hides_unexpected_delivery_failures(
     assert "SMTP" not in response.text
 
 
-def test_reply_email_escapes_content_and_contains_a_purpose_bound_unsubscribe_link() -> None:
+def test_reply_email_escapes_content_and_reconstructs_its_stored_unsubscribe_token() -> None:
     token_id = UUID(int=99)
     signer = EmailTokenSigner("x" * 32)
     message = _message_factory(signer, settings())(
@@ -225,6 +225,15 @@ def test_reply_email_escapes_content_and_contains_a_purpose_bound_unsubscribe_li
     )
 
     token = signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)
+    stored = UserToken(
+        id=token_id,
+        token_hash=signer.digest(token),
+        purpose=UserTokenPurpose.UNSUBSCRIBE,
+        user_id=USER_ID,
+        created_at=NOW,
+        expires_at=NOW,
+    )
     assert "&lt;reader&gt;" in message.text_body
     assert "&lt;writer&gt;" in message.text_body
     assert f"/?unsubscribe={token}" in message.text_body
+    assert signer.matches(stored.id, stored.purpose, stored.token_hash, token)
