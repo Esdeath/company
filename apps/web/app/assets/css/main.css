@@ -466,9 +466,9 @@ h2 {
 }
 
 .footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
   gap: 0.5rem 1rem;
   padding-block: 1.1rem;
   border-top: 1px solid var(--line);
@@ -478,7 +478,29 @@ h2 {
   margin: 0;
 }
 
+.footer > p:last-child {
+  justify-self: end;
+  text-align: right;
+}
+
+.footer__icp {
+  min-width: 0;
+  justify-self: center;
+  color: inherit;
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-underline-offset: 0.2em;
+}
+
+.footer__icp:hover {
+  color: var(--green);
+}
+
 @media (min-width: 64rem) {
+  .footer {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
   .library-workspace {
     grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);

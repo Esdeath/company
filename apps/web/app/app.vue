@@ -285,6 +285,12 @@ onMounted(() => {
 
     <footer class="footer">
       <p>企业研究资料库</p>
+      <a
+        class="footer__icp"
+        href="https://beian.miit.gov.cn/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >浙ICP备17053536号-2</a>
       <p>HTML 与 Markdown 资料独立阅读</p>
     </footer>
   </div>
