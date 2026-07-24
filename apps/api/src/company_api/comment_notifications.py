@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from company_api.models import (
@@ -21,6 +22,37 @@ from company_api.models import (
 UNSUBSCRIBE_LIFETIME = timedelta(days=30)
 
 
+async def disable_reply_email_delivery(
+    session: AsyncSession,
+    user: User,
+    *,
+    now: datetime,
+) -> None:
+    """Disable reply mail and retire every queued unsubscribe delivery atomically."""
+    unsubscribe_token_ids = select(UserToken.id).where(
+        UserToken.user_id == user.id,
+        UserToken.purpose == UserTokenPurpose.UNSUBSCRIBE,
+    )
+    await session.execute(
+        delete(EmailOutbox).where(
+            EmailOutbox.template == "comment_reply",
+            EmailOutbox.sent_at.is_(None),
+            EmailOutbox.token_id.in_(unsubscribe_token_ids),
+        )
+    )
+    await session.execute(
+        update(UserToken)
+        .where(
+            UserToken.user_id == user.id,
+            UserToken.purpose == UserTokenPurpose.UNSUBSCRIBE,
+            UserToken.consumed_at.is_(None),
+        )
+        .values(consumed_at=now)
+    )
+    user.reply_email_enabled = False
+    user.updated_at = now
+
+
 async def add_reply_publication_side_effects(
     session: AsyncSession,
     *,
@@ -34,7 +66,9 @@ async def add_reply_publication_side_effects(
 ) -> None:
     if reply_target is None or reply_target.author_id is None or reply_target.author_id == actor_id:
         return
-    recipient = await session.get(User, reply_target.author_id)
+    recipient = await session.scalar(
+        select(User).where(User.id == reply_target.author_id).with_for_update()
+    )
     if recipient is None:
         return
     session.add(

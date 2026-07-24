@@ -10,7 +10,7 @@ import {
   reportComment,
   updateComment,
 } from '../api/community'
-import type { Comment, CommentPage, User } from '../types/community'
+import type { Comment, CommentPage, CommentReportInput, User } from '../types/community'
 import CommentItem from './CommentItem.vue'
 
 type CurrentUser = User
@@ -325,14 +325,14 @@ async function removeComment(commentId: string) {
   }
 }
 
-async function report(commentId: string) {
+async function report(commentId: string, input: CommentReportInput) {
   if (reportedIds.value.includes(commentId) || reportingIds.value.includes(commentId)) return
   actionError.value = null
   reportingIds.value = [...reportingIds.value, commentId]
   const documentId = props.documentId
   const generation = documentGeneration
   try {
-    await reportComment(commentId, { reason: 'spam' })
+    await reportComment(commentId, input)
     if (!isCurrentDocument(documentId, generation)) return
     reportedIds.value = [...reportedIds.value, commentId]
   } catch (error) {

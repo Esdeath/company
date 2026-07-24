@@ -8,6 +8,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from company_api.comment_notifications import disable_reply_email_delivery
 from company_api.models import (
     Comment,
     EmailOutbox,
@@ -391,17 +392,30 @@ class SqlAlchemyUserAuthRepository:
             if user is None or user.status != UserStatus.ACTIVE:
                 await session.commit()
                 return None
-            user.reply_email_enabled = reply_email_enabled
-            user.updated_at = now
+            if reply_email_enabled:
+                user.reply_email_enabled = True
+                user.updated_at = now
+            else:
+                await disable_reply_email_delivery(session, user, now=now)
             result = _user_record(user)
             await session.commit()
             return result
 
-    async def delete_account(self, user_id: UUID, *, now: datetime) -> bool:
+    async def delete_account(
+        self,
+        user_id: UUID,
+        expected_password_hash: str,
+        *,
+        now: datetime,
+    ) -> bool:
         del now
         async with self._session_factory() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
-            if user is None:
+            if (
+                user is None
+                or user.status != UserStatus.ACTIVE
+                or not hmac.compare_digest(user.password_hash, expected_password_hash)
+            ):
                 await session.commit()
                 return False
             await session.execute(

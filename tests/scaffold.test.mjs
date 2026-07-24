@@ -373,6 +373,7 @@ test('publishes a safe local environment template', async () => {
     'SMTP_USERNAME',
     'SMTP_PASSWORD',
     'SMTP_STARTTLS',
+    'SMTP_TIMEOUT_SECONDS',
     'SMTP_SENDER',
     'PUBLIC_BASE_URL',
     'EMAIL_DISPATCH_INTERVAL_SECONDS',
@@ -409,6 +410,7 @@ test('wires every community setting into the existing API service', async () => 
     'SMTP_USERNAME',
     'SMTP_PASSWORD',
     'SMTP_STARTTLS',
+    'SMTP_TIMEOUT_SECONDS',
     'SMTP_SENDER',
     'PUBLIC_BASE_URL',
     'EMAIL_DISPATCH_INTERVAL_SECONDS',
@@ -960,7 +962,7 @@ test('production deployment preserves community secrets and creates one persiste
   assert.match(deployer, /USER_TOKEN_SIGNING_KEY/)
   assert.match(deployer, /secrets\.token_urlsafe\(32\)/)
   assert.match(deployer, /USER_REGISTRATION_ENABLED=false/)
-  assert.match(deployer, /COMMENT_WRITES_ENABLED=true/)
+  assert.doesNotMatch(deployer, /COMMENT_WRITES_ENABLED=/)
   assert.doesNotMatch(deployer, /(?:echo|printf)[^\n]*USER_TOKEN_SIGNING_KEY[^\n]*\$/)
   assert.doesNotMatch(deployer, /SMTP_PASSWORD=/)
 })

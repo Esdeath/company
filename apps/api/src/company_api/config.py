@@ -1,3 +1,4 @@
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -41,13 +42,24 @@ def is_valid_https_base_url(value: str) -> bool:
     except ValueError:
         return False
 
+    hostname = parsed.hostname
+    if hostname is None:
+        return False
+    try:
+        is_loopback = ip_address(hostname).is_loopback
+    except ValueError:
+        is_loopback = hostname.lower() == "localhost" or hostname.lower().endswith(".localhost")
+
     return (
         parsed.scheme == "https"
-        and parsed.hostname is not None
-        and is_valid_host(parsed.hostname)
+        and is_valid_host(hostname)
+        and not is_loopback
         and parsed.username is None
         and parsed.password is None
         and (port is None or 1 <= port <= 65_535)
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
     )
 
 
@@ -74,6 +86,7 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: SecretStr = SecretStr("")
     smtp_starttls: bool = True
+    smtp_timeout_seconds: float = Field(default=10.0, ge=1.0, le=120.0)
     smtp_sender: str = ""
     public_base_url: str = "http://127.0.0.1:3000"
     email_dispatch_interval_seconds: float = Field(default=2.0, ge=0.1, le=60)
@@ -113,11 +126,10 @@ class Settings(BaseSettings):
             or len(signing_key) < 32
         ):
             raise ValueError("Production requires a non-local user token signing key")
-        if self.user_registration_enabled:
-            if not self.smtp_configured:
-                raise ValueError("Production registration requires SMTP host and sender")
-            if not is_valid_https_base_url(self.public_base_url):
-                raise ValueError("Production registration requires an HTTPS public base URL")
+        if not is_valid_https_base_url(self.public_base_url):
+            raise ValueError("Production requires an HTTPS public base URL without a path")
+        if self.user_registration_enabled and not self.smtp_configured:
+            raise ValueError("Production registration requires SMTP host and sender")
 
         return self
 

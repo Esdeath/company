@@ -144,6 +144,7 @@ install -m 600 /dev/null /srv/company/secrets/company.env
     'SMTP_USERNAME=' \
     'SMTP_PASSWORD=' \
     'SMTP_STARTTLS=true' \
+    'SMTP_TIMEOUT_SECONDS=10' \
     'SMTP_SENDER=' \
     'PUBLIC_BASE_URL=https://www.ayaseeri.com' \
     'EMAIL_DISPATCH_INTERVAL_SECONDS=2' \
@@ -160,7 +161,7 @@ ln -sfn /srv/company/secrets/company.env /srv/company/app/.env
 
 首次迁移和部署必须保持 `USER_REGISTRATION_ENABLED=false`。此时 `EMAIL_BACKEND=smtp` 可以在 `SMTP_HOST`、`SMTP_SENDER` 等字段仍为空时启动 API，既不会回退到 console/file 后端，也不会开放注册；若数据库已有邮件任务，发送会以固定的无敏感信息错误失败并进入发件箱退避重试。
 
-API 启动后，填写 SMTP 服务商提供的 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_STARTTLS` 和 `SMTP_SENDER`，并把 `PUBLIC_BASE_URL` 设为无路径的 HTTPS 站点地址。`SMTP_PASSWORD` 只存在 `/srv/company/secrets/company.env`；日常部署会原样保留 SMTP 凭据，不会写入仓库或终端输出。
+API 启动后，填写 SMTP 服务商提供的 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_STARTTLS`、`SMTP_TIMEOUT_SECONDS` 和 `SMTP_SENDER`，并把 `PUBLIC_BASE_URL` 设为无路径的 HTTPS 站点地址。`SMTP_TIMEOUT_SECONDS` 必须在 1 到 120 秒之间，默认 10 秒。`SMTP_PASSWORD` 只存在 `/srv/company/secrets/company.env`；日常部署会原样保留 SMTP 凭据，不会写入仓库或终端输出。
 
 发件域名的 SPF 与 DKIM 记录由所选 SMTP 服务商提供和验证。先发送注册验证与密码重置测试邮件，确认链接回到正确的 HTTPS 域名，并观察发件箱没有持续失败，再把 `USER_REGISTRATION_ENABLED=true`。不要在 SMTP 尚未工作时开放注册。`EMAIL_DISPATCH_INTERVAL_SECONDS` 控制领取间隔，`EMAIL_MAX_ATTEMPTS` 控制最大尝试次数；失败任务保存在 PostgreSQL，API 重启后继续重试。
 
@@ -285,7 +286,7 @@ make deploy-aliyun
 DEPLOY_TARGET=root@<ECS-IP> make deploy-aliyun
 ```
 
-脚本会依次运行本地 `make check`、复用一个 SSH 连接、构建 linux/amd64 离线镜像、创建 ECS 发布前备份、rsync 代码、上传并校验镜像、补齐安全环境变量、运行 Alembic migration、启动 Compose、更新 Nginx，最后验证公开首页、管理端、匿名会话和未授权写入的 401。首次社区版本发布会在远端生成并保存 32 字节 URL-safe `USER_TOKEN_SIGNING_KEY`；后续发布保留该密钥和已有 SMTP 凭据，并把注册恢复为关闭状态，必须在测试邮件成功后再次手工开启。使用 root 密码登录时通常只需输入一次。
+脚本会依次运行本地 `make check`、复用一个 SSH 连接、构建 linux/amd64 离线镜像、创建 ECS 发布前备份、rsync 代码、上传并校验镜像、补齐安全环境变量、运行 Alembic migration、启动 Compose、更新 Nginx，最后验证公开首页、管理端、匿名会话和未授权写入的 401。首次社区版本发布会在远端生成并保存 32 字节 URL-safe `USER_TOKEN_SIGNING_KEY`；后续发布保留该密钥、已有 SMTP 凭据和当前 `COMMENT_WRITES_ENABLED` 值，并把注册恢复为关闭状态，必须在测试邮件成功后再次手工开启。这样事故期间设置的评论只读模式不会被日常修复发布意外解除。使用 root 密码登录时通常只需输入一次。
 
 社区功能上线顺序是：保持注册关闭并做备份，运行增量 Alembic migration，部署 API、Web 和 Admin，更新 Nginx，配置 SMTP 与发件域名，发送测试邮件，最后开放注册。上线初期监控待审核评论、429 命中、发件箱失败与积压。
 

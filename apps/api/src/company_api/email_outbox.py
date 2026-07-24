@@ -8,11 +8,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import and_, exists, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from company_api.mailer import EmailMessage, Mailer
-from company_api.models import EmailOutbox
+from company_api.models import EmailOutbox, User, UserStatus, UserToken, UserTokenPurpose
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +71,17 @@ class SqlAlchemyEmailOutboxRepository:
         if limit < 1:
             return []
         async with self._session_factory() as session:
+            valid_reply_recipient = exists(
+                select(UserToken.id)
+                .join(User, User.id == UserToken.user_id)
+                .where(
+                    UserToken.id == EmailOutbox.token_id,
+                    UserToken.purpose == UserTokenPurpose.UNSUBSCRIBE,
+                    UserToken.consumed_at.is_(None),
+                    User.status == UserStatus.ACTIVE,
+                    User.reply_email_enabled.is_(True),
+                )
+            )
             statement = (
                 select(EmailOutbox)
                 .where(
@@ -80,6 +91,13 @@ class SqlAlchemyEmailOutboxRepository:
                     or_(
                         EmailOutbox.lease_id.is_(None),
                         EmailOutbox.lease_expires_at <= now,
+                    ),
+                    or_(
+                        EmailOutbox.template != "comment_reply",
+                        and_(
+                            EmailOutbox.template == "comment_reply",
+                            valid_reply_recipient,
+                        ),
                     ),
                 )
                 .order_by(EmailOutbox.available_at.asc(), EmailOutbox.id.asc())

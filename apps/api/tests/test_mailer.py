@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import ssl
 import stat
 from collections.abc import Coroutine
 from email.message import EmailMessage as MimeEmailMessage
@@ -47,9 +48,10 @@ def settings(**overrides: object) -> Settings:
 class FakeSmtp:
     instances: list["FakeSmtp"] = []
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, *, timeout: float) -> None:
         self.host = host
         self.port = port
+        self.timeout = timeout
         self.events: list[object] = []
         FakeSmtp.instances.append(self)
 
@@ -64,8 +66,8 @@ class FakeSmtp:
     ) -> None:
         del exc_type, exc_value, traceback
 
-    def starttls(self) -> None:
-        self.events.append("starttls")
+    def starttls(self, *, context: ssl.SSLContext) -> None:
+        self.events.append(("starttls", context))
 
     def login(self, username: str, password: str) -> None:
         self.events.append(("login", username, password))
@@ -88,8 +90,14 @@ def test_smtp_mailer_builds_safe_rfc_message_and_follows_transport_settings(
     run(SmtpMailer(settings()).send(message))
 
     smtp = FakeSmtp.instances[0]
-    assert (smtp.host, smtp.port) == ("smtp.example.com", 2525)
-    assert smtp.events[:2] == ["starttls", ("login", "smtp-user", "smtp-secret")]
+    assert (smtp.host, smtp.port, smtp.timeout) == ("smtp.example.com", 2525, 10.0)
+    starttls = smtp.events[0]
+    assert isinstance(starttls, tuple)
+    tls_context = starttls[1]
+    assert isinstance(tls_context, ssl.SSLContext)
+    assert tls_context.verify_mode == ssl.CERT_REQUIRED
+    assert tls_context.check_hostname is True
+    assert smtp.events[1] == ("login", "smtp-user", "smtp-secret")
     sent = smtp.events[2]
     assert isinstance(sent, tuple)
     mime_message = sent[1]
@@ -100,6 +108,21 @@ def test_smtp_mailer_builds_safe_rfc_message_and_follows_transport_settings(
     html_body = mime_message.get_body(preferencelist=("html",)).get_content()
     assert "&lt;script&gt;alert(&#x27;no&#x27;)&lt;/script&gt; &amp; welcome" in html_body
     assert "<script>" not in html_body
+
+
+def test_smtp_mailer_passes_configured_connection_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSmtp.instances.clear()
+    monkeypatch.setattr("company_api.mailer.smtplib.SMTP", FakeSmtp)
+
+    run(
+        SmtpMailer(settings(smtp_timeout_seconds=3.5)).send(
+            EmailMessage("reader@example.com", "Subject", "Body")
+        )
+    )
+
+    assert FakeSmtp.instances[0].timeout == 3.5
 
 
 def test_smtp_mailer_skips_starttls_and_login_when_disabled_and_unconfigured(
@@ -127,6 +150,7 @@ def test_unconfigured_production_smtp_starts_but_delivery_fails_closed(
         email_backend="smtp",
         user_registration_enabled=False,
         user_token_signing_key="x" * 32,
+        public_base_url="https://research.example.com",
         smtp_host="",
         smtp_username="",
         smtp_password="",

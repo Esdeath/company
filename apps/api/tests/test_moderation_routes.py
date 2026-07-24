@@ -146,9 +146,14 @@ class TransitionSession:
     async def scalar(self, statement: object) -> object | None:
         self.statements.append(statement)
         self.scalar_calls += 1
-        if self.scalar_calls == 1:
+        compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+        selected_ids = [value for value in compiled.params.values() if isinstance(value, UUID)]
+        selected_id = selected_ids[0] if selected_ids else None
+        if "FROM comments" in str(compiled):
             return self.comment
-        if self.scalar_calls == 2:
+        if self.recipient is not None and selected_id == self.recipient.id:
+            return self.recipient
+        if "FROM users" in str(compiled):
             return self.author
         return self.author.username
 

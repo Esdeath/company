@@ -55,15 +55,41 @@ describe('CommentItem', () => {
 
     await wrapper.get('button[name="reply-comment-1"]').trigger('click')
     await wrapper.get('button[name="edit-comment-1"]').trigger('click')
-    await wrapper.get('button[name="report-comment-1"]').trigger('click')
     await wrapper.get('button[name="delete-comment-1"]').trigger('click')
     expect(wrapper.emitted('delete')).toBeUndefined()
     await wrapper.get('button[name="confirm-delete-comment-1"]').trigger('click')
 
     expect(wrapper.emitted('reply')).toEqual([['comment-1']])
     expect(wrapper.emitted('edit')).toEqual([['comment-1']])
-    expect(wrapper.emitted('report')).toEqual([['comment-1']])
     expect(wrapper.emitted('delete')).toEqual([['comment-1']])
+  })
+
+  it('opens and cancels a report form without silently choosing a reason', async () => {
+    const wrapper = mountItem()
+
+    await wrapper.get('button[name="report-comment-1"]').trigger('click')
+
+    expect(wrapper.emitted('report')).toBeUndefined()
+    expect(wrapper.get('select[name="report-reason-comment-1"]').element.value).toBe('')
+    expect(wrapper.get('button[name="confirm-report-comment-1"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('button[name="cancel-report-comment-1"]').trigger('click')
+
+    expect(wrapper.find('form.comment-item__report').exists()).toBe(false)
+    expect(wrapper.emitted('report')).toBeUndefined()
+  })
+
+  it('submits an explicit report category and optional details', async () => {
+    const wrapper = mountItem()
+
+    await wrapper.get('button[name="report-comment-1"]').trigger('click')
+    await wrapper.get('select[name="report-reason-comment-1"]').setValue('harassment')
+    await wrapper.get('textarea[name="report-details-comment-1"]').setValue('持续针对作者的人身攻击')
+    await wrapper.get('form.comment-item__report').trigger('submit')
+
+    expect(wrapper.emitted('report')).toEqual([
+      ['comment-1', { reason: 'harassment', details: '持续针对作者的人身攻击' }],
+    ])
   })
 
   it('renders replies at one visual level and forwards their reply commands', async () => {

@@ -238,6 +238,14 @@ def test_sqlalchemy_unsubscribe_locks_user_before_revalidating_the_token() -> No
     assert "FROM users" in statements[1] and "FOR UPDATE" in statements[1]
     assert "FROM user_tokens" in statements[2] and "FOR UPDATE" in statements[2]
     assert statements[3].startswith("DELETE FROM user_auth_challenges")
+    assert any(statement.startswith("DELETE FROM email_outbox") for statement in statements)
+    token_updates = [
+        statement for statement in statements if statement.startswith("UPDATE user_tokens")
+    ]
+    assert len(token_updates) == 1
+    assert "user_tokens.user_id" in token_updates[0]
+    assert "user_tokens.purpose" in token_updates[0]
+    assert "user_tokens.consumed_at IS NULL" in token_updates[0]
     assert session.user.reply_email_enabled is False
     assert session.token.consumed_at == NOW
 
@@ -370,6 +378,29 @@ def test_reply_email_defaults_to_enabled_and_stages_a_one_time_unsubscribe_token
     assert token.token_hash == signer.digest(signer.issue(TOKEN_ID, UserTokenPurpose.UNSUBSCRIBE))
 
 
+def test_reply_email_rechecks_recipient_preference_while_holding_the_user_lock() -> None:
+    recipient = stored_user(reply_email_enabled=True)
+    session = SideEffectSession(recipient, reply_email_enabled_after_lock=False)
+
+    run(
+        add_reply_publication_side_effects(
+            session,  # type: ignore[arg-type]
+            comment_id=COMMENT_ID,
+            document_id=DOCUMENT_ID,
+            actor_id=OTHER_USER_ID,
+            actor_username="writer",
+            reply_target=reply_target(),
+            created_at=NOW,
+            unsubscribe_token_factory=lambda: (TOKEN_ID, "unused"),
+        )
+    )
+
+    assert "FOR UPDATE" in str(
+        session.statements[0].compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+    )
+    assert [type(item) for item in session.added] == [Notification]
+
+
 def test_email_dispatch_exhaustion_does_not_remove_the_paired_notification() -> None:
     notification = Notification(
         id=UUID(int=77),
@@ -430,8 +461,14 @@ def reply_target() -> Comment:
 
 
 class SideEffectSession:
-    def __init__(self, recipient: User) -> None:
+    def __init__(
+        self,
+        recipient: User,
+        *,
+        reply_email_enabled_after_lock: bool | None = None,
+    ) -> None:
         self.recipient = recipient
+        self.reply_email_enabled_after_lock = reply_email_enabled_after_lock
         self.document = Document(
             id=DOCUMENT_ID,
             company_id=COMPANY_ID,
@@ -443,6 +480,13 @@ class SideEffectSession:
             uploaded_at=NOW,
         )
         self.added: list[object] = []
+        self.statements: list[object] = []
+
+    async def scalar(self, statement: object) -> object | None:
+        self.statements.append(statement)
+        if self.reply_email_enabled_after_lock is not None:
+            self.recipient.reply_email_enabled = self.reply_email_enabled_after_lock
+        return self.recipient
 
     async def get(self, model: type[object], key: UUID) -> object | None:
         if model is User and key == self.recipient.id:

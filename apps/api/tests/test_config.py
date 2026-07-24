@@ -86,13 +86,14 @@ def test_production_rejects_non_smtp_email_backend() -> None:
         settings(app_environment="production", email_backend="console")
 
 
-def test_production_registration_requires_complete_smtp_and_public_https_url() -> None:
+def test_production_registration_requires_complete_smtp() -> None:
     with pytest.raises(ValidationError, match="SMTP"):
         settings(
             app_environment="production",
             email_backend="smtp",
             user_token_signing_key="x" * 32,
             user_registration_enabled=True,
+            public_base_url="https://research.example.com",
         )
 
 
@@ -102,6 +103,30 @@ def test_production_rejects_the_local_user_token_signing_key() -> None:
             app_environment="production",
             email_backend="smtp",
             user_token_signing_key="local-development-only-signing-key",
+        )
+
+
+@pytest.mark.parametrize(
+    "public_base_url",
+    [
+        "http://research.example.com",
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://research.example.com/articles",
+        "https://research.example.com?preview=true",
+        "https://research.example.com#comments",
+    ],
+)
+def test_production_requires_a_public_origin_even_when_registration_is_disabled(
+    public_base_url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="HTTPS public base URL"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=False,
+            public_base_url=public_base_url,
         )
 
 
@@ -144,7 +169,7 @@ def test_smtp_configured_rejects_invalid_host_or_sender(
 
 
 @pytest.mark.parametrize("public_base_url", ["https://", "https://:443", "https://example.com:bad"])
-def test_production_registration_rejects_malformed_https_base_urls(public_base_url: str) -> None:
+def test_production_rejects_malformed_https_base_urls(public_base_url: str) -> None:
     with pytest.raises(ValidationError, match="HTTPS"):
         settings(
             app_environment="production",
@@ -157,7 +182,13 @@ def test_production_registration_rejects_malformed_https_base_urls(public_base_u
         )
 
 
-def test_production_registration_accepts_validated_smtp_and_https_base_url() -> None:
+@pytest.mark.parametrize(
+    "public_base_url",
+    ["https://research.example.com", "https://research.example.com/"],
+)
+def test_production_accepts_an_https_origin_with_optional_root_slash(
+    public_base_url: str,
+) -> None:
     configured = settings(
         app_environment="production",
         email_backend="smtp",
@@ -165,10 +196,16 @@ def test_production_registration_accepts_validated_smtp_and_https_base_url() -> 
         user_registration_enabled=True,
         smtp_host="smtp.example.com",
         smtp_sender="sender@example.com",
-        public_base_url="https://research.example.com",
+        public_base_url=public_base_url,
     )
 
     assert configured.smtp_configured is True
+
+
+@pytest.mark.parametrize("smtp_timeout_seconds", [0.9, 120.1])
+def test_smtp_timeout_is_bounded(smtp_timeout_seconds: float) -> None:
+    with pytest.raises(ValidationError):
+        settings(smtp_timeout_seconds=smtp_timeout_seconds)
 
 
 def test_test_environment_allows_file_email_backend() -> None:

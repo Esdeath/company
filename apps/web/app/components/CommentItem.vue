@@ -2,7 +2,16 @@
 import { computed, ref } from 'vue'
 
 import { linkifyComment } from '../utils/linkifyComment'
-import type { Comment } from '../types/community'
+import type { Comment, CommentReportInput } from '../types/community'
+
+type ReportReason = 'spam' | 'harassment' | 'illegal' | 'other'
+
+const REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: 'spam', label: '垃圾广告或重复内容' },
+  { value: 'harassment', label: '骚扰或人身攻击' },
+  { value: 'illegal', label: '违法或危险内容' },
+  { value: 'other', label: '其他问题' },
+]
 
 const props = withDefaults(
   defineProps<{
@@ -26,13 +35,16 @@ const emit = defineEmits<{
   reply: [commentId: string]
   edit: [commentId: string]
   delete: [commentId: string]
-  report: [commentId: string]
+  report: [commentId: string, input: CommentReportInput]
   'edit-draft': [body: string]
   'save-edit': [commentId: string]
   'cancel-edit': []
 }>()
 
 const confirmingDelete = ref(false)
+const reportFormOpen = ref(false)
+const reportReason = ref<ReportReason | ''>('')
+const reportDetails = ref('')
 const bodySegments = computed(() => linkifyComment(props.comment.body ?? ''))
 const authorName = computed(() => (props.comment.author.id ? props.comment.author.username : '已注销用户'))
 const canReply = computed(() => props.comment.status === 'published')
@@ -40,6 +52,14 @@ const isEditing = computed(() => props.editingCommentId === props.comment.id)
 const isReported = computed(() => props.reportedIds.includes(props.comment.id))
 const isReporting = computed(() => props.reportingIds.includes(props.comment.id))
 const hasReplies = computed(() => props.depth === 0 && props.comment.replies.length > 0)
+const canSubmitReport = computed(
+  () =>
+    Boolean(reportReason.value) &&
+    reportReason.value.length <= 100 &&
+    reportDetails.value.length <= 2000 &&
+    !isReported.value &&
+    !isReporting.value,
+)
 
 function requestDelete() {
   confirmingDelete.value = true
@@ -52,6 +72,31 @@ function cancelDelete() {
 function confirmDelete() {
   confirmingDelete.value = false
   emit('delete', props.comment.id)
+}
+
+function openReport() {
+  if (isReported.value || isReporting.value) return
+  reportFormOpen.value = true
+}
+
+function cancelReport() {
+  if (isReporting.value) return
+  reportFormOpen.value = false
+  reportReason.value = ''
+  reportDetails.value = ''
+}
+
+function submitReport() {
+  if (!canSubmitReport.value || !reportReason.value) return
+  const details = reportDetails.value.trim()
+  emit('report', props.comment.id, {
+    reason: reportReason.value,
+    ...(details ? { details } : {}),
+  })
+}
+
+function forwardReport(commentId: string, input: CommentReportInput) {
+  emit('report', commentId, input)
 }
 
 </script>
@@ -106,7 +151,7 @@ function confirmDelete() {
         :name="`report-${comment.id}`"
         type="button"
         :disabled="isReported || isReporting"
-        @click="emit('report', comment.id)"
+        @click="openReport"
       >{{ isReported ? '已举报' : isReporting ? '正在举报' : '举报' }}</button>
     </div>
 
@@ -115,6 +160,43 @@ function confirmDelete() {
       <button :name="`confirm-delete-${comment.id}`" type="button" @click="confirmDelete">确定删除</button>
       <button :name="`cancel-delete-${comment.id}`" type="button" @click="cancelDelete">取消</button>
     </div>
+
+    <form
+      v-if="reportFormOpen && !isReported"
+      class="comment-item__report"
+      :data-report-comment-id="comment.id"
+      @submit.prevent="submitReport"
+    >
+      <label :for="`report-reason-${comment.id}`">举报原因</label>
+      <select
+        :id="`report-reason-${comment.id}`"
+        v-model="reportReason"
+        :name="`report-reason-${comment.id}`"
+        :disabled="isReporting"
+        required
+      >
+        <option value="" disabled>请选择原因</option>
+        <option v-for="reason in REPORT_REASONS" :key="reason.value" :value="reason.value">
+          {{ reason.label }}
+        </option>
+      </select>
+      <label :for="`report-details-${comment.id}`">补充说明（选填）</label>
+      <textarea
+        :id="`report-details-${comment.id}`"
+        v-model="reportDetails"
+        :name="`report-details-${comment.id}`"
+        :disabled="isReporting"
+        maxlength="2000"
+      />
+      <div class="comment-item__report-commands">
+        <button :name="`confirm-report-${comment.id}`" type="submit" :disabled="!canSubmitReport">
+          {{ isReporting ? '正在提交' : '确认举报' }}
+        </button>
+        <button :name="`cancel-report-${comment.id}`" type="button" :disabled="isReporting" @click="cancelReport">
+          取消
+        </button>
+      </div>
+    </form>
 
     <ol v-if="hasReplies" class="comment-item__replies">
       <li v-for="reply in comment.replies" :key="reply.id">
@@ -128,7 +210,7 @@ function confirmDelete() {
           @reply="emit('reply', $event)"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
-          @report="emit('report', $event)"
+          @report="forwardReport"
           @edit-draft="emit('edit-draft', $event)"
           @save-edit="emit('save-edit', $event)"
           @cancel-edit="emit('cancel-edit')"
@@ -216,9 +298,43 @@ function confirmDelete() {
   margin-block: 0.65rem;
 }
 
-.comment-item__edit textarea {
+.comment-item__edit textarea,
+.comment-item__report textarea {
   width: 100%;
   min-height: 6rem;
   resize: vertical;
+}
+
+.comment-item__report {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.7rem;
+  padding-block-start: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.comment-item__report label {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.comment-item__report select,
+.comment-item__report textarea {
+  box-sizing: border-box;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+}
+
+.comment-item__report textarea {
+  min-height: 4.5rem;
+}
+
+.comment-item__report-commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 </style>

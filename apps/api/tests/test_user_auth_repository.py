@@ -450,7 +450,7 @@ def test_deletion_locks_account_anonymizes_comments_and_deletes_private_owner() 
     fake = FakeSession([user])
     repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
 
-    assert run(repository.delete_account(USER_ID, now=NOW)) is True
+    assert run(repository.delete_account(USER_ID, "$argon2id$stored", now=NOW)) is True
 
     assert "FOR UPDATE" in sql(fake.statements[0])
     anonymize = next(
@@ -461,6 +461,67 @@ def test_deletion_locks_account_anonymizes_comments_and_deletes_private_owner() 
     assert Comment.__tablename__ in sql(anonymize)
     assert fake.deleted == [user]
     assert fake.events == [("commit", 0)]
+
+
+def test_deletion_rejects_password_hash_changed_before_the_user_lock() -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    user.password_hash = "$argon2id$concurrent-reset"
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    deleted = run(repository.delete_account(USER_ID, "$argon2id$observed", now=NOW))
+
+    assert deleted is False
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    assert fake.deleted == []
+    assert not any("UPDATE comments" in sql(statement) for statement in fake.statements)
+    assert fake.events == [("commit", 0)]
+
+
+def test_deletion_rejects_account_suspended_before_the_user_lock() -> None:
+    user = user_row(status=UserStatus.SUSPENDED)
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    deleted = run(repository.delete_account(USER_ID, "$argon2id$stored", now=NOW))
+
+    assert deleted is False
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    assert fake.deleted == []
+    assert not any("UPDATE comments" in sql(statement) for statement in fake.statements)
+    assert fake.events == [("commit", 0)]
+
+
+@pytest.mark.parametrize("reply_email_enabled", [False, True])
+def test_preference_update_only_cancels_reply_email_when_disabling(
+    reply_email_enabled: bool,
+) -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    updated = run(
+        repository.update_preferences(
+            USER_ID,
+            reply_email_enabled=reply_email_enabled,
+            now=NOW,
+        )
+    )
+
+    assert updated is not None
+    assert "FOR UPDATE" in sql(fake.statements[0])
+    cleanup = [sql(statement) for statement in fake.statements[1:]]
+    if reply_email_enabled:
+        assert cleanup == []
+    else:
+        assert len(cleanup) == 2
+        assert cleanup[0].startswith("DELETE FROM email_outbox")
+        assert "email_outbox.template = 'comment_reply'" in cleanup[0]
+        assert "email_outbox.sent_at IS NULL" in cleanup[0]
+        assert "user_tokens.user_id" in cleanup[0]
+        assert cleanup[1].startswith("UPDATE user_tokens")
+        assert "user_tokens.purpose" in cleanup[1]
+        assert "user_tokens.consumed_at IS NULL" in cleanup[1]
 
 
 def test_one_time_challenge_uses_delete_returning() -> None:

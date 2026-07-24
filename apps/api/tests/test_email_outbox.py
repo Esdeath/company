@@ -15,7 +15,7 @@ from company_api.email_outbox import (
     SqlAlchemyEmailOutboxRepository,
 )
 from company_api.mailer import EmailMessage, UnavailableMailer
-from company_api.models import EmailOutbox
+from company_api.models import EmailOutbox, User, UserToken
 
 NOW = datetime(2026, 7, 23, 10, 0, tzinfo=UTC)
 JOB_ID = UUID("00000000-0000-0000-0000-000000000111")
@@ -147,6 +147,21 @@ def test_claim_batch_uses_skip_locked_and_recovers_expired_leases() -> None:
         )
     ]
     assert "raw_token" not in {field.name for field in dataclasses.fields(EmailJob)}
+
+
+def test_claim_batch_revalidates_comment_reply_token_user_and_preference() -> None:
+    session = FakeSession()
+    repository = SqlAlchemyEmailOutboxRepository(SessionFactory([session]))  # type: ignore[arg-type]
+
+    assert run(repository.claim_batch(NOW, LEASE_ID, 10)) == []
+
+    statement_sql = sql(session.statements[0])
+    assert "email_outbox.template != 'comment_reply'" in statement_sql
+    assert UserToken.__tablename__ in statement_sql
+    assert "user_tokens.consumed_at IS NULL" in statement_sql
+    assert User.__tablename__ in statement_sql
+    assert "users.reply_email_enabled IS true" in statement_sql
+    assert "users.status = 'ACTIVE'" in statement_sql
 
 
 @pytest.mark.parametrize(("attempts", "delay_seconds"), [(3, 8), (12, 3600)])

@@ -91,9 +91,11 @@ class FakeSession:
 
     async def scalar(self, statement: object) -> object | None:
         self.statements.append(statement)
-        parameters = statement.compile(dialect=postgresql.dialect()).params  # type: ignore[attr-defined]
-        comment_id = next(value for value in parameters.values() if isinstance(value, UUID))
-        return self.locked_comments.get(comment_id)
+        compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+        selected_id = next(value for value in compiled.params.values() if isinstance(value, UUID))
+        if "FROM users" in str(compiled):
+            return self.recipient if selected_id == self.recipient.id else None
+        return self.locked_comments.get(selected_id)
 
     async def get(self, model: type[object], key: UUID) -> object | None:
         if model is User and key == RECIPIENT_ID:

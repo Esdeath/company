@@ -65,6 +65,20 @@ function mountSection(props: Record<string, unknown> = {}) {
   })
 }
 
+async function submitReport(
+  wrapper: ReturnType<typeof mountSection>,
+  commentId: string,
+  reason = 'spam',
+  details = '',
+) {
+  await wrapper.get(`button[name="report-${commentId}"]`).trigger('click')
+  await wrapper.get(`select[name="report-reason-${commentId}"]`).setValue(reason)
+  if (details) {
+    await wrapper.get(`textarea[name="report-details-${commentId}"]`).setValue(details)
+  }
+  await wrapper.get(`form[data-report-comment-id="${commentId}"]`).trigger('submit')
+}
+
 afterEach(() => vi.resetAllMocks())
 
 describe('CommentSection', () => {
@@ -391,11 +405,11 @@ describe('CommentSection', () => {
     const wrapper = mountSection()
     await flushPromises()
 
-    await wrapper.get('button[name="report-shared-report"]').trigger('click')
+    await submitReport(wrapper, 'shared-report')
     await wrapper.setProps({ documentId: 'document-2' })
     await flushPromises()
     expect(wrapper.get('button[name="report-shared-report"]').attributes('disabled')).toBeUndefined()
-    await wrapper.get('button[name="report-shared-report"]').trigger('click')
+    await submitReport(wrapper, 'shared-report', 'illegal')
     expect(community.reportComment).toHaveBeenCalledTimes(2)
 
     firstReport.resolve()
@@ -512,10 +526,14 @@ describe('CommentSection', () => {
     const wrapper = mountSection()
     await flushPromises()
 
-    await wrapper.get('button[name="report-comment-1"]').trigger('click')
+    await submitReport(wrapper, 'comment-1', 'other', '与文章无关的引战内容')
     await flushPromises()
-    expect(community.reportComment).toHaveBeenCalledWith('comment-1', { reason: 'spam' })
+    expect(community.reportComment).toHaveBeenCalledWith('comment-1', {
+      reason: 'other',
+      details: '与文章无关的引战内容',
+    })
     expect(wrapper.get('button[name="report-comment-1"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('form.comment-item__report').exists()).toBe(false)
 
     await wrapper.get('button[name="edit-comment-1"]').trigger('click')
     await wrapper.get('textarea[name="edit-body-comment-1"]').setValue('编辑后')
@@ -529,7 +547,7 @@ describe('CommentSection', () => {
     expect(wrapper.text()).toContain('此评论已删除')
   })
 
-  it('disables reporting immediately and allows a retry when reporting fails', async () => {
+  it('disables reporting immediately, preserves failed input, and allows a retry', async () => {
     const pendingReport = deferred<undefined>()
     vi.mocked(community.listDocumentComments).mockResolvedValue(page())
     vi.mocked(community.reportComment)
@@ -538,20 +556,23 @@ describe('CommentSection', () => {
     const wrapper = mountSection()
     await flushPromises()
 
-    const report = wrapper.get('button[name="report-comment-1"]')
-    await report.trigger('click')
-    await report.trigger('click')
+    await submitReport(wrapper, 'comment-1', 'harassment', '请核查上下文')
+    await wrapper.get('form.comment-item__report').trigger('submit')
     expect(community.reportComment).toHaveBeenCalledTimes(1)
-    expect(wrapper.get('button[name="report-comment-1"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[name="confirm-report-comment-1"]').attributes('disabled')).toBeDefined()
 
     pendingReport.resolve()
     await flushPromises()
     expect(wrapper.get('button[name="report-comment-1"]').text()).toContain('已举报')
+    expect(wrapper.find('form.comment-item__report').exists()).toBe(false)
 
     const retry = mountSection()
     await flushPromises()
-    await retry.get('button[name="report-comment-1"]').trigger('click')
+    await submitReport(retry, 'comment-1', 'illegal', '疑似违法信息')
     await flushPromises()
+    expect(retry.get('[role="alert"]').text()).toContain('举报失败')
+    expect(retry.get('select[name="report-reason-comment-1"]').element.value).toBe('illegal')
+    expect(retry.get('textarea[name="report-details-comment-1"]').element.value).toBe('疑似违法信息')
     expect(retry.get('button[name="report-comment-1"]').attributes('disabled')).toBeUndefined()
   })
 

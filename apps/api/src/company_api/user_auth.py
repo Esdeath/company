@@ -215,7 +215,13 @@ class UserAuthRepository(Protocol):
         now: datetime,
     ) -> UserRecord | None: ...
 
-    async def delete_account(self, user_id: UUID, *, now: datetime) -> bool: ...
+    async def delete_account(
+        self,
+        user_id: UUID,
+        expected_password_hash: str,
+        *,
+        now: datetime,
+    ) -> bool: ...
 
 
 class UserAuthOperations(Protocol):
@@ -515,7 +521,11 @@ class UserAuthService:
         user = await self._active_user(session)
         if not self._password_hash.verify(password, user.password_hash):
             raise CredentialsInvalid
-        if not await self._repository.delete_account(user.id, now=self._clock()):
+        if not await self._repository.delete_account(
+            user.id,
+            user.password_hash,
+            now=self._clock(),
+        ):
             raise CredentialsInvalid
 
     async def _consume_challenge(self, challenge: str) -> None:

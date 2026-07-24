@@ -12,6 +12,7 @@ from sqlalchemy import Select, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from company_api.comment_notifications import disable_reply_email_delivery
 from company_api.email_tokens import EmailTokenSigner
 from company_api.models import (
     Comment,
@@ -238,8 +239,7 @@ class SqlAlchemyNotificationRepository:
                     await session.commit()
                     return False
             token.consumed_at = now
-            user.reply_email_enabled = False
-            user.updated_at = now
+            await disable_reply_email_delivery(session, user, now=now)
             await session.commit()
             return True
 

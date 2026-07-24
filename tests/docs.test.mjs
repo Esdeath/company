@@ -255,6 +255,7 @@ test('deployment docs stage registration after SMTP and cover rollback and backu
     'SMTP_USERNAME',
     'SMTP_PASSWORD',
     'SMTP_STARTTLS',
+    'SMTP_TIMEOUT_SECONDS',
     'SMTP_SENDER',
     'PUBLIC_BASE_URL',
   ]) assert.ok(deployment.includes(setting), `missing deployment setting: ${setting}`);

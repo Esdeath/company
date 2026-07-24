@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import smtplib
+import ssl
 from dataclasses import dataclass
 from email.headerregistry import Address
 from email.message import EmailMessage as MimeEmailMessage
@@ -63,6 +64,7 @@ class SmtpMailer:
         self._username = settings.smtp_username
         self._password = settings.smtp_password.get_secret_value()
         self._starttls = settings.smtp_starttls
+        self._timeout_seconds = settings.smtp_timeout_seconds
         self._sender = _mailbox(settings.smtp_sender)
 
     async def send(self, message: EmailMessage) -> None:
@@ -70,9 +72,13 @@ class SmtpMailer:
 
     def _send(self, message: EmailMessage) -> None:
         mime_message = _mime_message(self._sender, message)
-        with smtplib.SMTP(self._host, self._port) as smtp:
+        with smtplib.SMTP(
+            self._host,
+            self._port,
+            timeout=self._timeout_seconds,
+        ) as smtp:
             if self._starttls:
-                smtp.starttls()
+                smtp.starttls(context=ssl.create_default_context())
             if self._username:
                 smtp.login(self._username, self._password)
             smtp.send_message(mime_message)

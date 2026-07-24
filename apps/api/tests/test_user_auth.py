@@ -68,6 +68,7 @@ class InMemoryUserAuthRepository:
         self.anonymized_users: list[UUID] = []
         self.password_hash_before_session: str | None = None
         self.password_hash_before_update: str | None = None
+        self.password_hash_before_delete: str | None = None
 
     async def create_challenge(
         self,
@@ -323,10 +324,26 @@ class InMemoryUserAuthRepository:
         self.users[user_id] = updated
         return updated
 
-    async def delete_account(self, user_id: UUID, *, now: datetime) -> bool:
+    async def delete_account(
+        self,
+        user_id: UUID,
+        expected_password_hash: str,
+        *,
+        now: datetime,
+    ) -> bool:
         del now
-        if self.users.pop(user_id, None) is None:
+        user = self.users.get(user_id)
+        if user is None:
             return False
+        if self.password_hash_before_delete is not None:
+            user = replace(user, password_hash=self.password_hash_before_delete)
+            self.users[user_id] = user
+            self.sessions = {
+                key: value for key, value in self.sessions.items() if value.user_id != user_id
+            }
+        if user.status != UserStatus.ACTIVE or user.password_hash != expected_password_hash:
+            return False
+        self.users.pop(user_id)
         self.sessions = {
             key: value for key, value in self.sessions.items() if value.user_id != user_id
         }
@@ -686,6 +703,22 @@ def test_password_change_does_not_overwrite_concurrent_reset() -> None:
 
     assert repository.users[USER_ID].password_hash == reset_hash
     assert repository.sessions == {}
+
+
+def test_account_deletion_rejects_a_concurrent_password_reset() -> None:
+    repository = InMemoryUserAuthRepository()
+    auth = service(repository)
+    logged_in = session_for(repository, auth)
+    session = run(auth.authenticate(logged_in.session_token))
+    assert session is not None
+    reset_hash = PasswordHash.recommended().hash("reset-won-the-race")
+    repository.password_hash_before_delete = reset_hash
+
+    with pytest.raises(CredentialsInvalid):
+        run(auth.delete_account(session, "correct-password"))
+
+    assert repository.users[USER_ID].password_hash == reset_hash
+    assert repository.anonymized_users == []
 
 
 def test_rate_limit_failure_is_exposed_for_anonymous_and_account_actions() -> None:
