@@ -215,6 +215,58 @@ test('repository records the verified Aliyun deployment assets without secrets',
   assert.doesNotMatch(combined, /POSTGRES_PASSWORD=[A-Fa-f0-9]{16,}/);
 });
 
+test('authentication docs keep administrator and site-user security boundaries separate', () => {
+  const authentication = readCurrentDoc('AUTHENTICATION.md');
+
+  for (const phrase of [
+    '__Host-company-admin-session',
+    '__Host-company-user-session',
+    'HttpOnly; Secure; SameSite=Strict; Path=/',
+    '`X-CSRF-Token`',
+    '30 天',
+    '24 小时',
+    '30 分钟',
+    'USER_REGISTRATION_ENABLED',
+    'COMMENT_WRITES_ENABLED',
+  ]) assert.ok(authentication.includes(phrase), `missing authentication contract: ${phrase}`);
+  assert.match(authentication, /管理员[^。]+普通用户[^。]+不能交叉使用/);
+});
+
+test('backend and product docs define moderation, deletion, and durable notification behavior', () => {
+  const backend = readCurrentDoc('BACKEND.md');
+  const product = readCurrentDoc('PRODUCT_UI.md');
+
+  assert.match(backend, /评论正文[^。]+PostgreSQL/);
+  assert.match(backend, /首次评论[^。]+待审核/);
+  assert.match(backend, /账户删除[^。]+匿名/);
+  assert.match(backend, /邮件[^。]+重试/);
+  assert.match(backend, /API 重启[^。]+继续/);
+  assert.match(product, /iframe[^。]+评论区/);
+  assert.match(product, /首次评论[^。]+管理员[^。]+批准/);
+  assert.match(product, /评论区暂时只读/);
+});
+
+test('deployment docs stage registration after SMTP and cover rollback and backups', () => {
+  const deployment = readCurrentDoc('DEPLOYMENT.md');
+
+  for (const setting of [
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USERNAME',
+    'SMTP_PASSWORD',
+    'SMTP_STARTTLS',
+    'SMTP_SENDER',
+    'PUBLIC_BASE_URL',
+  ]) assert.ok(deployment.includes(setting), `missing deployment setting: ${setting}`);
+  assert.match(deployment, /USER_REGISTRATION_ENABLED=false[\s\S]+SMTP[\s\S]+测试邮件[\s\S]+USER_REGISTRATION_ENABLED=true/);
+  assert.match(deployment, /SPF[^。]+DKIM[^。]+SMTP (?:服务商|提供商)/);
+  assert.match(deployment, /COMMENT_WRITES_ENABLED=false/);
+  assert.match(deployment, /已发布评论仍可读取/);
+  assert.match(deployment, /PostgreSQL[^。]+评论[^。]+通知[^。]+邮件/);
+  assert.match(deployment, /备份[^。]+content_data/);
+  assert.match(deployment, /回滚不要执行破坏性 Alembic 迁移/);
+});
+
 test('SEO indexes document content without retired publication states', () => {
   const seo = readCurrentDoc('SEO.md');
 

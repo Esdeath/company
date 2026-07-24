@@ -95,11 +95,16 @@ case "$1" in
     ;;
   exec)
     if [ "$3" = "edge" ] && [ "\${FAKE_EDGE_ID_FAIL:-0}" = "1" ]; then exit 127; fi
-    printf '10001\\n'
+    if [ "$3" = "api" ] && [ "$4" = "python" ]; then
+      printf 'fake-verification-token\\n'
+    else
+      printf '10001\\n'
+    fi
     ;;
   port) printf ':0\\n' ;;
   stop) : > "$FAKE_POSTGRES_STOPPED" ;;
   start) rm -f "$FAKE_POSTGRES_STOPPED" ;;
+  up) ;;
   *) exit 2 ;;
 esac
 `
@@ -178,6 +183,41 @@ case "$method:$path" in
     if [ "\${FAKE_MISMATCHED_CONTENT_URL:-0}" = "1" ]; then second_url=/api/v1/documents/22222222-2222-4222-8222-222222222222/content; fi
     body='{"items":[{"id":"22222222-2222-4222-8222-222222222222","title":"CEO interview","format":"markdown","content_url":"/api/v1/documents/22222222-2222-4222-8222-222222222222/content"},{"id":"33333333-3333-4333-8333-333333333333","title":"Showcase","format":"'"$second_format"'","content_url":"'"$second_url"'"}],"errors":[]}'
     ;;
+  GET:/api/v1/user-auth/session)
+    type=application/json
+    body='{"authenticated":false,"csrf_token":"user-challenge","registration_enabled":true}'
+    ;;
+  POST:/api/v1/user-auth/register)
+    type=application/json
+    code=202
+    body='{"message":"verification queued"}'
+    ;;
+  POST:/api/v1/user-auth/verify-email)
+    type=application/json
+    body='{"authenticated":true,"csrf_token":"user-csrf","registration_enabled":true,"user":{"id":"99999999-9999-4999-8999-999999999999","email":"reader@example.com","username":"reader","email_verified_at":"2026-07-20T00:00:00Z","first_comment_approved_at":null,"reply_email_enabled":true}}'
+    ;;
+  POST:/api/v1/documents/22222222-2222-4222-8222-222222222222/comments)
+    type=application/json
+    code=201
+    if printf '%s' "$request_data" | grep -Fq 'parent_id'; then
+      body='{"id":"77777777-7777-4777-8777-777777777777","document_id":"22222222-2222-4222-8222-222222222222","parent_id":"66666666-6666-4666-8666-666666666666","body":"Compose smoke reply","status":"pending","author":{"id":"99999999-9999-4999-8999-999999999999","username":"reader"},"created_at":"2026-07-20T00:00:00Z","edited_at":null,"replies":[],"can_edit":true,"can_delete":true,"can_report":false}'
+    else
+      body='{"id":"66666666-6666-4666-8666-666666666666","document_id":"22222222-2222-4222-8222-222222222222","parent_id":null,"body":"Compose smoke pending comment","status":"pending","author":{"id":"99999999-9999-4999-8999-999999999999","username":"reader"},"created_at":"2026-07-20T00:00:00Z","edited_at":null,"replies":[],"can_edit":true,"can_delete":true,"can_report":false}'
+    fi
+    ;;
+  POST:/api/v1/admin/comments/*/approve)
+    type=application/json
+    body='{"status":"published"}'
+    ;;
+  GET:/api/v1/users/me/notifications)
+    type=application/json
+    body='{"items":[{"id":"88888888-8888-4888-8888-888888888888","type":"reply","company_id":"11111111-1111-4111-8111-111111111111","document_id":"22222222-2222-4222-8222-222222222222","comment_id":"77777777-7777-4777-8777-777777777777","actor_username":"reader","excerpt":"reply","message":"reply","created_at":"2026-07-20T00:00:00Z","read_at":null}],"unread_count":1}'
+    ;;
+  PATCH:/api/v1/users/me/notifications/88888888-8888-4888-8888-888888888888)
+    type=application/json
+    body='{"id":"88888888-8888-4888-8888-888888888888","read_at":"2026-07-20T00:01:00Z"}'
+    ;;
+  DELETE:/api/v1/users/me) code=204; body= ;;
   GET:/api/v1/companies)
     type=application/json
     company_name=$(cat "$FAKE_COMPANY_NAME_FILE" 2>/dev/null || true)
@@ -306,9 +346,62 @@ test('publishes a safe local environment template', async () => {
     'CONTENT_ROOT',
     'SESSION_COOKIE_SECURE',
     'SESSION_LIFETIME_SECONDS',
+    'APP_ENVIRONMENT',
+    'USER_REGISTRATION_ENABLED',
+    'COMMENT_WRITES_ENABLED',
+    'USER_SESSION_LIFETIME_SECONDS',
+    'USER_TOKEN_SIGNING_KEY',
+    'EMAIL_BACKEND',
+    'EMAIL_CAPTURE_PATH',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USERNAME',
+    'SMTP_PASSWORD',
+    'SMTP_STARTTLS',
+    'SMTP_SENDER',
+    'PUBLIC_BASE_URL',
+    'EMAIL_DISPATCH_INTERVAL_SECONDS',
+    'EMAIL_MAX_ATTEMPTS',
   ]) assert.match(env, new RegExp(`^${key}=`, 'm'))
   assert.match(env, /^CONTENT_ROOT=\.\.\/\.\.\/var\/content$/m)
+  assert.match(env, /^USER_REGISTRATION_ENABLED=false$/m)
+  assert.match(env, /^COMMENT_WRITES_ENABLED=true$/m)
+  assert.match(env, /^SMTP_PASSWORD=$/m)
+  assert.doesNotMatch(env, /^SMTP_PASSWORD=.+$/m)
   assert.doesNotMatch(env, /ayaseeri|buffett/i)
+})
+
+test('wires every community setting into the existing API service', async () => {
+  const { stdout } = await execFileAsync(
+    'docker',
+    ['compose', '--env-file', '.env.example', 'config', '--format', 'json'],
+    { cwd: repositoryRoot, maxBuffer: 1024 * 1024 },
+  )
+  const compose = JSON.parse(stdout)
+  const environment = compose.services.api.environment
+
+  assert.deepEqual(Object.keys(compose.services).sort(), ['admin', 'api', 'edge', 'postgres', 'web'])
+  for (const key of [
+    'APP_ENVIRONMENT',
+    'USER_REGISTRATION_ENABLED',
+    'COMMENT_WRITES_ENABLED',
+    'USER_SESSION_LIFETIME_SECONDS',
+    'USER_TOKEN_SIGNING_KEY',
+    'EMAIL_BACKEND',
+    'EMAIL_CAPTURE_PATH',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USERNAME',
+    'SMTP_PASSWORD',
+    'SMTP_STARTTLS',
+    'SMTP_SENDER',
+    'PUBLIC_BASE_URL',
+    'EMAIL_DISPATCH_INTERVAL_SECONDS',
+    'EMAIL_MAX_ATTEMPTS',
+  ]) assert.ok(Object.hasOwn(environment, key), `API service missing ${key}`)
+  assert.equal(environment.USER_REGISTRATION_ENABLED, 'false')
+  assert.equal(environment.COMMENT_WRITES_ENABLED, 'true')
+  assert.equal(environment.SMTP_PASSWORD, '')
 })
 
 test('ignores local secrets and generated files while keeping the environment template', async () => {
@@ -531,7 +624,16 @@ test('wires health-gated dependencies, durable postgres, and container-safe data
   assert.match(compose.services.api.environment.DATABASE_URL, /@postgres:5432\//)
   assert.match(compose.services.api.environment.ADMIN_PASSWORD_HASH.replaceAll('$$', '$'), /^\$argon2id\$/)
   assert.equal(compose.services.api.environment.SESSION_COOKIE_SECURE, 'false')
-  assert.ok(Object.values(compose.services.api.environment).every((value) => value !== ''))
+  const optionalCommunityValues = new Set([
+    'EMAIL_CAPTURE_PATH',
+    'SMTP_HOST',
+    'SMTP_USERNAME',
+    'SMTP_PASSWORD',
+    'SMTP_SENDER',
+  ])
+  for (const [key, value] of Object.entries(compose.services.api.environment)) {
+    if (!optionalCommunityValues.has(key)) assert.notEqual(value, '', `${key} must not be empty`)
+  }
   const postgresData = compose.services.postgres.volumes.find((mount) => mount.type === 'volume' && mount.source === 'postgres_data')
   assert.ok(postgresData)
   assert.equal(postgresData.target, '/var/lib/postgresql')
@@ -812,6 +914,57 @@ test('Aliyun deploy entrypoint is syntactically valid and exposes a safe dry run
   assert.match(dryRun.stdout, /更新宿主机 Nginx/)
   assert.doesNotMatch(deployer, /114\.55\.141\.118/)
   assert.doesNotMatch(deployer, /ADMIN_PASSWORD_HASH='\$argon2/)
+})
+
+test('production deployment preserves community secrets and creates one persistent signing key', async () => {
+  const deployer = await read('scripts/deploy-aliyun-ecs.sh')
+
+  assert.match(deployer, /USER_TOKEN_SIGNING_KEY/)
+  assert.match(deployer, /secrets\.token_urlsafe\(32\)/)
+  assert.match(deployer, /USER_REGISTRATION_ENABLED=false/)
+  assert.match(deployer, /COMMENT_WRITES_ENABLED=true/)
+  assert.doesNotMatch(deployer, /(?:echo|printf)[^\n]*USER_TOKEN_SIGNING_KEY[^\n]*\$/)
+  assert.doesNotMatch(deployer, /SMTP_PASSWORD=/)
+})
+
+test('production Nginx rate limits each public community write boundary by IP', async () => {
+  const nginx = stripLineComments(await read('infra/aliyun-ecs/nginx.conf'))
+
+  assert.match(nginx, /limit_req_status\s+429\s*;/)
+  for (const zone of ['user_auth', 'user_session', 'user_register', 'user_reset', 'comment_write', 'comment_report']) {
+    assert.match(nginx, new RegExp(`limit_req_zone[^;]+zone=${zone}:`), `missing ${zone} IP zone`)
+    assert.match(nginx, new RegExp(`limit_req\\s+zone=${zone}\\b`), `unused ${zone} IP zone`)
+  }
+  for (const route of [
+    '= /api/v1/user-auth/session',
+    '= /api/v1/user-auth/register',
+    '= /api/v1/user-auth/login',
+    '= /api/v1/user-auth/password-reset/request',
+    '= /api/v1/user-auth/password-reset/confirm',
+  ]) assert.ok(nginx.includes(`location ${route}`), `missing precise Nginx location: ${route}`)
+  assert.match(nginx, /location\s+~\s+\^\/api\/v1\/documents\/[^\n]+\/comments\$/)
+  assert.match(nginx, /location\s+~\s+\^\/api\/v1\/comments\/[^\n]+\/reports\$/)
+  assert.match(nginx, /location\s+\/api\/\s*\{/)
+  assert.doesNotMatch(nginx, /location\s+\^~\s+\/api\//)
+})
+
+test('bootstrap and Compose smoke keep public writes and test email capture contained', async () => {
+  const bootstrap = await read('infra/aliyun-ecs/nginx-bootstrap.conf')
+  const smoke = await read('scripts/compose-smoke.sh')
+
+  assert.match(bootstrap, /location \^~ \/api\/[\s\S]*limit_except GET HEAD OPTIONS[\s\S]*deny all/)
+  assert.match(smoke, /APP_ENVIRONMENT=test/)
+  assert.match(smoke, /EMAIL_BACKEND=file/)
+  assert.match(smoke, /EMAIL_CAPTURE_PATH=/)
+  assert.match(smoke, /USER_REGISTRATION_ENABLED=true/)
+  assert.match(smoke, /USER_COOKIE_FILE/)
+  assert.match(smoke, /SECOND_USER_COOKIE_FILE/)
+  assert.match(smoke, /user-auth\/register/)
+  assert.match(smoke, /user-auth\/verify-email/)
+  assert.match(smoke, /admin\/comments\/\$comment_id\/approve/)
+  assert.match(smoke, /users\/me\/notifications/)
+  assert.match(smoke, /DELETE FROM users WHERE normalized_email/)
+  assert.match(smoke, /rm -f[^\n]*EMAIL_CAPTURE_PATH/)
 })
 
 test('documents every quality command and concrete setup recovery steps', async () => {

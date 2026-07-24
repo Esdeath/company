@@ -2,21 +2,43 @@
 set -Eeuo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-ENV_FILE=${COMPOSE_ENV_FILE:-.env.example}
+SOURCE_ENV_FILE=${COMPOSE_ENV_FILE:-.env.example}
 BASE_URL=${BASE_URL:-http://127.0.0.1:8080}
 SMOKE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/company-smoke.XXXXXX")
+ENV_FILE="$SMOKE_DIR/compose.env"
 BODY_FILE="$SMOKE_DIR/body"
 HEADERS_FILE="$SMOKE_DIR/headers"
 COOKIE_FILE="$SMOKE_DIR/cookies"
+USER_COOKIE_FILE="$SMOKE_DIR/user-cookies"
+SECOND_USER_COOKIE_FILE="$SMOKE_DIR/second-user-cookies"
 ADMIN_INDEX_FILE="$SMOKE_DIR/admin-index"
 UPLOAD_ITEMS_FILE="$SMOKE_DIR/upload-items"
 CLEANUP_IDS_FILE="$SMOKE_DIR/cleanup-document-ids"
 postgres_stopped=0
+test_environment_started=0
 company_id=
 company_name=
 csrf_token=
+user_csrf_token=
+second_user_csrf_token=
+comment_id=
+reply_id=
+EMAIL_CAPTURE_PATH="/tmp/company-compose-smoke-email-$$-$RANDOM.jsonl"
 SMOKE_ADMIN_USERNAME=${SMOKE_ADMIN_USERNAME:-admin}
 SMOKE_ADMIN_PASSWORD=${SMOKE_ADMIN_PASSWORD:-company_local_only}
+SMOKE_USER_PASSWORD=${SMOKE_USER_PASSWORD:-compose-smoke-user-password}
+
+cp "$SOURCE_ENV_FILE" "$ENV_FILE"
+cat >> "$ENV_FILE" <<EOF
+APP_ENVIRONMENT=test
+USER_REGISTRATION_ENABLED=true
+COMMENT_WRITES_ENABLED=true
+USER_TOKEN_SIGNING_KEY=compose-smoke-only-signing-key-32-bytes
+EMAIL_BACKEND=file
+EMAIL_CAPTURE_PATH=$EMAIL_CAPTURE_PATH
+PUBLIC_BASE_URL=$BASE_URL
+EMAIL_DISPATCH_INTERVAL_SECONDS=0.1
+EOF
 
 cd "$ROOT_DIR"
 
@@ -38,6 +60,19 @@ restore_postgres() {
   if (( postgres_stopped )); then
     docker compose --env-file "$ENV_FILE" start postgres >/dev/null 2>&1 || true
     postgres_stopped=0
+  fi
+
+  if [[ -n "$second_user_csrf_token" ]]; then
+    request_user "$SECOND_USER_COOKIE_FILE" "$second_user_csrf_token" \
+      "$BASE_URL/api/v1/users/me" 10 --request DELETE \
+      --header 'Content-Type: application/json' \
+      --data "{\"password\":\"$SMOKE_USER_PASSWORD\"}"
+  fi
+  if [[ -n "$user_csrf_token" ]]; then
+    request_user "$USER_COOKIE_FILE" "$user_csrf_token" \
+      "$BASE_URL/api/v1/users/me" 10 --request DELETE \
+      --header 'Content-Type: application/json' \
+      --data "{\"password\":\"$SMOKE_USER_PASSWORD\"}"
   fi
 
   if [[ -n "$company_name" ]]; then
@@ -77,6 +112,22 @@ print(raw_id)' "$BODY_FILE" "$company_name" 2>/dev/null) || candidate_id=
     fi
   fi
 
+  if [[ -n "${first_email:-}" || -n "${second_email:-}" ]]; then
+    compose exec -T api python -c 'import os, sys
+import psycopg
+database_url = os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://", 1)
+with psycopg.connect(database_url) as connection:
+    with connection.cursor() as cursor:
+        cursor.execute("DELETE FROM users WHERE normalized_email IN (%s, %s)", sys.argv[1:3])' \
+      "${first_email:-unused@example.invalid}" "${second_email:-unused@example.invalid}" \
+      >/dev/null 2>&1 || true
+  fi
+
+  docker compose --env-file "$ENV_FILE" exec -T api rm -f "$EMAIL_CAPTURE_PATH" >/dev/null 2>&1 || true
+  if (( test_environment_started )); then
+    docker compose --env-file "$SOURCE_ENV_FILE" up -d --force-recreate api edge >/dev/null 2>&1 || true
+  fi
+
   rm -rf "$SMOKE_DIR"
   exit "$status"
 }
@@ -87,8 +138,9 @@ request_http() {
   shift 2
   local connect_timeout=$request_timeout
   (( connect_timeout > 3 )) && connect_timeout=3
+  local request_cookie=${REQUEST_COOKIE_FILE:-$COOKIE_FILE}
   HTTP_CODE=$(
-    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --cookie "$COOKIE_FILE" --cookie-jar "$COOKIE_FILE" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$@" "$url" || true
+    curl --silent --show-error --output "$BODY_FILE" --dump-header "$HEADERS_FILE" --cookie "$request_cookie" --cookie-jar "$request_cookie" --write-out '%{http_code}' --connect-timeout "$connect_timeout" --max-time "$request_timeout" "$@" "$url" || true
   )
 }
 
@@ -96,6 +148,85 @@ request_admin() {
   local url=$1 request_timeout=$2
   shift 2
   request_http "$url" "$request_timeout" --header "X-CSRF-Token: $csrf_token" "$@"
+}
+
+request_user() {
+  local cookie_file=$1 csrf=$2 url=$3 request_timeout=$4
+  shift 4
+  REQUEST_COOKIE_FILE="$cookie_file" request_http "$url" "$request_timeout" \
+    --header "X-CSRF-Token: $csrf" "$@"
+}
+
+obtain_user_challenge() {
+  local cookie_file=$1
+  REQUEST_COOKIE_FILE="$cookie_file" request_http "$BASE_URL/api/v1/user-auth/session" 30
+  [[ "$HTTP_CODE" == "200" ]] || fail "ordinary-user session returned ${HTTP_CODE:-no status}"
+  python3 -c 'import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+token = data.get("csrf_token")
+if data.get("authenticated") is not False or not isinstance(token, str) or not token:
+    raise SystemExit(1)
+print(token)' "$BODY_FILE" 2>/dev/null || fail 'could not obtain ordinary-user challenge'
+}
+
+read_verification_token() {
+  local email=$1 deadline=$((SECONDS + 30)) token=
+  while (( SECONDS < deadline )); do
+    token=$(compose exec -T api python -c 'import json, sys
+from urllib.parse import parse_qs, urlsplit
+path, recipient = sys.argv[1:]
+try:
+    records = [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
+except FileNotFoundError:
+    raise SystemExit(1)
+for record in reversed(records):
+    if record.get("recipient") != recipient:
+        continue
+    for word in record.get("text_body", "").split():
+        value = parse_qs(urlsplit(word).query).get("verify-email")
+        if value:
+            print(value[0])
+            raise SystemExit(0)
+raise SystemExit(1)' "$EMAIL_CAPTURE_PATH" "$email" 2>/dev/null) || token=
+    [[ -n "$token" ]] && {
+      printf '%s\n' "$token"
+      return 0
+    }
+    sleep 1
+  done
+  return 1
+}
+
+register_and_verify_user() {
+  local cookie_file=$1 email=$2 username=$3 challenge token detail
+  challenge=$(obtain_user_challenge "$cookie_file")
+  request_user "$cookie_file" "$challenge" "$BASE_URL/api/v1/user-auth/register" 30 \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --data "{\"email\":\"$email\",\"username\":\"$username\",\"password\":\"$SMOKE_USER_PASSWORD\"}"
+  if [[ "$HTTP_CODE" != "202" ]]; then
+    detail=$(python3 -c 'import json, sys
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8")).get("detail", "unknown error")
+except (OSError, ValueError, AttributeError):
+    value = "unknown error"
+print(value if isinstance(value, str) else "unknown error")' "$BODY_FILE" 2>/dev/null || true)
+    fail "ordinary-user registration for $username returned ${HTTP_CODE:-no status} (${detail:-unknown error})"
+  fi
+
+  token=$(read_verification_token "$email") || fail 'verification email was not captured'
+  challenge=$(obtain_user_challenge "$cookie_file")
+  request_user "$cookie_file" "$challenge" "$BASE_URL/api/v1/user-auth/verify-email" 30 \
+    --request POST \
+    --header 'Content-Type: application/json' \
+    --data "{\"token\":\"$token\"}"
+  [[ "$HTTP_CODE" == "200" ]] || fail "email verification returned ${HTTP_CODE:-no status}"
+  python3 -c 'import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+token = data.get("csrf_token")
+if data.get("authenticated") is not True or not isinstance(token, str) or not token:
+    raise SystemExit(1)
+print(token)' "$BODY_FILE" 2>/dev/null || fail 'could not validate verified user session'
 }
 
 wait_for_http() {
@@ -161,6 +292,9 @@ wait_for_service_healthy() {
   done
   fail "$service did not become healthy (last state=${state:-unknown}, health=${health:-none})"
 }
+
+compose up -d --force-recreate api edge >/dev/null
+test_environment_started=1
 
 for service in edge web admin api postgres; do
   wait_for_service_healthy "$service"
@@ -297,6 +431,7 @@ while IFS=$'\t' read -r document_id document_format content_url; do
   [[ "$HTTP_CODE" == "200" ]] || fail "$document_format content returned ${HTTP_CODE:-no status}"
   case "$document_format" in
     markdown)
+      markdown_document_id=$document_id
       grep -Fq 'class="research-document"' "$BODY_FILE" || fail 'Markdown content marker missing'
       ;;
     html)
@@ -307,6 +442,84 @@ while IFS=$'\t' read -r document_id document_format content_url; do
       ;;
   esac
 done < "$UPLOAD_ITEMS_FILE"
+
+[[ -n "${markdown_document_id:-}" ]] || fail 'smoke upload did not produce a Markdown document'
+smoke_suffix="$(date +%s)-$$-$RANDOM"
+first_email="compose-smoke-$smoke_suffix@example.com"
+second_email="compose-smoke-second-$smoke_suffix@example.com"
+username_suffix=${smoke_suffix//-/}
+user_csrf_token=$(register_and_verify_user "$USER_COOKIE_FILE" "$first_email" "smoke_$username_suffix")
+
+request_user "$USER_COOKIE_FILE" "$user_csrf_token" \
+  "$BASE_URL/api/v1/documents/$markdown_document_id/comments" 30 \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{"body":"Compose smoke pending comment"}'
+[[ "$HTTP_CODE" == "201" ]] || fail "pending comment creation returned ${HTTP_CODE:-no status}"
+comment_id=$(python3 -c 'import json, sys, uuid
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+raw_id = data.get("id")
+if data.get("status") != "pending" or not isinstance(raw_id, str) or str(uuid.UUID(raw_id)) != raw_id:
+    raise SystemExit(1)
+print(raw_id)' "$BODY_FILE" 2>/dev/null) || fail 'first comment was not pending'
+
+request_admin "$BASE_URL/api/v1/admin/comments/$comment_id/approve" 30 --request POST
+[[ "$HTTP_CODE" == "200" ]] || fail "comment approval returned ${HTTP_CODE:-no status}"
+python3 -c 'import json, sys
+raise SystemExit(json.load(open(sys.argv[1], encoding="utf-8")).get("status") != "published")' \
+  "$BODY_FILE" 2>/dev/null || fail 'approved comment was not published'
+
+second_user_csrf_token=$(register_and_verify_user \
+  "$SECOND_USER_COOKIE_FILE" "$second_email" "reply_$username_suffix")
+request_user "$SECOND_USER_COOKIE_FILE" "$second_user_csrf_token" \
+  "$BASE_URL/api/v1/documents/$markdown_document_id/comments" 30 \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data "{\"body\":\"Compose smoke reply\",\"parent_id\":\"$comment_id\"}"
+[[ "$HTTP_CODE" == "201" ]] || fail "reply creation returned ${HTTP_CODE:-no status}"
+reply_id=$(python3 -c 'import json, sys, uuid
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+raw_id = data.get("id")
+if data.get("status") != "pending" or data.get("parent_id") != sys.argv[2] or not isinstance(raw_id, str) or str(uuid.UUID(raw_id)) != raw_id:
+    raise SystemExit(1)
+print(raw_id)' "$BODY_FILE" "$comment_id" 2>/dev/null) || fail 'second user reply was not pending'
+
+request_admin "$BASE_URL/api/v1/admin/comments/$reply_id/approve" 30 --request POST
+[[ "$HTTP_CODE" == "200" ]] || fail "reply approval returned ${HTTP_CODE:-no status}"
+
+request_user "$USER_COOKIE_FILE" "$user_csrf_token" \
+  "$BASE_URL/api/v1/users/me/notifications" 30
+[[ "$HTTP_CODE" == "200" ]] || fail "notification list returned ${HTTP_CODE:-no status}"
+notification_id=$(python3 -c 'import json, sys, uuid
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+matches = [item for item in data.get("items", []) if item.get("type") == "reply" and item.get("comment_id") == sys.argv[2]]
+if len(matches) != 1 or matches[0].get("read_at") is not None:
+    raise SystemExit(1)
+raw_id = matches[0].get("id")
+if not isinstance(raw_id, str) or str(uuid.UUID(raw_id)) != raw_id:
+    raise SystemExit(1)
+print(raw_id)' "$BODY_FILE" "$reply_id" 2>/dev/null) || fail 'reply notification was not present and unread'
+
+request_user "$USER_COOKIE_FILE" "$user_csrf_token" \
+  "$BASE_URL/api/v1/users/me/notifications/$notification_id" 30 --request PATCH
+[[ "$HTTP_CODE" == "200" ]] || fail "notification read returned ${HTTP_CODE:-no status}"
+python3 -c 'import json, sys
+raise SystemExit(json.load(open(sys.argv[1], encoding="utf-8")).get("read_at") is None)' \
+  "$BODY_FILE" 2>/dev/null || fail 'notification was not marked read'
+
+request_user "$SECOND_USER_COOKIE_FILE" "$second_user_csrf_token" \
+  "$BASE_URL/api/v1/users/me" 30 --request DELETE \
+  --header 'Content-Type: application/json' \
+  --data "{\"password\":\"$SMOKE_USER_PASSWORD\"}"
+[[ "$HTTP_CODE" == "204" ]] || fail "second user cleanup returned ${HTTP_CODE:-no status}"
+second_user_csrf_token=
+
+request_user "$USER_COOKIE_FILE" "$user_csrf_token" \
+  "$BASE_URL/api/v1/users/me" 30 --request DELETE \
+  --header 'Content-Type: application/json' \
+  --data "{\"password\":\"$SMOKE_USER_PASSWORD\"}"
+[[ "$HTTP_CODE" == "204" ]] || fail "first user cleanup returned ${HTTP_CODE:-no status}"
+user_csrf_token=
 
 while IFS=$'\t' read -r document_id _; do
   [[ -n "$document_id" ]] || continue
