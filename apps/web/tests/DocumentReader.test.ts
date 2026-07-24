@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import DocumentReader from '../app/components/DocumentReader.vue'
 import type { DocumentItem } from '../app/types/content'
+import { FRAME_FALLBACK_HEIGHT } from '../app/utils/frameHeight'
 
 const DOCUMENT: DocumentItem = {
   id: 'document-1',
@@ -54,7 +55,8 @@ describe('DocumentReader', () => {
     const frame = wrapper.get('iframe')
     expect(wrapper.findAll('iframe')).toHaveLength(1)
     expect(frame.attributes('src')).toBe(DOCUMENT.content_url)
-    expect(frame.attributes()).toHaveProperty('sandbox', '')
+    expect(frame.attributes('sandbox')).toBe('allow-same-origin')
+    expect(wrapper.vm.$.setupState.frameHeight as string).toBe(FRAME_FALLBACK_HEIGHT)
     expect(frame.attributes('title')).toBe('阅读：管理层访谈')
     expect(wrapper.get('[role="status"]').text()).toContain('正在打开资料')
 
@@ -139,6 +141,63 @@ describe('DocumentReader', () => {
     frame.element.setAttribute('data-reader-generation', currentGeneration)
     await frame.trigger('load')
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  })
+
+  it('fits the frame to its document and follows later size changes', async () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const disconnect = vi.fn()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          callbacks.push(callback)
+        }
+
+        observe = vi.fn()
+        disconnect = disconnect
+      },
+    )
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+
+    const wrapper = mount(DocumentReader, {
+      props: { document: DOCUMENT, loading: false, error: null },
+    })
+    try {
+      await flushPromises()
+      const frame = wrapper.get('iframe')
+      const root = { scrollHeight: 1800, offsetHeight: 1750 }
+      const body = { scrollHeight: 1900, offsetHeight: 1850 }
+      Object.defineProperty(frame.element, 'isConnected', {
+        configurable: true,
+        value: true,
+      })
+      Object.defineProperty(frame.element, 'contentDocument', {
+        configurable: true,
+        value: { documentElement: root, body },
+      })
+      Object.defineProperty(frame.element, 'contentWindow', {
+        configurable: true,
+        value: { ResizeObserver: globalThis.ResizeObserver },
+      })
+
+      await frame.trigger('load')
+      expect(frame.element.style.getPropertyValue('height')).toBe('1900px')
+
+      body.scrollHeight = 2400
+      callbacks[0]?.([], {} as ResizeObserver)
+      await wrapper.vm.$nextTick()
+      expect(frame.element.style.getPropertyValue('height')).toBe('2400px')
+
+      await wrapper.setProps({ document: SECOND_DOCUMENT })
+      expect(disconnect).toHaveBeenCalledOnce()
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('aborts an unfinished probe when unmounted', () => {
