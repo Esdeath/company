@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from company_api.models import NotificationType
 from company_api.user_auth import CurrentUser
 
 
@@ -70,6 +71,28 @@ class PasswordUpdateRequest(BaseModel):
 
 class PreferencesUpdateRequest(BaseModel):
     reply_email_enabled: bool
+
+
+class NotificationRead(BaseModel):
+    id: UUID
+    type: NotificationType
+    company_id: UUID
+    document_id: UUID
+    comment_id: UUID
+    actor_username: str | None
+    excerpt: str
+    message: str
+    created_at: datetime
+    read_at: datetime | None
+
+
+class NotificationPage(BaseModel):
+    items: list[NotificationRead]
+    unread_count: int = Field(ge=0)
+
+
+class UnsubscribeRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=1_000)
 
 
 class AccountDeleteRequest(BaseModel):

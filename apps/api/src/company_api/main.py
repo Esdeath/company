@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from html import escape
 from typing import Literal
 
 from fastapi import FastAPI, Request, Response
@@ -34,6 +36,12 @@ from company_api.models import UserTokenPurpose
 from company_api.moderation_repository import SqlAlchemyModerationRepository
 from company_api.moderation_routes import router as moderation_router
 from company_api.moderation_service import ModerationOperations, ModerationService
+from company_api.notification_routes import router as notification_router
+from company_api.notification_service import (
+    NotificationOperations,
+    NotificationService,
+    SqlAlchemyNotificationRepository,
+)
 from company_api.rate_limit import SqlAlchemyRateLimiter
 from company_api.repository import SqlAlchemyLibraryRepository
 from company_api.routes import router as library_router
@@ -56,13 +64,22 @@ def _mailer(settings: Settings) -> Mailer:
     return ConsoleMailer()
 
 
+def _unsubscribe_token_factory(signer: EmailTokenSigner) -> Callable[[], tuple[uuid.UUID, str]]:
+    def issue() -> tuple[uuid.UUID, str]:
+        token_id = uuid.uuid4()
+        token = signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)
+        return token_id, signer.digest(token)
+
+    return issue
+
+
 def _message_factory(
     signer: EmailTokenSigner, settings: Settings
 ) -> Callable[[EmailJob], EmailMessage]:
     base_url = settings.public_base_url.rstrip("/")
 
     def create_message(job: EmailJob) -> EmailMessage:
-        username = str(job.payload.get("username", "读者"))
+        username = escape(str(job.payload.get("username", "读者")), quote=True)
         if job.template == "verify_email":
             if job.token_id is None:
                 raise ValueError("token email is missing a token id")
@@ -78,7 +95,7 @@ def _message_factory(
             action = "重置密码"
             url = f"{base_url}/?password-reset={token}"
         elif job.template == "comment_reply":
-            actor_username = str(job.payload.get("actor_username", "一位读者"))
+            actor_username = escape(str(job.payload.get("actor_username", "一位读者")), quote=True)
             company_id = str(job.payload.get("company_id", ""))
             document_id = str(job.payload.get("document_id", ""))
             comment_id = str(job.payload.get("comment_id", ""))
@@ -86,10 +103,16 @@ def _message_factory(
                 raise ValueError("reply email is missing its comment deep link")
             subject = "你的评论收到了回复"
             url = f"{base_url}/?company={company_id}&document={document_id}&comment={comment_id}"
+            unsubscribe = ""
+            if job.token_id is not None:
+                token = signer.issue(job.token_id, UserTokenPurpose.UNSUBSCRIBE)
+                unsubscribe = f"\n不再接收评论回复邮件：{base_url}/?unsubscribe={token}"
             return EmailMessage(
                 recipient=job.recipient,
                 subject=subject,
-                text_body=f"{username}，你好。{actor_username} 回复了你的评论：\n{url}",
+                text_body=(
+                    f"{username}，你好。{actor_username} 回复了你的评论：\n{url}{unsubscribe}"
+                ),
             )
         else:
             raise ValueError("unsupported email template")
@@ -111,6 +134,7 @@ def create_app(
     comment_service: CommentOperations | None = None,
     moderation_service: ModerationOperations | None = None,
     email_dispatcher: EmailDispatcher | None = None,
+    notification_service: NotificationOperations | None = None,
 ) -> FastAPI:
     # BaseSettings supplies required fields from the environment at runtime.
     resolved_settings = settings if settings is not None else Settings()  # type: ignore[call-arg]
@@ -134,6 +158,7 @@ def create_app(
                 app.state.user_auth_service = user_auth_service
                 app.state.comment_service = comment_service
                 app.state.moderation_service = moderation_service
+                app.state.notification_service = notification_service
             else:
                 engine, session_factory = create_engine_and_session_factory(resolved_settings)
                 app.state.readiness_probe = (
@@ -158,6 +183,7 @@ def create_app(
                 signer = EmailTokenSigner(
                     resolved_settings.user_token_signing_key.get_secret_value()
                 )
+                unsubscribe_token_factory = _unsubscribe_token_factory(signer)
                 if app.state.user_auth_service is None:
                     app.state.user_auth_service = UserAuthService(
                         SqlAlchemyUserAuthRepository(session_factory),
@@ -168,12 +194,23 @@ def create_app(
                 app.state.comment_service = comment_service
                 if app.state.comment_service is None:
                     app.state.comment_service = CommentService(
-                        SqlAlchemyCommentRepository(session_factory)
+                        SqlAlchemyCommentRepository(
+                            session_factory,
+                            unsubscribe_token_factory=unsubscribe_token_factory,
+                        )
                     )
                 app.state.moderation_service = moderation_service
                 if app.state.moderation_service is None:
                     app.state.moderation_service = ModerationService(
-                        SqlAlchemyModerationRepository(session_factory)
+                        SqlAlchemyModerationRepository(
+                            session_factory,
+                            unsubscribe_token_factory=unsubscribe_token_factory,
+                        )
+                    )
+                app.state.notification_service = notification_service
+                if app.state.notification_service is None:
+                    app.state.notification_service = NotificationService(
+                        SqlAlchemyNotificationRepository(session_factory), signer
                     )
                 if dispatcher is None:
                     dispatcher = EmailDispatcher(
@@ -237,6 +274,7 @@ def create_app(
     app.include_router(library_router)
     app.include_router(auth_router)
     app.include_router(user_auth_router)
+    app.include_router(notification_router)
     app.include_router(comment_router)
     app.include_router(moderation_router)
 

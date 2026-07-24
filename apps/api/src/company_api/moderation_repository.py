@@ -1,5 +1,6 @@
 """PostgreSQL persistence for comment moderation and site-user administration."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
@@ -121,8 +122,14 @@ class ModerationRepository(Protocol):
 
 
 class SqlAlchemyModerationRepository:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        unsubscribe_token_factory: Callable[[], tuple[UUID, str]] | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._unsubscribe_token_factory = unsubscribe_token_factory
 
     async def list_comments(
         self,
@@ -184,6 +191,7 @@ class SqlAlchemyModerationRepository:
                     actor_username=author.username,
                     reply_target=reply_target,
                     created_at=now,
+                    unsubscribe_token_factory=self._unsubscribe_token_factory,
                 )
             await session.flush()
             saved = await _comment_from_session(session, comment)

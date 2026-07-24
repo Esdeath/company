@@ -1,5 +1,6 @@
 """PostgreSQL persistence for public comments, author actions, and reports."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -123,8 +124,14 @@ class CommentRepository(Protocol):
 
 
 class SqlAlchemyCommentRepository:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        unsubscribe_token_factory: Callable[[], tuple[UUID, str]] | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._unsubscribe_token_factory = unsubscribe_token_factory
 
     async def document_exists(self, document_id: UUID) -> bool:
         async with self._session_factory() as session:
@@ -167,6 +174,7 @@ class SqlAlchemyCommentRepository:
                     actor_username=record.author_username,
                     reply_target=locked_target,
                     created_at=record.created_at,
+                    unsubscribe_token_factory=self._unsubscribe_token_factory,
                 )
             await session.flush()
             saved = _comment_record(comment, record.author_username)

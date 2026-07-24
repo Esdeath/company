@@ -1,11 +1,23 @@
 """Shared reply notification and email-outbox construction."""
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from company_api.models import Comment, Document, EmailOutbox, Notification, NotificationType, User
+from company_api.models import (
+    Comment,
+    Document,
+    EmailOutbox,
+    Notification,
+    NotificationType,
+    User,
+    UserToken,
+    UserTokenPurpose,
+)
+
+UNSUBSCRIBE_LIFETIME = timedelta(days=30)
 
 
 async def add_reply_publication_side_effects(
@@ -17,6 +29,7 @@ async def add_reply_publication_side_effects(
     actor_username: str,
     reply_target: Comment | None,
     created_at: datetime,
+    unsubscribe_token_factory: Callable[[], tuple[UUID, str]] | None = None,
 ) -> None:
     if reply_target is None or reply_target.author_id is None or reply_target.author_id == actor_id:
         return
@@ -35,6 +48,19 @@ async def add_reply_publication_side_effects(
     )
     if not recipient.reply_email_enabled:
         return
+    token_id: UUID | None = None
+    if unsubscribe_token_factory is not None:
+        token_id, token_hash = unsubscribe_token_factory()
+        session.add(
+            UserToken(
+                id=token_id,
+                token_hash=token_hash,
+                purpose=UserTokenPurpose.UNSUBSCRIBE,
+                user_id=recipient.id,
+                created_at=created_at,
+                expires_at=created_at + UNSUBSCRIBE_LIFETIME,
+            )
+        )
     document = await session.get(Document, document_id)
     payload: dict[str, object] = {
         "username": recipient.username,
@@ -46,6 +72,7 @@ async def add_reply_publication_side_effects(
         payload["company_id"] = str(document.company_id)
     session.add(
         EmailOutbox(
+            token_id=token_id,
             template="comment_reply",
             recipient=recipient.email,
             payload=payload,
