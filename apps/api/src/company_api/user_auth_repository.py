@@ -171,20 +171,33 @@ class SqlAlchemyUserAuthRepository:
         now: datetime,
     ) -> tuple[CurrentUser, UserSessionRecord] | None:
         async with self._session_factory() as session:
+            user_id = await self._token_owner_id(session, token_id)
+            if user_id is None:
+                await session.commit()
+                return None
+            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
+                await session.commit()
+                return None
             token = await self._locked_token(
                 session,
                 token_id,
                 token_digest,
                 UserTokenPurpose.VERIFY_EMAIL,
+                user_id,
                 now,
             )
-            if token is None:
+            if token is None or not _token_matches(
+                token,
+                token_id=token_id,
+                token_digest=token_digest,
+                purpose=UserTokenPurpose.VERIFY_EMAIL,
+                user_id=user_id,
+                now=now,
+            ):
                 await session.commit()
                 return None
-            user = await session.scalar(
-                select(User).where(User.id == token.user_id).with_for_update()
-            )
-            if user is None or user.status == UserStatus.SUSPENDED:
+            if user.status == UserStatus.SUSPENDED:
                 await session.commit()
                 return None
 
@@ -265,20 +278,33 @@ class SqlAlchemyUserAuthRepository:
         now: datetime,
     ) -> tuple[CurrentUser, UserSessionRecord] | None:
         async with self._session_factory() as session:
+            user_id = await self._token_owner_id(session, token_id)
+            if user_id is None:
+                await session.commit()
+                return None
+            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
+                await session.commit()
+                return None
             token = await self._locked_token(
                 session,
                 token_id,
                 token_digest,
                 UserTokenPurpose.RESET_PASSWORD,
+                user_id,
                 now,
             )
-            if token is None:
+            if token is None or not _token_matches(
+                token,
+                token_id=token_id,
+                token_digest=token_digest,
+                purpose=UserTokenPurpose.RESET_PASSWORD,
+                user_id=user_id,
+                now=now,
+            ):
                 await session.commit()
                 return None
-            user = await session.scalar(
-                select(User).where(User.id == token.user_id).with_for_update()
-            )
-            if user is None or user.status != UserStatus.ACTIVE:
+            if user.status != UserStatus.ACTIVE:
                 await session.commit()
                 return None
 
@@ -435,6 +461,7 @@ class SqlAlchemyUserAuthRepository:
         token_id: UUID,
         token_digest: str,
         purpose: UserTokenPurpose,
+        user_id: UUID,
         now: datetime,
     ) -> UserToken | None:
         token: UserToken | None = await session.scalar(
@@ -443,12 +470,19 @@ class SqlAlchemyUserAuthRepository:
                 UserToken.id == token_id,
                 UserToken.token_hash == token_digest,
                 UserToken.purpose == purpose,
+                UserToken.user_id == user_id,
                 UserToken.consumed_at.is_(None),
                 UserToken.expires_at > now,
             )
             .with_for_update()
         )
         return token
+
+    async def _token_owner_id(self, session: AsyncSession, token_id: UUID) -> UUID | None:
+        user_id: UUID | None = await session.scalar(
+            select(UserToken.user_id).where(UserToken.id == token_id)
+        )
+        return user_id
 
 
 def _new_user(record: UserRecord) -> User:
@@ -532,4 +566,23 @@ def _current_user(row: User) -> CurrentUser:
         email_verified_at=row.email_verified_at,
         first_comment_approved_at=row.first_comment_approved_at,
         reply_email_enabled=row.reply_email_enabled,
+    )
+
+
+def _token_matches(
+    token: UserToken,
+    *,
+    token_id: UUID,
+    token_digest: str,
+    purpose: UserTokenPurpose,
+    user_id: UUID,
+    now: datetime,
+) -> bool:
+    return (
+        token.id == token_id
+        and token.user_id == user_id
+        and token.purpose == purpose
+        and token.consumed_at is None
+        and token.expires_at > now
+        and hmac.compare_digest(token.token_hash, token_digest)
     )

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+import pytest
 from sqlalchemy.dialects import postgresql
 
 from company_api.models import (
@@ -175,10 +176,10 @@ def test_registration_stages_user_token_and_safe_outbox_before_one_commit() -> N
     assert "token" not in outbox.payload
 
 
-def test_verification_locks_token_and_user_then_activates_and_creates_session() -> None:
+def test_verification_locks_user_then_token_and_activates_with_session() -> None:
     token = token_row(UserTokenPurpose.VERIFY_EMAIL)
     user = user_row()
-    fake = FakeSession([token, user])
+    fake = FakeSession([USER_ID, user, token])
     repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
 
     activated = run(
@@ -194,7 +195,16 @@ def test_verification_locks_token_and_user_then_activates_and_creates_session() 
         CurrentUser(USER_ID, "reader@example.com", "价值读者", NOW, None, True),
         session_record(),
     )
-    assert all("FOR UPDATE" in sql(statement) for statement in fake.statements[:2])
+    assert "FROM user_tokens" in sql(fake.statements[0])
+    assert "FOR UPDATE" not in sql(fake.statements[0])
+    assert "FROM users" in sql(fake.statements[1])
+    assert "FOR UPDATE" in sql(fake.statements[1])
+    assert "FROM user_tokens" in sql(fake.statements[2])
+    assert "FOR UPDATE" in sql(fake.statements[2])
+    assert "user_tokens.token_hash" in sql(fake.statements[2])
+    assert "user_tokens.purpose" in sql(fake.statements[2])
+    assert "user_tokens.consumed_at IS NULL" in sql(fake.statements[2])
+    assert "user_tokens.expires_at >" in sql(fake.statements[2])
     assert token.consumed_at == NOW
     assert user.status == UserStatus.ACTIVE
     assert user.email_verified_at == NOW
@@ -203,10 +213,10 @@ def test_verification_locks_token_and_user_then_activates_and_creates_session() 
     assert fake.events == [("commit", 1)]
 
 
-def test_reset_locks_token_updates_hash_and_revokes_sessions_in_one_commit() -> None:
+def test_reset_locks_user_then_token_updates_hash_and_revokes_sessions() -> None:
     token = token_row(UserTokenPurpose.RESET_PASSWORD)
     user = user_row(status=UserStatus.ACTIVE)
-    fake = FakeSession([token, user])
+    fake = FakeSession([USER_ID, user, token])
     repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
 
     reset = run(
@@ -221,6 +231,11 @@ def test_reset_locks_token_updates_hash_and_revokes_sessions_in_one_commit() -> 
 
     assert reset is not None
     assert reset[1] == session_record()
+    assert "FOR UPDATE" not in sql(fake.statements[0])
+    assert "FROM users" in sql(fake.statements[1])
+    assert "FOR UPDATE" in sql(fake.statements[1])
+    assert "FROM user_tokens" in sql(fake.statements[2])
+    assert "FOR UPDATE" in sql(fake.statements[2])
     assert token.consumed_at == NOW
     assert user.password_hash == "$argon2id$new"
     assert any(
@@ -228,6 +243,31 @@ def test_reset_locks_token_updates_hash_and_revokes_sessions_in_one_commit() -> 
         for statement in fake.statements
     )
     assert fake.events == [("commit", 1)]
+
+
+@pytest.mark.parametrize("token_changed", [False, True], ids=["disappeared", "changed"])
+def test_verification_rejects_token_changed_after_owner_lookup(token_changed: bool) -> None:
+    user = user_row()
+    locked_token = token_row(UserTokenPurpose.VERIFY_EMAIL) if token_changed else None
+    if locked_token is not None:
+        locked_token.token_hash = "x" * 64
+        locked_token.consumed_at = NOW
+    fake = FakeSession([USER_ID, user, locked_token])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    activated = run(
+        repository.activate_user_and_create_session(
+            TOKEN_ID,
+            "t" * 64,
+            session_record(user_id=UUID(int=0)),
+            now=NOW,
+        )
+    )
+
+    assert activated is None
+    assert user.status == UserStatus.PENDING_VERIFICATION
+    assert fake.added == []
+    assert fake.events == [("commit", 0)]
 
 
 def test_session_creation_locks_user_and_rejects_changed_password_hash() -> None:
