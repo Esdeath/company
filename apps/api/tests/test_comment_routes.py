@@ -145,6 +145,9 @@ def test_public_list_uses_optional_viewer_and_omits_private_fields(
 
     assert anonymous.status_code == 200
     assert signed_in.status_code == 200
+    for response in (anonymous, signed_in):
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
     assert comments.calls[:2] == [
         ("list", DOCUMENT_ID, None, None),
         ("list", DOCUMENT_ID, USER_ID, "next"),
@@ -193,6 +196,20 @@ def test_private_thread_is_404(comments: FakeComments) -> None:
         response = client.get(f"/api/v1/comments/{COMMENT_ID}/thread")
 
     assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+
+
+def test_thread_response_disables_viewer_specific_caching(comments: FakeComments) -> None:
+    with make_client(comments) as client:
+        anonymous = client.get(f"/api/v1/comments/{COMMENT_ID}/thread")
+        client.cookies.set("company-user-session", "session")
+        signed_in = client.get(f"/api/v1/comments/{COMMENT_ID}/thread")
+
+    for response in (anonymous, signed_in):
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
 
 
 def test_reply_email_message_supports_tokenless_deep_links() -> None:

@@ -71,6 +71,7 @@ class MemoryCommentRepository:
         self.documents = {DOCUMENT_ID}
         self.comments: dict[UUID, CommentRecord] = {}
         self.created: list[tuple[NewCommentRecord, ParentCommentRecord | None]] = []
+        self.create_error: Exception | None = None
 
     async def document_exists(self, document_id: UUID) -> bool:
         return document_id in self.documents
@@ -93,6 +94,8 @@ class MemoryCommentRepository:
         *,
         reply_target: ParentCommentRecord | None,
     ) -> CommentRecord:
+        if self.create_error is not None:
+            raise self.create_error
         self.created.append((record, reply_target))
         saved = comment(
             record.id,
@@ -205,6 +208,18 @@ def test_reply_to_reply_flattens_to_root_but_retains_direct_notification_target(
     saved, target = repository.created[-1]
     assert saved.parent_id == ROOT_ID
     assert target is not None and target.id == REPLY_ID
+
+
+def test_authoritative_parent_change_during_create_remains_nonreplyable(
+    service: CommentService, repository: MemoryCommentRepository
+) -> None:
+    repository.comments[ROOT_ID] = comment(ROOT_ID)
+    repository.create_error = ParentCommentInvalid()
+
+    with pytest.raises(ParentCommentInvalid):
+        run(service.create_comment(DOCUMENT_ID, actor(trusted=True), "reply", ROOT_ID))
+
+    assert repository.created == []
 
 
 def test_listing_keeps_public_order_counts_and_only_viewers_own_pending(

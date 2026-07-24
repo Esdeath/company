@@ -14,6 +14,9 @@ from company_api.comment_repository import (
     CommentRepository,
     NewCommentRecord,
 )
+from company_api.comment_repository import (
+    ParentCommentInvalid as ParentCommentInvalid,
+)
 from company_api.comment_schemas import (
     CommentAuthorRead,
     CommentPage,
@@ -32,10 +35,6 @@ class DocumentNotFound(Exception):
 
 class CommentNotFound(Exception):
     """The requested comment is not visible to the viewer."""
-
-
-class ParentCommentInvalid(Exception):
-    """The requested reply parent is missing or cannot receive replies."""
 
 
 class CommentOperations(Protocol):

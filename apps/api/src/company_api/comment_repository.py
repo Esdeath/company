@@ -60,6 +60,10 @@ class NewCommentRecord:
     created_at: datetime
 
 
+class ParentCommentInvalid(Exception):
+    """The locked reply target or its root cannot receive a reply."""
+
+
 class CommentRepository(Protocol):
     async def document_exists(self, document_id: UUID) -> bool: ...
 
@@ -109,11 +113,16 @@ class SqlAlchemyCommentRepository:
         reply_target: ParentCommentRecord | None,
     ) -> CommentRecord:
         async with self._session_factory() as session:
+            locked_target, locked_root = await _lock_reply_context(
+                session,
+                record,
+                reply_target,
+            )
             comment = Comment(
                 id=record.id,
                 document_id=record.document_id,
                 author_id=record.author_id,
-                parent_id=record.parent_id,
+                parent_id=locked_root.id if locked_root is not None else None,
                 body=record.body,
                 status=record.status,
                 created_at=record.created_at,
@@ -121,11 +130,11 @@ class SqlAlchemyCommentRepository:
             session.add(comment)
             if (
                 record.status == CommentStatus.PUBLISHED
-                and reply_target is not None
-                and reply_target.author_id is not None
-                and reply_target.author_id != record.author_id
+                and locked_target is not None
+                and locked_target.author_id is not None
+                and locked_target.author_id != record.author_id
             ):
-                recipient = await session.get(User, reply_target.author_id)
+                recipient = await session.get(User, locked_target.author_id)
                 if recipient is not None:
                     session.add(
                         Notification(
@@ -249,6 +258,43 @@ class SqlAlchemyCommentRepository:
 
 def _comment_select() -> Select[tuple[Comment, str]]:
     return select(Comment, User.username).outerjoin(User, User.id == Comment.author_id)
+
+
+async def _lock_reply_context(
+    session: AsyncSession,
+    record: NewCommentRecord,
+    reply_target: ParentCommentRecord | None,
+) -> tuple[Comment | None, Comment | None]:
+    if reply_target is None:
+        if record.parent_id is not None:
+            raise ParentCommentInvalid
+        return None, None
+
+    direct = await session.scalar(
+        select(Comment).where(Comment.id == reply_target.id).with_for_update()
+    )
+    if (
+        direct is None
+        or direct.document_id != record.document_id
+        or direct.status != CommentStatus.PUBLISHED
+    ):
+        raise ParentCommentInvalid
+
+    root = direct
+    if direct.parent_id is not None:
+        locked_root = await session.scalar(
+            select(Comment).where(Comment.id == direct.parent_id).with_for_update()
+        )
+        if locked_root is None:
+            raise ParentCommentInvalid
+        root = locked_root
+    if (
+        root.document_id != record.document_id
+        or root.parent_id is not None
+        or root.status != CommentStatus.PUBLISHED
+    ):
+        raise ParentCommentInvalid
+    return direct, root
 
 
 def _comment_record(comment: Comment, username: str | None) -> CommentRecord:

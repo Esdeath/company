@@ -4,11 +4,13 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+import pytest
 from sqlalchemy.dialects import postgresql
 
 from company_api.comment_repository import (
     CommentCursor,
     NewCommentRecord,
+    ParentCommentInvalid,
     ParentCommentRecord,
     SqlAlchemyCommentRepository,
 )
@@ -29,6 +31,7 @@ ACTOR_ID = UUID("00000000-0000-0000-0000-000000000603")
 RECIPIENT_ID = UUID("00000000-0000-0000-0000-000000000604")
 COMMENT_ID = UUID("00000000-0000-0000-0000-000000000605")
 PARENT_ID = UUID("00000000-0000-0000-0000-000000000606")
+ROOT_ID = UUID("00000000-0000-0000-0000-000000000607")
 
 
 def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
@@ -69,6 +72,7 @@ class FakeSession:
             original_filename="research.html",
             uploaded_at=NOW,
         )
+        self.locked_comments = {PARENT_ID: stored_comment(PARENT_ID)}
 
     async def __aenter__(self) -> "FakeSession":
         return self
@@ -79,6 +83,12 @@ class FakeSession:
     async def execute(self, statement: object) -> Rows:
         self.statements.append(statement)
         return Rows()
+
+    async def scalar(self, statement: object) -> object | None:
+        self.statements.append(statement)
+        parameters = statement.compile(dialect=postgresql.dialect()).params  # type: ignore[attr-defined]
+        comment_id = next(value for value in parameters.values() if isinstance(value, UUID))
+        return self.locked_comments.get(comment_id)
 
     async def get(self, model: type[object], key: UUID) -> object | None:
         if model is User and key == RECIPIENT_ID:
@@ -114,6 +124,24 @@ def record(*, status: CommentStatus = CommentStatus.PUBLISHED) -> NewCommentReco
         author_username="actor",
         parent_id=PARENT_ID,
         body="reply",
+        status=status,
+        created_at=NOW,
+    )
+
+
+def stored_comment(
+    comment_id: UUID,
+    *,
+    document_id: UUID = DOCUMENT_ID,
+    parent_id: UUID | None = None,
+    status: CommentStatus = CommentStatus.PUBLISHED,
+) -> Comment:
+    return Comment(
+        id=comment_id,
+        document_id=document_id,
+        author_id=RECIPIENT_ID,
+        parent_id=parent_id,
+        body="existing",
         status=status,
         created_at=NOW,
     )
@@ -176,8 +204,133 @@ def test_pending_or_self_reply_does_not_notify() -> None:
     )
 
     self_session = FakeSession()
+    self_session.locked_comments[PARENT_ID].author_id = ACTOR_ID
     self_repository = SqlAlchemyCommentRepository(FakeFactory(self_session))  # type: ignore[arg-type]
     run(self_repository.create_comment(record(), reply_target=parent(author_id=ACTOR_ID)))
 
     assert [type(item) for item in pending_session.added] == [Comment]
     assert [type(item) for item in self_session.added] == [Comment]
+
+
+@pytest.mark.parametrize(
+    "changed_status",
+    [None, CommentStatus.PENDING, CommentStatus.REJECTED, CommentStatus.DELETED],
+)
+def test_create_relocks_direct_parent_and_rejects_change_after_precheck(
+    changed_status: CommentStatus | None,
+) -> None:
+    session = FakeSession()
+    if changed_status is None:
+        session.locked_comments.pop(PARENT_ID)
+    else:
+        session.locked_comments[PARENT_ID].status = changed_status
+    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+
+    with pytest.raises(ParentCommentInvalid):
+        run(repository.create_comment(record(), reply_target=parent()))
+
+    lock = session.statements[0].compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+    assert "FOR UPDATE" in str(lock)
+    assert session.added == []
+    assert "commit" not in session.events
+
+
+def test_reply_to_reply_locks_and_validates_direct_target_then_root() -> None:
+    session = FakeSession()
+    session.locked_comments = {
+        PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
+        ROOT_ID: stored_comment(ROOT_ID),
+    }
+    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+    nested_record = record()
+    nested_record = NewCommentRecord(
+        id=nested_record.id,
+        document_id=nested_record.document_id,
+        author_id=nested_record.author_id,
+        author_username=nested_record.author_username,
+        parent_id=ROOT_ID,
+        body=nested_record.body,
+        status=nested_record.status,
+        created_at=nested_record.created_at,
+    )
+
+    saved = run(
+        repository.create_comment(
+            nested_record,
+            reply_target=parent_record(PARENT_ID, parent_id=ROOT_ID),
+        )
+    )
+
+    locks = [
+        statement.compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+        for statement in session.statements[:2]
+    ]
+    assert all("FOR UPDATE" in str(lock) for lock in locks)
+    locked_ids = [
+        next(value for value in lock.params.values() if isinstance(value, UUID)) for lock in locks
+    ]
+    assert locked_ids == [
+        PARENT_ID,
+        ROOT_ID,
+    ]
+    assert saved.parent_id == ROOT_ID
+
+
+@pytest.mark.parametrize("changed_id", [PARENT_ID, ROOT_ID])
+def test_locked_direct_target_and_root_must_still_match_document(changed_id: UUID) -> None:
+    session = FakeSession()
+    session.locked_comments = {
+        PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
+        ROOT_ID: stored_comment(ROOT_ID),
+    }
+    changed = session.locked_comments[changed_id]
+    changed.document_id = UUID(int=999)
+    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+
+    with pytest.raises(ParentCommentInvalid):
+        run(
+            repository.create_comment(
+                record(),
+                reply_target=parent_record(PARENT_ID, parent_id=ROOT_ID),
+            )
+        )
+
+    assert session.added == []
+    assert "commit" not in session.events
+
+
+def parent_record(comment_id: UUID, *, parent_id: UUID | None) -> ParentCommentRecord:
+    return ParentCommentRecord(
+        id=comment_id,
+        document_id=DOCUMENT_ID,
+        author_id=RECIPIENT_ID,
+        parent_id=parent_id,
+        status=CommentStatus.PUBLISHED,
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_status",
+    [None, CommentStatus.PENDING, CommentStatus.REJECTED, CommentStatus.DELETED],
+)
+def test_reply_to_reply_rejects_nonpublished_locked_root(
+    changed_status: CommentStatus | None,
+) -> None:
+    session = FakeSession()
+    session.locked_comments = {
+        PARENT_ID: stored_comment(PARENT_ID, parent_id=ROOT_ID),
+    }
+    if changed_status is not None:
+        session.locked_comments[ROOT_ID] = stored_comment(ROOT_ID, status=changed_status)
+    repository = SqlAlchemyCommentRepository(FakeFactory(session))  # type: ignore[arg-type]
+
+    with pytest.raises(ParentCommentInvalid):
+        run(
+            repository.create_comment(
+                record(),
+                reply_target=parent_record(PARENT_ID, parent_id=ROOT_ID),
+            )
+        )
+
+    assert session.added == []
+    assert "commit" not in session.events

@@ -3,7 +3,7 @@
 from typing import Annotated, Never
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from company_api.comment_schemas import CommentCreate, CommentPage, CommentRead, CommentThreadRead
 from company_api.comment_service import (
@@ -16,6 +16,7 @@ from company_api.config import Settings
 from company_api.user_auth_routes import OptionalUserSession, UserCsrfDependency
 
 router = APIRouter(tags=["article comments"])
+NO_STORE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 
 
 def get_comment_service(request: Request) -> CommentOperations:
@@ -37,7 +38,7 @@ def _raise_comment_error(error: Exception) -> Never:
         status_code, detail = 422, "无法回复该评论"
     else:
         status_code, detail = 422, str(error) or "评论数据无效"
-    raise HTTPException(status_code=status_code, detail=detail) from error
+    raise HTTPException(status_code=status_code, detail=detail, headers=NO_STORE_HEADERS) from error
 
 
 @router.get(
@@ -46,10 +47,12 @@ def _raise_comment_error(error: Exception) -> Never:
 )
 async def list_comments(
     document_id: UUID,
+    response: Response,
     session: OptionalUserSession,
     service: CommentServiceDependency,
     cursor: Annotated[str | None, Query(max_length=500)] = None,
 ) -> CommentPage:
+    response.headers.update(NO_STORE_HEADERS)
     viewer_id = session.current_user.id if session is not None and session.current_user else None
     try:
         return await service.list_comments(document_id, viewer_id, cursor)
@@ -86,9 +89,11 @@ async def create_comment(
 )
 async def get_thread(
     comment_id: UUID,
+    response: Response,
     session: OptionalUserSession,
     service: CommentServiceDependency,
 ) -> CommentThreadRead:
+    response.headers.update(NO_STORE_HEADERS)
     viewer_id = session.current_user.id if session is not None and session.current_user else None
     try:
         return await service.get_thread(comment_id, viewer_id)
