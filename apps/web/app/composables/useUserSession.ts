@@ -130,11 +130,10 @@ export function useUserSession() {
     invalidateRestore()
     try {
       await logoutUser()
+      clearSession()
     } catch (error) {
       clearAfterAuthenticationFailure(error)
       throw error
-    } finally {
-      clearSession()
     }
   }
 

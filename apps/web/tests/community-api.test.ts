@@ -100,7 +100,7 @@ describe('community API client', () => {
     expect(new Headers((fetchMock.mock.calls[3]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('verify-two')
   })
 
-  it('handles 204 responses and clears CSRF even when logout fails', async () => {
+  it('handles 204 responses and clears CSRF when logout returns 401', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
@@ -113,6 +113,24 @@ describe('community API client', () => {
 
     const commentInit = fetchMock.mock.calls[2]?.[1] as RequestInit
     expect(new Headers(commentInit.headers).get('X-CSRF-Token')).toBeNull()
+  })
+
+  it.each([
+    ['a network error', () => Promise.reject(new Error('network unavailable'))],
+    ['a server error', () => Promise.resolve(new Response(JSON.stringify({ detail: '服务暂不可用' }), { status: 503 }))],
+  ])('preserves CSRF when logout fails with %s', async (_label, failedLogout) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+      .mockImplementationOnce(failedLogout)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' }), { status: 201 }))
+
+    await getUserSession(fetchMock)
+    await expect(logoutUser(fetchMock)).rejects.toThrow()
+    await createComment('document-1', { body: '会话仍有效', parent_id: null }, fetchMock)
+
+    const commentInit = fetchMock.mock.calls[2]?.[1] as RequestInit
+    expect(new Headers(commentInit.headers).get('X-CSRF-Token')).toBe('session-csrf')
   })
 
   it('raises typed authentication, conflict, and rate-limit errors', async () => {

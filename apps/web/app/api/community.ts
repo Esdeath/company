@@ -156,11 +156,8 @@ export function loginUser(input: LoginInput, fetcher: Fetcher = fetch): Promise<
 }
 
 export async function logoutUser(fetcher: Fetcher = fetch): Promise<void> {
-  try {
-    await request('/api/v1/user-auth/logout', { method: 'POST' }, fetcher)
-  } finally {
-    csrfToken = ''
-  }
+  await request('/api/v1/user-auth/logout', { method: 'POST' }, fetcher)
+  csrfToken = ''
 }
 
 export function requestPasswordReset(

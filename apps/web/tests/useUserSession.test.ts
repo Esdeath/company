@@ -126,6 +126,26 @@ describe('useUserSession', () => {
     expect(draft.body).toBe('不要清除这条草稿')
   })
 
+  it.each([
+    ['a network error', () => Promise.reject(new Error('network unavailable'))],
+    ['a server error', () => Promise.resolve(new Response(JSON.stringify({ detail: '服务暂不可用' }), { status: 503 }))],
+  ])('keeps the authenticated user when logout fails with %s', async (_label, failedLogout) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+        .mockImplementationOnce(failedLogout),
+    )
+    const { useUserSession } = await freshSession()
+    const session = useUserSession()
+
+    await session.restore()
+    await expect(session.logout()).rejects.toThrow()
+
+    expect(session.state.value).toEqual(authenticatedSession)
+    expect(session.authenticated.value).toBe(true)
+  })
+
   it('clears shared session state when a direct comment request receives a 401', async () => {
     vi.stubGlobal(
       'fetch',
