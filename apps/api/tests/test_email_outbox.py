@@ -14,7 +14,7 @@ from company_api.email_outbox import (
     EmailJob,
     SqlAlchemyEmailOutboxRepository,
 )
-from company_api.mailer import EmailMessage
+from company_api.mailer import EmailMessage, UnavailableMailer
 from company_api.models import EmailOutbox
 
 NOW = datetime(2026, 7, 23, 10, 0, tzinfo=UTC)
@@ -308,3 +308,19 @@ def test_dispatcher_reschedules_failure_and_logs_no_private_data(
     assert "private@example.com" not in logged
     assert "raw-token" not in logged
     assert "private payload" not in logged
+
+
+def test_dispatcher_retries_unavailable_smtp_with_fixed_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    repository = FakeRepository(job(), stop)
+
+    with caplog.at_level(logging.WARNING, logger="company_api.email_outbox"):
+        run(dispatcher(repository, UnavailableMailer()).run(stop))
+
+    assert repository.events == [
+        ("claim", NOW, LEASE_ID, 5),
+        ("retry", JOB_ID, LEASE_ID, NOW, "SmtpUnavailable"),
+    ]
+    assert [record.getMessage() for record in caplog.records] == ["Email delivery failed"]

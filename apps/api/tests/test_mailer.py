@@ -11,7 +11,15 @@ import pytest
 from pwdlib import PasswordHash
 
 from company_api.config import Settings
-from company_api.mailer import ConsoleMailer, EmailMessage, FileCaptureMailer, SmtpMailer
+from company_api.mailer import (
+    ConsoleMailer,
+    EmailMessage,
+    FileCaptureMailer,
+    SmtpMailer,
+    SmtpUnavailable,
+    UnavailableMailer,
+)
+from company_api.main import _mailer
 
 
 def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
@@ -107,6 +115,31 @@ def test_smtp_mailer_skips_starttls_and_login_when_disabled_and_unconfigured(
     )
 
     assert FakeSmtp.instances[0].events[0][0] == "send_message"
+
+
+def test_unconfigured_production_smtp_starts_but_delivery_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSmtp.instances.clear()
+    monkeypatch.setattr("company_api.mailer.smtplib.SMTP", FakeSmtp)
+    configured = settings(
+        app_environment="production",
+        email_backend="smtp",
+        user_registration_enabled=False,
+        user_token_signing_key="x" * 32,
+        smtp_host="",
+        smtp_username="",
+        smtp_password="",
+        smtp_sender="",
+    )
+
+    mailer = _mailer(configured)
+
+    assert isinstance(mailer, UnavailableMailer)
+    with pytest.raises(SmtpUnavailable, match="SMTP is not configured"):
+        run(mailer.send(EmailMessage("reader@example.com", "Subject", "private token")))
+    assert FakeSmtp.instances == []
+    assert str(SmtpUnavailable("SMTP is not configured")) == "SMTP is not configured"
 
 
 @pytest.mark.parametrize(

@@ -104,7 +104,13 @@ case "$1" in
   port) printf ':0\\n' ;;
   stop) : > "$FAKE_POSTGRES_STOPPED" ;;
   start) rm -f "$FAKE_POSTGRES_STOPPED" ;;
-  up) ;;
+  up)
+    if [ "\${FAKE_UP_FAIL_ONCE:-0}" = "1" ] && [ ! -e "$FAKE_UP_MARKER" ]; then
+      : > "$FAKE_UP_MARKER"
+      exit 1
+    fi
+    ;;
+  down) ;;
   *) exit 2 ;;
 esac
 `
@@ -287,6 +293,7 @@ const runSmokeWithFakes = async (overrides = {}, timeout = 30_000) => {
     FAKE_COMPANY_NAME_FILE: join(root, 'company-name'),
     FAKE_TIMEOUT_MARKER: join(root, 'timeout-once'),
     FAKE_HEALTH_MARKER: join(root, 'health-starting-once'),
+    FAKE_UP_MARKER: join(root, 'up-failed-once'),
     ...overrides,
   }
   let result
@@ -304,8 +311,12 @@ const runSmokeWithFakes = async (overrides = {}, timeout = 30_000) => {
   const dockerLog = await readFile(env.FAKE_DOCKER_LOG, 'utf8').catch(() => '')
   const curlLog = await readFile(env.FAKE_CURL_LOG, 'utf8').catch(() => '')
   const postgresStopped = await readFile(env.FAKE_POSTGRES_STOPPED, 'utf8').then(() => true).catch(() => false)
+  const smokeEnvPath = dockerLog.match(/--env-file (\S+\/company-smoke\.[^/]+\/compose\.env)/)?.[1]
+  const smokeEnvExists = smokeEnvPath
+    ? await readFile(smokeEnvPath, 'utf8').then(() => true).catch(() => false)
+    : undefined
   await rm(root, { recursive: true, force: true })
-  return { ...result, dockerLog, curlLog, postgresStopped }
+  return { ...result, dockerLog, curlLog, postgresStopped, smokeEnvExists }
 }
 
 test('locks the agreed toolchain versions', async () => {
@@ -767,6 +778,18 @@ test('smoke waits for containers to become healthy', async () => {
   assert.match(result.stdout, /compose smoke passed/)
 })
 
+test('smoke restores the source environment after a partial test-environment startup failure', async () => {
+  const result = await runSmokeWithFakes({ FAKE_UP_FAIL_ONCE: '1' })
+
+  assert.notEqual(result.code, 0)
+  const composeUpCalls = result.dockerLog.match(/^compose --env-file .* up -d --force-recreate api edge$/gm) ?? []
+  assert.equal(composeUpCalls.length, 2)
+  assert.notEqual(composeUpCalls[0].match(/--env-file (\S+)/)?.[1], '.env.example')
+  assert.match(composeUpCalls[1], /--env-file .*\.env\.example up -d/)
+  assert.match(result.dockerLog, /^compose --env-file .*compose\.env down$/m)
+  assert.equal(result.smokeEnvExists, false)
+})
+
 test('smoke fails immediately for terminal container states', async () => {
   for (const overrides of [
     { FAKE_HEALTH_UNHEALTHY: '1' },
@@ -942,8 +965,10 @@ test('production Nginx rate limits each public community write boundary by IP', 
     '= /api/v1/user-auth/password-reset/request',
     '= /api/v1/user-auth/password-reset/confirm',
   ]) assert.ok(nginx.includes(`location ${route}`), `missing precise Nginx location: ${route}`)
-  assert.match(nginx, /location\s+~\s+\^\/api\/v1\/documents\/[^\n]+\/comments\$/)
-  assert.match(nginx, /location\s+~\s+\^\/api\/v1\/comments\/[^\n]+\/reports\$/)
+  assert.doesNotMatch(nginx, /location\s+~\s+\^\/api\/v1\/(?:documents|comments)\//)
+  assert.match(nginx, /location\s+~\*\s+\^\/api\/v1\/documents\/[^\n]+\/comments\$/)
+  assert.ok(nginx.includes('location ~* ^/api/v1/comments/[0-9a-f-]+$ {'))
+  assert.match(nginx, /location\s+~\*\s+\^\/api\/v1\/comments\/[^\n]+\/reports\$/)
   assert.match(nginx, /location\s+\/api\/\s*\{/)
   assert.doesNotMatch(nginx, /location\s+\^~\s+\/api\//)
 })

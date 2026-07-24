@@ -259,6 +259,8 @@ test('deployment docs stage registration after SMTP and cover rollback and backu
     'PUBLIC_BASE_URL',
   ]) assert.ok(deployment.includes(setting), `missing deployment setting: ${setting}`);
   assert.match(deployment, /USER_REGISTRATION_ENABLED=false[\s\S]+SMTP[\s\S]+测试邮件[\s\S]+USER_REGISTRATION_ENABLED=true/);
+  assert.match(deployment, /EMAIL_BACKEND=smtp[^。]+SMTP_HOST[^。]+仍为空[^。]+启动 API/);
+  assert.match(deployment, /不会回退到 console\/file 后端/);
   assert.match(deployment, /SPF[^。]+DKIM[^。]+SMTP (?:服务商|提供商)/);
   assert.match(deployment, /COMMENT_WRITES_ENABLED=false/);
   assert.match(deployment, /已发布评论仍可读取/);

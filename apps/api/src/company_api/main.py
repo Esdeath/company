@@ -31,7 +31,14 @@ from company_api.email_outbox import (
 )
 from company_api.email_tokens import EmailTokenSigner
 from company_api.library_service import LibraryOperations, LibraryService
-from company_api.mailer import ConsoleMailer, EmailMessage, FileCaptureMailer, Mailer, SmtpMailer
+from company_api.mailer import (
+    ConsoleMailer,
+    EmailMessage,
+    FileCaptureMailer,
+    Mailer,
+    SmtpMailer,
+    UnavailableMailer,
+)
 from company_api.models import UserTokenPurpose
 from company_api.moderation_repository import SqlAlchemyModerationRepository
 from company_api.moderation_routes import router as moderation_router
@@ -58,7 +65,7 @@ class HealthResponse(BaseModel):
 
 def _mailer(settings: Settings) -> Mailer:
     if settings.email_backend == "smtp":
-        return SmtpMailer(settings)
+        return SmtpMailer(settings) if settings.smtp_configured else UnavailableMailer()
     if settings.email_backend == "file":
         return FileCaptureMailer(settings)
     return ConsoleMailer()

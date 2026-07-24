@@ -46,6 +46,16 @@ class Mailer(Protocol):
     async def send(self, message: EmailMessage) -> None: ...
 
 
+class SmtpUnavailable(RuntimeError):
+    """Production SMTP has not been configured yet."""
+
+
+class UnavailableMailer:
+    async def send(self, message: EmailMessage) -> None:
+        del message
+        raise SmtpUnavailable("SMTP is not configured")
+
+
 class SmtpMailer:
     def __init__(self, settings: Settings) -> None:
         self._host = settings.smtp_host

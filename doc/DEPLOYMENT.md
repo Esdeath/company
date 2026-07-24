@@ -158,7 +158,9 @@ ln -sfn /srv/company/secrets/company.env /srv/company/app/.env
 
 ### 3. 配置 SMTP 并分阶段开放注册
 
-首次迁移和部署必须保持 `USER_REGISTRATION_ENABLED=false`。填写 SMTP 服务商提供的 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_STARTTLS` 和 `SMTP_SENDER`，并把 `PUBLIC_BASE_URL` 设为无路径的 HTTPS 站点地址。`SMTP_PASSWORD` 只存在 `/srv/company/secrets/company.env`；日常部署会原样保留 SMTP 凭据，不会写入仓库或终端输出。
+首次迁移和部署必须保持 `USER_REGISTRATION_ENABLED=false`。此时 `EMAIL_BACKEND=smtp` 可以在 `SMTP_HOST`、`SMTP_SENDER` 等字段仍为空时启动 API，既不会回退到 console/file 后端，也不会开放注册；若数据库已有邮件任务，发送会以固定的无敏感信息错误失败并进入发件箱退避重试。
+
+API 启动后，填写 SMTP 服务商提供的 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_STARTTLS` 和 `SMTP_SENDER`，并把 `PUBLIC_BASE_URL` 设为无路径的 HTTPS 站点地址。`SMTP_PASSWORD` 只存在 `/srv/company/secrets/company.env`；日常部署会原样保留 SMTP 凭据，不会写入仓库或终端输出。
 
 发件域名的 SPF 与 DKIM 记录由所选 SMTP 服务商提供和验证。先发送注册验证与密码重置测试邮件，确认链接回到正确的 HTTPS 域名，并观察发件箱没有持续失败，再把 `USER_REGISTRATION_ENABLED=true`。不要在 SMTP 尚未工作时开放注册。`EMAIL_DISPATCH_INTERVAL_SECONDS` 控制领取间隔，`EMAIL_MAX_ATTEMPTS` 控制最大尝试次数；失败任务保存在 PostgreSQL，API 重启后继续重试。
 

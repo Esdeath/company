@@ -2,7 +2,8 @@
 set -Eeuo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-SOURCE_ENV_FILE=${COMPOSE_ENV_FILE:-.env.example}
+SOURCE_ENV_FILE=${COMPOSE_ENV_FILE:-"$ROOT_DIR/.env.example"}
+SOURCE_ENV_FILE=$(cd "$(dirname "$SOURCE_ENV_FILE")" && pwd)/$(basename "$SOURCE_ENV_FILE")
 BASE_URL=${BASE_URL:-http://127.0.0.1:8080}
 SMOKE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/company-smoke.XXXXXX")
 ENV_FILE="$SMOKE_DIR/compose.env"
@@ -16,6 +17,7 @@ UPLOAD_ITEMS_FILE="$SMOKE_DIR/upload-items"
 CLEANUP_IDS_FILE="$SMOKE_DIR/cleanup-document-ids"
 postgres_stopped=0
 test_environment_started=0
+test_environment_ready=0
 company_id=
 company_name=
 csrf_token=
@@ -125,6 +127,9 @@ with psycopg.connect(database_url) as connection:
 
   docker compose --env-file "$ENV_FILE" exec -T api rm -f "$EMAIL_CAPTURE_PATH" >/dev/null 2>&1 || true
   if (( test_environment_started )); then
+    if (( ! test_environment_ready )); then
+      docker compose --env-file "$ENV_FILE" down >/dev/null 2>&1 || true
+    fi
     docker compose --env-file "$SOURCE_ENV_FILE" up -d --force-recreate api edge >/dev/null 2>&1 || true
   fi
 
@@ -293,8 +298,9 @@ wait_for_service_healthy() {
   fail "$service did not become healthy (last state=${state:-unknown}, health=${health:-none})"
 }
 
-compose up -d --force-recreate api edge >/dev/null
 test_environment_started=1
+compose up -d --force-recreate api edge >/dev/null
+test_environment_ready=1
 
 for service in edge web admin api postgres; do
   wait_for_service_healthy "$service"
