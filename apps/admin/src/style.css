@@ -285,8 +285,8 @@ h1 {
   letter-spacing: 0;
 }
 
-.moderation-workspace .section-label > p,
-.user-workspace .section-label > p,
+.moderation-workspace .section-label > div > p,
+.user-workspace .section-label > div > p,
 .moderation-workspace .format-badge,
 .user-workspace .format-badge {
   letter-spacing: 0;
@@ -406,6 +406,16 @@ h1 {
 }
 
 .moderation-notice {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 0.2rem solid var(--green);
+  color: #3f5f50;
+  background: var(--green-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.moderation-success {
   margin: 1rem 0 0;
   padding: 0.65rem 0.8rem;
   border-left: 0.2rem solid var(--green);

@@ -354,14 +354,15 @@ onMounted(initializeAuthentication)
       <AdminSectionNav :active="activeSection" @select="activeSection = $event" />
 
       <div
-        v-if="activeSection === 'documents'"
         id="admin-panel-documents"
         class="workspace"
         role="tabpanel"
         aria-labelledby="admin-tab-documents"
+        v-show="activeSection === 'documents'"
         :aria-busy="loading || documentsLoading"
       >
         <CompanyPicker
+          v-if="activeSection === 'documents'"
           :companies="companies"
           :selected-id="selectedCompanyId"
           :busy="loading || creating || uploading || hasDocumentMutation"
@@ -371,7 +372,7 @@ onMounted(initializeAuthentication)
           @create="addCompany"
         />
 
-        <div class="document-workspace">
+        <div v-if="activeSection === 'documents'" class="document-workspace">
           <header v-if="selectedCompany" class="company-heading">
             <p>{{ [selectedCompany.ticker, selectedCompany.market].filter(Boolean).join(' · ') || '公司资料' }}</p>
             <h2>{{ selectedCompany.name }}</h2>
@@ -398,15 +399,15 @@ onMounted(initializeAuthentication)
       </div>
 
       <div
-        v-else-if="activeSection === 'comments'"
         id="admin-panel-comments"
         role="tabpanel"
         aria-labelledby="admin-tab-comments"
+        v-show="activeSection === 'comments'"
       >
-        <CommentModeration @authentication-required="returnToLogin" />
+        <CommentModeration v-if="activeSection === 'comments'" @authentication-required="returnToLogin" />
       </div>
-      <div v-else id="admin-panel-users" role="tabpanel" aria-labelledby="admin-tab-users">
-        <UserManagement @authentication-required="returnToLogin" />
+      <div id="admin-panel-users" role="tabpanel" aria-labelledby="admin-tab-users" v-show="activeSection === 'users'">
+        <UserManagement v-if="activeSection === 'users'" @authentication-required="returnToLogin" />
       </div>
 
       <nav class="public-return" aria-label="站点入口">

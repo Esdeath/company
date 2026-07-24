@@ -31,7 +31,9 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref('')
 const conflictNotice = ref('')
+const suspensionNotice = ref('')
 const pendingIds = ref<string[]>([])
+const suspendedAuthorIds = ref<string[]>([])
 const rejectingId = ref<string | null>(null)
 const rejectionReason = ref('')
 let requestGeneration = 0
@@ -81,8 +83,13 @@ async function refresh(cursor?: string, append = false) {
 
 function selectView(next: ModerationView) {
   if (view.value === next) return
+  requestGeneration += 1
+  if (next === 'reports') reports.value = []
+  else comments.value = []
   view.value = next
   nextCursor.value = null
+  error.value = ''
+  rejectingId.value = null
   void refresh()
 }
 
@@ -175,11 +182,14 @@ async function remove(comment: ModerationComment) {
 
 async function suspendAuthor(comment: ModerationComment) {
   if (!comment.author_id) return
+  if (!window.confirm(`确认停用用户 ${author(comment)}？其现有登录会话将立即失效。`)) return
   const pendingId = `user:${comment.author_id}`
   if (!beginMutation(pendingId)) return
   error.value = ''
   try {
     await suspendUser(comment.author_id)
+    suspendedAuthorIds.value = [...suspendedAuthorIds.value, comment.author_id]
+    suspensionNotice.value = `已停用用户 ${author(comment)}`
     await refresh()
   } catch (caught) {
     if (isModerationConflict(caught)) showConflictAndRefresh()
@@ -211,6 +221,11 @@ function canSuspendAuthor(comment: ModerationComment): boolean {
   return Boolean(comment.author_id) && (comment.status === 'pending' || comment.status === 'published')
 }
 
+function isAuthorSuspended(comment: ModerationComment): boolean {
+  if (!comment.author_id) return false
+  return suspendedAuthorIds.value.includes(comment.author_id)
+}
+
 function stateLabel(comment: ModerationComment): string {
   return { pending: '待审', published: '已发布', rejected: '已驳回', deleted: '已移除' }[comment.status]
 }
@@ -236,7 +251,7 @@ onMounted(() => void refresh())
         role="tab"
         :tabindex="view === item.id ? 0 : -1"
         :aria-selected="view === item.id"
-        :aria-controls="`moderation-panel-${item.id}`"
+        aria-controls="moderation-panel"
         :name="item.id === 'reports' ? 'report-filter' : undefined"
         @click="selectView(item.id)"
         @keydown="selectWithKeyboard(item.id, $event)"
@@ -245,12 +260,14 @@ onMounted(() => void refresh())
 
     <p v-if="error" class="moderation-error" role="alert">{{ error }}</p>
     <p v-if="conflictNotice" class="moderation-notice" role="status">{{ conflictNotice }}</p>
+    <p v-if="suspensionNotice" class="moderation-success" role="status">{{ suspensionNotice }}</p>
     <button v-if="error && currentItems.length === 0 && !loading" class="text-action" name="retry-moderation" type="button" @click="refresh()">重新加载</button>
-    <p v-if="loading" class="empty-state" aria-live="polite">正在读取审核队列…</p>
 
-    <div v-else :id="`moderation-panel-${view}`" role="tabpanel" :aria-labelledby="`moderation-tab-${view}`">
-      <p v-if="currentItems.length === 0" class="empty-state">当前筛选没有待处理内容。</p>
-      <ul v-else-if="view !== 'reports'" class="moderation-list">
+    <div id="moderation-panel" role="tabpanel" :aria-labelledby="`moderation-tab-${view}`">
+      <p v-if="loading" class="empty-state" aria-live="polite">正在读取审核队列…</p>
+      <template v-else>
+        <p v-if="currentItems.length === 0" class="empty-state">当前筛选没有待处理内容。</p>
+        <ul v-else-if="view !== 'reports'" class="moderation-list">
         <li v-for="comment in comments" :key="comment.id" class="moderation-row">
           <div class="moderation-row__heading"><span class="moderation-author">{{ author(comment) }}</span><span class="format-badge">{{ stateLabel(comment) }}</span></div>
           <p class="moderation-meta">{{ comment.document_title }} · {{ comment.created_at }}</p>
@@ -261,7 +278,8 @@ onMounted(() => void refresh())
               <button class="text-action" type="button" :aria-label="`驳回 评论 ${author(comment)}`" :disabled="isPending(comment.id)" @click="showReject(comment)">驳回</button>
             </template>
             <button v-if="comment.status === 'published'" class="text-action text-action--danger" type="button" :disabled="isPending(comment.id)" @click="remove(comment)">移除</button>
-            <button v-if="canSuspendAuthor(comment)" class="text-action text-action--danger" type="button" :aria-label="`停用用户 ${author(comment)}（${stateLabel(comment)}评论）`" :disabled="isPending(`user:${comment.author_id}`)" @click="suspendAuthor(comment)">停用用户</button>
+            <button v-if="canSuspendAuthor(comment) && isAuthorSuspended(comment)" class="text-action" type="button" :aria-label="`已停用用户 ${author(comment)}`" disabled>已停用</button>
+            <button v-else-if="canSuspendAuthor(comment)" class="text-action text-action--danger" type="button" :aria-label="`停用用户 ${author(comment)}（${stateLabel(comment)}评论）`" :disabled="isPending(`user:${comment.author_id}`)" @click="suspendAuthor(comment)">停用用户</button>
           </div>
           <form v-if="rejectingId === comment.id" class="rejection-form" aria-label="驳回评论" @submit.prevent="submitReject(comment)">
             <label :for="`rejection-${comment.id}`">驳回原因</label>
@@ -269,15 +287,16 @@ onMounted(() => void refresh())
             <button class="text-action" type="submit" :disabled="isPending(comment.id)">确认驳回</button>
           </form>
         </li>
-      </ul>
-      <ul v-else class="moderation-list">
+        </ul>
+        <ul v-else class="moderation-list">
         <li v-for="report in reports" :key="report.id" class="moderation-row">
           <div class="moderation-row__heading"><span class="moderation-author">{{ report.reporter_username }}</span><span class="format-badge">举报</span></div>
           <p class="moderation-meta">{{ report.reason }} · {{ report.comment.document_title }}</p>
           <p class="moderation-body">{{ report.details || report.comment.body || '未提供补充说明' }}</p>
           <div class="moderation-actions"><button class="text-action" type="button" aria-label="保留被举报评论" :disabled="isPending(report.id)" @click="resolve(report, 'kept')">保留</button><button class="text-action text-action--danger" type="button" aria-label="移除被举报评论" :disabled="isPending(report.id)" @click="resolve(report, 'removed')">移除</button></div>
         </li>
-      </ul>
+        </ul>
+      </template>
     </div>
 
     <button v-if="nextCursor" class="text-action moderation-more" type="button" :disabled="loadingMore" @click="refresh(nextCursor ?? undefined, true)">{{ loadingMore ? '正在读取…' : '加载更多' }}</button>

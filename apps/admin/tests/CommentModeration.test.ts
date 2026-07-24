@@ -139,11 +139,57 @@ describe('评论审核工作台', () => {
   })
 
   it('suspends an eligible comment author and refreshes the active list', async () => {
+    const confirmSpy = vi.fn().mockReturnValue(false)
+    vi.stubGlobal('confirm', confirmSpy)
     const wrapper = await mountWorkspace()
+    await wrapper.get('button[aria-label="停用用户 reader（待审评论）"]').trigger('click')
+    expect(confirmSpy).toHaveBeenCalledWith('确认停用用户 reader？其现有登录会话将立即失效。')
+    expect(api.suspendUser).not.toHaveBeenCalled()
+    confirmSpy.mockReturnValue(true)
     await wrapper.get('button[aria-label="停用用户 reader（待审评论）"]').trigger('click')
     await flushPromises()
     expect(api.suspendUser).toHaveBeenCalledWith('user-1')
     expect(api.listModerationComments).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.moderation-success').text()).toContain('已停用用户 reader')
+    expect(wrapper.get('button[aria-label="已停用用户 reader"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps the author suspension action available when the request fails', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+    vi.mocked(api.suspendUser).mockRejectedValue(new Error('用户操作失败'))
+    const wrapper = await mountWorkspace()
+    await wrapper.get('button[aria-label="停用用户 reader（待审评论）"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.moderation-error').text()).toContain('用户操作失败')
+    expect(wrapper.get('button[aria-label="停用用户 reader（待审评论）"]').exists()).toBe(true)
+  })
+
+  it('clears pending rows before an all-comments request fails', async () => {
+    vi.mocked(api.listModerationComments)
+      .mockResolvedValueOnce({ items: [comment], next_cursor: null })
+      .mockRejectedValueOnce(new Error('全部评论暂不可用'))
+    const wrapper = await mountWorkspace()
+    await wrapper.get('#moderation-tab-all').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain(comment.body)
+    expect(wrapper.get('.moderation-error').text()).toContain('全部评论暂不可用')
+    expect(wrapper.get('button[name="retry-moderation"]').exists()).toBe(true)
+  })
+
+  it('clears report rows when a report revisit fails', async () => {
+    vi.mocked(api.listCommentReports)
+      .mockResolvedValueOnce({ items: [report], next_cursor: null })
+      .mockRejectedValueOnce(new Error('举报队列暂不可用'))
+    const wrapper = await mountWorkspace()
+    await wrapper.get('#moderation-tab-reports').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('重复广告')
+    await wrapper.get('#moderation-tab-pending').trigger('click')
+    await flushPromises()
+    await wrapper.get('#moderation-tab-reports').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('重复广告')
+    expect(wrapper.get('.moderation-error').text()).toContain('举报队列暂不可用')
   })
 
   it('keeps a conflict notice visible when the refreshed report list succeeds', async () => {
@@ -177,13 +223,26 @@ describe('评论审核工作台', () => {
     await pendingTab.trigger('keydown', { key: 'End' })
     await flushPromises()
     expect(wrapper.get('#moderation-tab-all').element).toBe(document.activeElement)
-    expect(wrapper.get('#moderation-tab-all').attributes('aria-controls')).toBe('moderation-panel-all')
+    expect(wrapper.get('#moderation-tab-all').attributes('aria-controls')).toBe('moderation-panel')
 
     await wrapper.get('#moderation-tab-pending').trigger('click')
     await flushPromises()
     await wrapper.get('button[aria-label="驳回 评论 reader"]').trigger('click')
     await flushPromises()
     expect(wrapper.get('textarea[name="rejection-reason"]').element).toBe(document.activeElement)
+  })
+
+  it('keeps the controlled panel mounted while the list is loading or shows an error', async () => {
+    let reject!: (error: Error) => void
+    vi.mocked(api.listModerationComments).mockReturnValueOnce(new Promise((_, fail) => { reject = fail }))
+    const wrapper = mount(CommentModeration, { attachTo: document.body })
+    await flushPromises()
+    for (const tab of wrapper.findAll('[role="tab"]')) {
+      expect(document.getElementById(tab.attributes('aria-controls') ?? '')).not.toBeNull()
+    }
+    reject(new Error('队列暂不可用'))
+    await flushPromises()
+    expect(wrapper.get('#moderation-panel').exists()).toBe(true)
   })
 
   it('emits an authentication boundary when the administrator session expires', async () => {

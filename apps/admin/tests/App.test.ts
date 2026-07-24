@@ -121,6 +121,10 @@ describe('资料管理工作台', () => {
 
     expect(sections.map((section) => section.text())).toEqual(['资料', '评论审核', '用户'])
     expect(wrapper.get('#admin-panel-documents').attributes('aria-labelledby')).toBe('admin-tab-documents')
+    for (const tab of sections) {
+      expect(wrapper.find(`#${tab.attributes('aria-controls')}`).exists()).toBe(true)
+    }
+    expect(wrapper.find('#moderation-title').exists()).toBe(false)
     await sections[1]!.trigger('click')
     await flushPromises()
     expect(wrapper.get('#moderation-title').text()).toBe('评论审核')
