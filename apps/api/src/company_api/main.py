@@ -176,15 +176,26 @@ def create_app(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        response = await call_next(request)
         path = request.url.path
-        if (
+        is_user_account_request = (
             path.startswith("/api/v1/user-auth/")
             or path == "/api/v1/users/me"
             or path.startswith("/api/v1/users/me/")
-        ):
-            response.headers["Cache-Control"] = "no-store"
-            response.headers["Pragma"] = "no-cache"
+        )
+        if not is_user_account_request:
+            return await call_next(request)
+
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.error("User account request failed")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "服务器暂时无法处理请求，请稍后重试"},
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
         return response
 
     app.include_router(library_router)

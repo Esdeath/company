@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -48,8 +49,11 @@ class IdleDispatcher:
 
 
 class AnonymousAdminAuth:
+    def __init__(self) -> None:
+        self.authenticated_tokens: list[str] = []
+
     async def authenticate(self, session_token: str) -> None:
-        del session_token
+        self.authenticated_tokens.append(session_token)
         return None
 
 
@@ -157,12 +161,17 @@ def auth() -> FakeUserAuth:
 
 
 @pytest.fixture
-def client(auth: FakeUserAuth) -> TestClient:
+def admin_auth() -> AnonymousAdminAuth:
+    return AnonymousAdminAuth()
+
+
+@pytest.fixture
+def client(auth: FakeUserAuth, admin_auth: AnonymousAdminAuth) -> TestClient:
     application = create_app(
         settings(),
         SuccessfulProbe(),
         library_service=object(),  # type: ignore[arg-type]
-        auth_service=AnonymousAdminAuth(),  # type: ignore[arg-type]
+        auth_service=admin_auth,  # type: ignore[arg-type]
         user_auth_service=auth,
         email_dispatcher=IdleDispatcher(),  # type: ignore[arg-type]
     )
@@ -405,12 +414,69 @@ def test_domain_errors_have_fixed_safe_http_responses(
     assert_no_store(response)
 
 
-def test_user_cookie_never_authenticates_the_administrator_route(client: TestClient) -> None:
+def test_user_cookie_never_authenticates_the_administrator_route(
+    client: TestClient, admin_auth: AnonymousAdminAuth
+) -> None:
     client.cookies.set("company-user-session", "existing-user-session")
 
     response = client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": "session-csrf"})
 
     assert response.status_code == 401
+    assert admin_auth.authenticated_tokens == [""]
+
+
+def test_secure_configuration_sets_host_prefixed_secure_user_cookie(
+    auth: FakeUserAuth, admin_auth: AnonymousAdminAuth
+) -> None:
+    secure_settings = settings().model_copy(update={"session_cookie_secure": True})
+    application = create_app(
+        secure_settings,
+        SuccessfulProbe(),
+        library_service=object(),  # type: ignore[arg-type]
+        auth_service=admin_auth,  # type: ignore[arg-type]
+        user_auth_service=auth,
+        email_dispatcher=IdleDispatcher(),  # type: ignore[arg-type]
+    )
+
+    with TestClient(application) as secure_client:
+        response = secure_client.post(
+            "/api/v1/user-auth/login",
+            headers={"X-CSRF-Token": "anonymous-challenge"},
+            json={"email": "reader@example.com", "password": "password1"},
+        )
+
+    cookie = response.headers["set-cookie"]
+    assert cookie.startswith("__Host-company-user-session=new-user-session-token;")
+    assert "Secure" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=strict" in cookie
+    assert "Path=/" in cookie
+
+
+def test_unhandled_account_error_returns_safe_non_cacheable_response(
+    client: TestClient,
+    auth: FakeUserAuth,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    auth.error = RuntimeError("reader@example.com password1 anonymous-challenge")
+
+    with caplog.at_level(logging.ERROR, logger="company_api.main"):
+        response = client.post(
+            "/api/v1/user-auth/login",
+            headers={"X-CSRF-Token": "anonymous-challenge"},
+            json={"email": "reader@example.com", "password": "password1"},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "服务器暂时无法处理请求，请稍后重试"}
+    assert_no_store(response)
+    assert response.headers["pragma"] == "no-cache"
+    assert caplog.messages == ["User account request failed"]
+    assert all(record.exc_info is None for record in caplog.records)
+    logged = " ".join(caplog.messages)
+    assert "reader@example.com" not in logged
+    assert "password1" not in logged
+    assert "anonymous-challenge" not in logged
 
 
 def test_schema_bounds_are_explicit_and_rejected_before_the_service(

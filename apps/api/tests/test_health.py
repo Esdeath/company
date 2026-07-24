@@ -233,6 +233,27 @@ def test_dispatcher_failure_does_not_skip_app_owned_engine_disposal(
     assert events == ["dispatcher failed", "engine disposed"]
 
 
+def test_user_account_error_boundary_does_not_swallow_unrelated_route_errors() -> None:
+    application = create_app(
+        settings(),
+        SuccessfulProbe(),
+        library_service=object(),  # type: ignore[arg-type]
+        auth_service=object(),  # type: ignore[arg-type]
+        user_auth_service=object(),  # type: ignore[arg-type]
+        email_dispatcher=quiet_dispatcher(),  # type: ignore[arg-type]
+    )
+
+    @application.get("/unrelated-error")
+    async def unrelated_error() -> None:
+        raise RuntimeError("unrelated route failed")
+
+    with (
+        TestClient(application) as client,
+        pytest.raises(RuntimeError, match="unrelated route failed"),
+    ):
+        client.get("/unrelated-error")
+
+
 def test_injected_probe_is_preserved_when_library_service_is_injected() -> None:
     service = object()
     with TestClient(
