@@ -55,7 +55,7 @@ fail() {
 
 restore_postgres() {
   local status=$?
-  local candidate_id deadline document_id
+  local candidate_id deadline document_id source_restore_failed=0
   trap - EXIT
   set +e
 
@@ -130,10 +130,19 @@ with psycopg.connect(database_url) as connection:
     if (( ! test_environment_ready )); then
       docker compose --env-file "$ENV_FILE" down >/dev/null 2>&1 || true
     fi
-    docker compose --env-file "$SOURCE_ENV_FILE" up -d --force-recreate api edge >/dev/null 2>&1 || true
+    if ! docker compose --env-file "$SOURCE_ENV_FILE" up -d --force-recreate api edge \
+      >/dev/null 2>&1; then
+      source_restore_failed=1
+      docker compose --env-file "$ENV_FILE" down >/dev/null 2>&1 || true
+    fi
   fi
 
   rm -rf "$SMOKE_DIR"
+  if (( source_restore_failed )); then
+    printf 'smoke cleanup failure: source Compose environment restoration failed\n' >&2
+    (( status == 0 )) && status=1
+  fi
+  (( status == 0 )) && printf 'compose smoke passed\n'
   exit "$status"
 }
 trap restore_postgres EXIT
@@ -537,5 +546,3 @@ request_admin "$BASE_URL/api/v1/companies/$company_id" 30 --request DELETE
 [[ "$HTTP_CODE" == "204" ]] || fail "company cleanup returned ${HTTP_CODE:-no status}"
 company_id=
 company_name=
-
-printf 'compose smoke passed\n'

@@ -57,7 +57,8 @@ if [ "$1" = "inspect" ]; then
 fi
 [ "$1" = "compose" ] || exit 2
 shift
-if [ "$1" = "--env-file" ]; then shift 2; fi
+compose_env_file=
+if [ "$1" = "--env-file" ]; then compose_env_file=$2; shift 2; fi
 case "$1" in
   ps)
     if [ "$2" = "--status" ]; then
@@ -107,6 +108,9 @@ case "$1" in
   up)
     if [ "\${FAKE_UP_FAIL_ONCE:-0}" = "1" ] && [ ! -e "$FAKE_UP_MARKER" ]; then
       : > "$FAKE_UP_MARKER"
+      exit 1
+    fi
+    if [ "\${FAKE_RESTORE_UP_FAIL:-0}" = "1" ] && [ "\${compose_env_file##*/}" = ".env.example" ]; then
       exit 1
     fi
     ;;
@@ -790,6 +794,17 @@ test('smoke restores the source environment after a partial test-environment sta
   assert.equal(result.smokeEnvExists, false)
 })
 
+test('smoke fails without a success message when source-environment restoration fails', async () => {
+  const result = await runSmokeWithFakes({ FAKE_RESTORE_UP_FAIL: '1' })
+
+  assert.notEqual(result.code, 0)
+  assert.match(result.stderr, /source Compose environment restoration failed/)
+  assert.doesNotMatch(result.stdout, /compose smoke passed/)
+  assert.match(result.dockerLog, /^compose --env-file .*\.env\.example up -d --force-recreate api edge$/m)
+  assert.match(result.dockerLog, /^compose --env-file .*compose\.env down$/m)
+  assert.equal(result.smokeEnvExists, false)
+})
+
 test('smoke fails immediately for terminal container states', async () => {
   for (const overrides of [
     { FAKE_HEALTH_UNHEALTHY: '1' },
@@ -966,9 +981,20 @@ test('production Nginx rate limits each public community write boundary by IP', 
     '= /api/v1/user-auth/password-reset/confirm',
   ]) assert.ok(nginx.includes(`location ${route}`), `missing precise Nginx location: ${route}`)
   assert.doesNotMatch(nginx, /location\s+~\s+\^\/api\/v1\/(?:documents|comments)\//)
-  assert.match(nginx, /location\s+~\*\s+\^\/api\/v1\/documents\/[^\n]+\/comments\$/)
-  assert.ok(nginx.includes('location ~* ^/api/v1/comments/[0-9a-f-]+$ {'))
-  assert.match(nginx, /location\s+~\*\s+\^\/api\/v1\/comments\/[^\n]+\/reports\$/)
+  assert.ok(nginx.includes('location ~* ^/api/v1/documents/[^/]+/comments$ {'))
+  assert.ok(nginx.includes('location ~* ^/api/v1/comments/[^/]+$ {'))
+  assert.ok(nginx.includes('location ~* ^/api/v1/comments/[^/]+/reports$ {'))
+  const dynamicSegments = [
+    'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+    '{11111111-1111-4111-8111-111111111111}',
+    'urn:uuid:11111111-1111-4111-8111-111111111111',
+    'malformed-id',
+  ]
+  for (const segment of dynamicSegments) {
+    assert.match(`/api/v1/documents/${segment}/comments`, /^\/api\/v1\/documents\/[^/]+\/comments$/i)
+    assert.match(`/api/v1/comments/${segment}`, /^\/api\/v1\/comments\/[^/]+$/i)
+    assert.match(`/api/v1/comments/${segment}/reports`, /^\/api\/v1\/comments\/[^/]+\/reports$/i)
+  }
   assert.match(nginx, /location\s+\/api\/\s*\{/)
   assert.doesNotMatch(nginx, /location\s+\^~\s+\/api\//)
 })
