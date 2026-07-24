@@ -168,6 +168,49 @@ describe('CommentSection', () => {
     expect((body.element as HTMLTextAreaElement).value).toBe('保留的草稿')
   })
 
+  it('reloads viewer-specific comments on logout and login without losing its draft', async () => {
+    const authenticated = deferred<CommentPage>()
+    const signedOut = deferred<CommentPage>()
+    const signedInAgain = deferred<CommentPage>()
+    vi.mocked(community.listDocumentComments)
+      .mockReturnValueOnce(authenticated.promise)
+      .mockReturnValueOnce(signedOut.promise)
+      .mockReturnValueOnce(signedInAgain.promise)
+    const wrapper = mountSection()
+    await wrapper.get('textarea[name="comment-body"]').setValue('保留的会话草稿')
+
+    await wrapper.setProps({ currentUser: null })
+    expect(community.listDocumentComments).toHaveBeenCalledTimes(2)
+    authenticated.resolve(page({ viewer_pending: [comment({ id: 'stale-private', status: 'pending' })] }))
+    signedOut.resolve(page())
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="stale-private"]').exists()).toBe(false)
+
+    await wrapper.setProps({ currentUser: USER })
+    expect(community.listDocumentComments).toHaveBeenCalledTimes(3)
+    signedInAgain.resolve(page({ viewer_pending: [comment({ id: 'private-again', status: 'pending' })] }))
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="private-again"]').exists()).toBe(true)
+    expect((wrapper.get('textarea[name="comment-body"]').element as HTMLTextAreaElement).value).toBe('保留的会话草稿')
+  })
+
+  it('removes private rows and capabilities before the signed-out reload resolves', async () => {
+    const signedOut = deferred<CommentPage>()
+    vi.mocked(community.listDocumentComments)
+      .mockResolvedValueOnce(page({ items: [comment({ can_edit: true, can_delete: true })], viewer_pending: [comment({ id: 'private', status: 'pending' })] }))
+      .mockReturnValueOnce(signedOut.promise)
+    const wrapper = mountSection()
+    await flushPromises()
+    expect(wrapper.get('button[name="edit-comment-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-comment-id="private"]').exists()).toBe(true)
+
+    await wrapper.setProps({ currentUser: null })
+    expect(wrapper.find('button[name="edit-comment-1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-comment-id="private"]').exists()).toBe(false)
+    signedOut.resolve(page())
+    await flushPromises()
+  })
+
   it('keeps separate in-memory drafts for each document', async () => {
     vi.mocked(community.listDocumentComments).mockReset().mockResolvedValue(page())
     const wrapper = mountSection()
@@ -224,6 +267,32 @@ describe('CommentSection', () => {
     expect(wrapper.text()).toContain('此评论已删除')
   })
 
+  it('disables reporting immediately and allows a retry when reporting fails', async () => {
+    const pendingReport = deferred<undefined>()
+    vi.mocked(community.listDocumentComments).mockResolvedValue(page())
+    vi.mocked(community.reportComment)
+      .mockReturnValueOnce(pendingReport.promise)
+      .mockRejectedValueOnce(new Error('举报失败'))
+    const wrapper = mountSection()
+    await flushPromises()
+
+    const report = wrapper.get('button[name="report-comment-1"]')
+    await report.trigger('click')
+    await report.trigger('click')
+    expect(community.reportComment).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('button[name="report-comment-1"]').attributes('disabled')).toBeDefined()
+
+    pendingReport.resolve()
+    await flushPromises()
+    expect(wrapper.get('button[name="report-comment-1"]').text()).toContain('已举报')
+
+    const retry = mountSection()
+    await flushPromises()
+    await retry.get('button[name="report-comment-1"]').trigger('click')
+    await flushPromises()
+    expect(retry.get('button[name="report-comment-1"]').attributes('disabled')).toBeUndefined()
+  })
+
   it('loads a requested target thread and marks the target as resolved', async () => {
     vi.mocked(community.listDocumentComments).mockResolvedValue(page())
     vi.mocked(community.updateComment).mockResolvedValue(comment({ body: '编辑后' }))
@@ -238,5 +307,55 @@ describe('CommentSection', () => {
     await flushPromises()
     expect(wrapper.find('[data-comment-id="thread-root"]').exists()).toBe(true)
     expect(wrapper.emitted('target-resolved')).toEqual([['target']])
+  })
+
+  it('keeps mutations to an off-page target thread visible', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(page({ items: [comment({ id: 'paged-root' })] }))
+    vi.mocked(community.getCommentThread).mockResolvedValue({
+      root: comment({ id: 'thread-root', can_edit: true, can_delete: true }),
+      target_comment_id: 'target',
+      viewer_pending: [],
+    })
+    vi.mocked(community.createComment).mockResolvedValue(
+      comment({ id: 'thread-reply', parent_id: 'thread-root', body: '深链回复' }),
+    )
+    vi.mocked(community.updateComment).mockResolvedValue(
+      comment({ id: 'thread-root', body: '深链编辑', can_edit: true, can_delete: true }),
+    )
+    vi.mocked(community.deleteComment).mockResolvedValue(
+      comment({ id: 'thread-root', status: 'deleted', body: null, can_edit: true, can_delete: true }),
+    )
+    const wrapper = mountSection({ targetCommentId: 'target' })
+    await flushPromises()
+
+    await wrapper.get('button[name="reply-thread-root"]').trigger('click')
+    await wrapper.get('textarea[name="reply-body-thread-root"]').setValue('深链回复')
+    await wrapper.get('form.comment-section__reply').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="thread-reply"]').exists()).toBe(true)
+
+    await wrapper.get('button[name="edit-thread-root"]').trigger('click')
+    await wrapper.get('textarea[name="edit-body-thread-root"]').setValue('深链编辑')
+    await wrapper.get('form.comment-item__edit').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('深链编辑')
+
+    await wrapper.get('button[name="delete-thread-root"]').trigger('click')
+    await wrapper.get('button[name="confirm-delete-thread-root"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-comment-id="thread-root"]').text()).toContain('此评论已删除')
+  })
+
+  it('drops an obsolete target request when the target is cleared', async () => {
+    const target = deferred<{ root: Comment; target_comment_id: string; viewer_pending: Comment[] }>()
+    vi.mocked(community.listDocumentComments).mockResolvedValue(page())
+    vi.mocked(community.getCommentThread).mockReturnValueOnce(target.promise)
+    const wrapper = mountSection({ targetCommentId: 'target' })
+    await wrapper.setProps({ targetCommentId: null })
+    target.resolve({ root: comment({ id: 'obsolete-thread' }), target_comment_id: 'target', viewer_pending: [] })
+    await flushPromises()
+
+    expect(wrapper.find('[data-comment-id="obsolete-thread"]').exists()).toBe(false)
+    expect(wrapper.emitted('target-resolved')).toBeUndefined()
   })
 })

@@ -25,13 +25,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'login-required': []
-  'unread-count-changed': [count: number]
   'target-resolved': [commentId: string]
 }>()
 
 const roots = ref<Comment[]>([])
 const threadRoots = ref<Comment[]>([])
 const viewerPending = ref<Comment[]>([])
+const threadViewerPending = ref<Comment[]>([])
 const nextCursor = ref<string | null>(null)
 const totalCount = ref(0)
 const loading = ref(false)
@@ -43,6 +43,7 @@ const replyTo = ref<string | null>(null)
 const replyDraft = ref('')
 const editingCommentId = ref<string | null>(null)
 const editingDraft = ref('')
+const reportedIds = ref<string[]>([])
 const reportingIds = ref<string[]>([])
 const actionError = ref<string | null>(null)
 
@@ -56,7 +57,7 @@ const visibleRoots = computed(() => {
   const publicRoots = allRoots.map((root) => ({ ...root, replies: sortOldest(root.replies) }))
   const pendingRoots: Comment[] = []
 
-  for (const pending of viewerPending.value) {
+  for (const pending of mergeById([...viewerPending.value, ...threadViewerPending.value])) {
     if (pending.parent_id) {
       const parent = publicRoots.find((root) => root.id === pending.parent_id)
       if (parent) {
@@ -92,6 +93,28 @@ function mergeById(items: Comment[]): Comment[] {
     byId.set(item.id, existing ? { ...existing, ...item, replies: mergeById([...existing.replies, ...item.replies]) } : item)
   }
   return [...byId.values()]
+}
+
+function mapCommentTree(items: Comment[], commentId: string, mutate: (comment: Comment) => Comment): Comment[] {
+  return items.map((item) => {
+    if (item.id === commentId) return mutate(item)
+    return { ...item, replies: item.replies.map((reply) => (reply.id === commentId ? mutate(reply) : reply)) }
+  })
+}
+
+function mutatePublicTrees(commentId: string, mutate: (comment: Comment) => Comment) {
+  roots.value = mapCommentTree(roots.value, commentId, mutate)
+  threadRoots.value = mapCommentTree(threadRoots.value, commentId, mutate)
+}
+
+function publicComment(comment: Comment): Comment {
+  return {
+    ...comment,
+    can_edit: false,
+    can_delete: false,
+    can_report: false,
+    replies: comment.replies.map(publicComment),
+  }
 }
 
 function errorText(error: unknown): string {
@@ -148,7 +171,7 @@ async function loadTargetThread(commentId: string) {
     const thread = await getCommentThread(commentId)
     if (generation !== threadGeneration) return
     threadRoots.value = mergeById([...threadRoots.value, thread.root])
-    viewerPending.value = mergeById([...viewerPending.value, ...thread.viewer_pending])
+    threadViewerPending.value = thread.viewer_pending
     emit('target-resolved', thread.target_comment_id)
   } catch {
     // The regular list remains useful when a deep-linked comment was removed.
@@ -174,9 +197,10 @@ async function publish(parentId: string | null = null) {
     if (created.status === 'pending') {
       viewerPending.value = mergeById([...viewerPending.value, created])
     } else if (created.parent_id) {
-      roots.value = roots.value.map((root) =>
-        root.id === created.parent_id ? { ...root, replies: mergeById([...root.replies, created]) } : root,
-      )
+      mutatePublicTrees(created.parent_id, (root) => ({
+        ...root,
+        replies: mergeById([...root.replies, created]),
+      }))
     } else {
       roots.value = mergeById([...roots.value, created])
       totalCount.value += 1
@@ -209,7 +233,7 @@ function beginEdit(commentId: string) {
 }
 
 function findComment(commentId: string): Comment | null {
-  for (const root of [...roots.value, ...threadRoots.value, ...viewerPending.value]) {
+  for (const root of [...roots.value, ...threadRoots.value, ...viewerPending.value, ...threadViewerPending.value]) {
     if (root.id === commentId) return root
     const reply = root.replies.find((item) => item.id === commentId)
     if (reply) return reply
@@ -218,15 +242,14 @@ function findComment(commentId: string): Comment | null {
 }
 
 function replaceComment(updated: Comment) {
-  const replaceInRoots = (items: Comment[]) =>
-    items.map((item) => ({
-      ...item,
-      ...(item.id === updated.id ? updated : {}),
-      replies: item.replies.map((reply) => (reply.id === updated.id ? updated : reply)),
-    }))
-  roots.value = replaceInRoots(roots.value)
-  threadRoots.value = replaceInRoots(threadRoots.value)
-  viewerPending.value = replaceInRoots(viewerPending.value)
+  const mergeUpdatedComment = (existing: Comment): Comment => ({
+    ...existing,
+    ...updated,
+    replies: updated.replies.length ? mergeById([...existing.replies, ...updated.replies]) : existing.replies,
+  })
+  mutatePublicTrees(updated.id, mergeUpdatedComment)
+  viewerPending.value = mapCommentTree(viewerPending.value, updated.id, mergeUpdatedComment)
+  threadViewerPending.value = mapCommentTree(threadViewerPending.value, updated.id, mergeUpdatedComment)
 }
 
 async function saveEdit(commentId: string) {
@@ -254,14 +277,17 @@ async function removeComment(commentId: string) {
 }
 
 async function report(commentId: string) {
-  if (reportingIds.value.includes(commentId)) return
+  if (reportedIds.value.includes(commentId) || reportingIds.value.includes(commentId)) return
   actionError.value = null
+  reportingIds.value = [...reportingIds.value, commentId]
   try {
     await reportComment(commentId, { reason: 'spam' })
-    reportingIds.value = [...reportingIds.value, commentId]
+    reportedIds.value = [...reportedIds.value, commentId]
   } catch (error) {
     if (isUserAuthenticationRequired(error)) requestLogin()
     else actionError.value = errorText(error)
+  } finally {
+    reportingIds.value = reportingIds.value.filter((id) => id !== commentId)
   }
 }
 
@@ -283,6 +309,7 @@ watch(
     roots.value = []
     threadRoots.value = []
     viewerPending.value = []
+    threadViewerPending.value = []
     nextCursor.value = null
     totalCount.value = 0
     errorMessage.value = null
@@ -295,8 +322,28 @@ watch(
 )
 
 watch(
+  () => props.currentUser?.id ?? null,
+  () => {
+    listGeneration += 1
+    threadGeneration += 1
+    roots.value = roots.value.map(publicComment)
+    threadRoots.value = threadRoots.value.map(publicComment)
+    viewerPending.value = []
+    threadViewerPending.value = []
+    reportedIds.value = []
+    reportingIds.value = []
+    actionError.value = null
+    void loadComments(true)
+    if (props.targetCommentId) void loadTargetThread(props.targetCommentId)
+  },
+)
+
+watch(
   () => props.targetCommentId,
   (targetCommentId) => {
+    threadGeneration += 1
+    threadRoots.value = []
+    threadViewerPending.value = []
     if (targetCommentId) void loadTargetThread(targetCommentId)
   },
   { immediate: true },
@@ -348,7 +395,8 @@ onBeforeUnmount(() => {
               :comment="comment"
               :editing-comment-id="editingCommentId"
               :editing-body="editingDraft"
-              :reported-ids="reportingIds"
+              :reported-ids="reportedIds"
+              :reporting-ids="reportingIds"
               @reply="beginReply"
               @edit="beginEdit"
               @delete="removeComment"
@@ -367,7 +415,8 @@ onBeforeUnmount(() => {
             :comment="comment"
             :editing-comment-id="editingCommentId"
             :editing-body="editingDraft"
-            :reported-ids="reportingIds"
+            :reported-ids="reportedIds"
+            :reporting-ids="reportingIds"
             @reply="beginReply"
             @edit="beginEdit"
             @delete="removeComment"
@@ -418,7 +467,7 @@ onBeforeUnmount(() => {
   font-family: var(--font-utility);
   font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 

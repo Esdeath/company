@@ -11,12 +11,14 @@ const props = withDefaults(
     editingCommentId?: string | null
     editingBody?: string
     reportedIds?: string[]
+    reportingIds?: string[]
   }>(),
   {
     depth: 0,
     editingCommentId: null,
     editingBody: '',
     reportedIds: () => [],
+    reportingIds: () => [],
   },
 )
 
@@ -38,6 +40,7 @@ const canReply = computed(
 )
 const isEditing = computed(() => props.editingCommentId === props.comment.id)
 const isReported = computed(() => props.reportedIds.includes(props.comment.id))
+const isReporting = computed(() => props.reportingIds.includes(props.comment.id))
 const hasReplies = computed(() => props.depth === 0 && props.comment.replies.length > 0)
 
 function requestDelete() {
@@ -103,9 +106,9 @@ function confirmDelete() {
         v-if="comment.can_report && comment.status !== 'deleted'"
         :name="`report-${comment.id}`"
         type="button"
-        :disabled="isReported"
+        :disabled="isReported || isReporting"
         @click="emit('report', comment.id)"
-      >{{ isReported ? '已举报' : '举报' }}</button>
+      >{{ isReported ? '已举报' : isReporting ? '正在举报' : '举报' }}</button>
     </div>
 
     <div v-if="confirmingDelete" class="comment-item__confirm" role="alert">
@@ -122,6 +125,7 @@ function confirmDelete() {
           :editing-comment-id="editingCommentId"
           :editing-body="editingBody"
           :reported-ids="reportedIds"
+          :reporting-ids="reportingIds"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
           @report="emit('report', $event)"
