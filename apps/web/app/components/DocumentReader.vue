@@ -24,6 +24,8 @@ defineEmits<{
 
 type ContentState = 'idle' | 'probing' | 'frame-loading' | 'ready' | 'error'
 
+const MAX_CONSECUTIVE_FRAME_GROWTH = 4
+
 const contentState = ref<ContentState>('idle')
 const contentError = ref<string | null>(null)
 const frameSrc = ref<string | null>(null)
@@ -33,6 +35,9 @@ let requestGeneration = 0
 let probeController: AbortController | null = null
 let frameResizeObserver: ResizeObserver | null = null
 let frameMeasureRequest: number | null = null
+let frameMeasurementActive = false
+let lastAppliedFrameHeight: number | null = null
+let consecutiveFrameGrowth = 0
 
 const readerBusy = computed(
   () => props.loading || contentState.value === 'probing' || contentState.value === 'frame-loading',
@@ -44,20 +49,40 @@ function abortProbe() {
 }
 
 function clearFrameMeasurement() {
+  frameMeasurementActive = false
   frameResizeObserver?.disconnect()
   frameResizeObserver = null
   if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
   frameMeasureRequest = null
+  lastAppliedFrameHeight = null
+  consecutiveFrameGrowth = 0
   frameHeight.value = FRAME_FALLBACK_HEIGHT
 }
 
+function stopFrameMeasurement() {
+  frameMeasurementActive = false
+  frameResizeObserver?.disconnect()
+  frameResizeObserver = null
+  if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
+  frameMeasureRequest = null
+}
+
 function scheduleFrameMeasurement(frame: HTMLIFrameElement, generation: number) {
+  if (!frameMeasurementActive || generation !== requestGeneration || !frame.isConnected) return
   if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
   frameMeasureRequest = requestAnimationFrame(() => {
     frameMeasureRequest = null
-    if (generation !== requestGeneration || !frame.isConnected) return
+    if (!frameMeasurementActive || generation !== requestGeneration || !frame.isConnected) return
     const measuredHeight = readFrameContentHeight(frame)
-    if (measuredHeight !== null) frameHeight.value = `${measuredHeight}px`
+    if (measuredHeight === null) return
+
+    consecutiveFrameGrowth = lastAppliedFrameHeight !== null && measuredHeight > lastAppliedFrameHeight
+      ? consecutiveFrameGrowth + 1
+      : 0
+    lastAppliedFrameHeight = measuredHeight
+    frameHeight.value = `${measuredHeight}px`
+
+    if (consecutiveFrameGrowth >= MAX_CONSECUTIVE_FRAME_GROWTH) stopFrameMeasurement()
   })
 }
 
@@ -68,6 +93,7 @@ function observeFrameSize(frame: HTMLIFrameElement, generation: number) {
     ResizeObserver?: typeof ResizeObserver
   }) | null
   const Observer = frameWindow?.ResizeObserver ?? globalThis.ResizeObserver
+  frameMeasurementActive = true
   if (!Observer) {
     scheduleFrameMeasurement(frame, generation)
     return

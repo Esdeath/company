@@ -32,6 +32,55 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+function stubAnimationFrameQueue() {
+  let nextId = 1
+  const callbacks = new Map<number, FrameRequestCallback>()
+  const request = vi.fn((callback: FrameRequestCallback) => {
+    const id = nextId++
+    callbacks.set(id, callback)
+    return id
+  })
+  const cancel = vi.fn((id: number) => {
+    callbacks.delete(id)
+  })
+  vi.stubGlobal('requestAnimationFrame', request)
+  vi.stubGlobal('cancelAnimationFrame', cancel)
+
+  return {
+    cancel,
+    pending: () => callbacks.size,
+    runNext: () => {
+      const next = callbacks.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined
+      if (!next) throw new Error('No pending animation frame')
+      callbacks.delete(next[0])
+      next[1](0)
+    },
+  }
+}
+
+function stubResizeObservers() {
+  const observers: Array<{
+    callback: ResizeObserverCallback
+    disconnect: ReturnType<typeof vi.fn>
+  }> = []
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      callback: ResizeObserverCallback
+      observe = vi.fn()
+      disconnect = vi.fn()
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+        observers.push(this)
+      }
+    },
+  )
+  return observers
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -143,25 +192,9 @@ describe('DocumentReader', () => {
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
 
-  it('fits the frame to its document and follows later size changes', async () => {
-    const callbacks: ResizeObserverCallback[] = []
-    const disconnect = vi.fn()
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: ResizeObserverCallback) {
-          callbacks.push(callback)
-        }
-
-        observe = vi.fn()
-        disconnect = disconnect
-      },
-    )
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      callback(0)
-      return 1
-    })
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+  it('fits the frame to its document and follows later independent size changes', async () => {
+    const animationFrames = stubAnimationFrameQueue()
+    const observers = stubResizeObservers()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
 
     const wrapper = mount(DocumentReader, {
@@ -186,18 +219,177 @@ describe('DocumentReader', () => {
       })
 
       await frame.trigger('load')
+      expect(animationFrames.pending()).toBe(1)
+      animationFrames.runNext()
+      await wrapper.vm.$nextTick()
       expect(frame.element.style.getPropertyValue('height')).toBe('1900px')
 
       body.scrollHeight = 2400
-      callbacks[0]?.([], {} as ResizeObserver)
+      observers[0]?.callback([], {} as ResizeObserver)
+      animationFrames.runNext()
       await wrapper.vm.$nextTick()
       expect(frame.element.style.getPropertyValue('height')).toBe('2400px')
 
+      observers[0]?.callback([], {} as ResizeObserver)
+      animationFrames.runNext()
+      body.scrollHeight = 2100
+      observers[0]?.callback([], {} as ResizeObserver)
+      animationFrames.runNext()
+      body.scrollHeight = 2600
+      observers[0]?.callback([], {} as ResizeObserver)
+      animationFrames.runNext()
+      await wrapper.vm.$nextTick()
+      expect(frame.element.style.getPropertyValue('height')).toBe('2600px')
+      expect(observers[0]?.disconnect).not.toHaveBeenCalled()
+
       await wrapper.setProps({ document: SECOND_DOCUMENT })
-      expect(disconnect).toHaveBeenCalledOnce()
+      expect(observers[0]?.disconnect).toHaveBeenCalledOnce()
     } finally {
       wrapper.unmount()
     }
+  })
+
+  it('bounds repeated viewport-dependent growth and leaves no scheduled measurement', async () => {
+    const animationFrames = stubAnimationFrameQueue()
+    const observers = stubResizeObservers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    const wrapper = mount(DocumentReader, {
+      props: { document: DOCUMENT, loading: false, error: null },
+    })
+
+    try {
+      await flushPromises()
+      const frame = wrapper.get('iframe')
+      let appliedHeight = 700
+      const body = {
+        get scrollHeight() {
+          return appliedHeight + 400
+        },
+        offsetHeight: 0,
+      }
+      Object.defineProperty(frame.element, 'isConnected', {
+        configurable: true,
+        value: true,
+      })
+      Object.defineProperty(frame.element, 'contentDocument', {
+        configurable: true,
+        value: { documentElement: { scrollHeight: 0, offsetHeight: 0 }, body },
+      })
+      Object.defineProperty(frame.element, 'contentWindow', {
+        configurable: true,
+        value: { ResizeObserver: globalThis.ResizeObserver },
+      })
+
+      await frame.trigger('load')
+      animationFrames.runNext()
+      await wrapper.vm.$nextTick()
+      appliedHeight = Number.parseInt(frame.element.style.height, 10)
+
+      let growthCycles = 0
+      for (; growthCycles < 20 && !observers[0]?.disconnect.mock.calls.length; growthCycles += 1) {
+        observers[0]?.callback([], {} as ResizeObserver)
+        animationFrames.runNext()
+        await wrapper.vm.$nextTick()
+        appliedHeight = Number.parseInt(frame.element.style.height, 10)
+      }
+
+      expect(observers[0]?.disconnect).toHaveBeenCalledOnce()
+      expect(growthCycles).toBe(4)
+      expect(Number.isFinite(appliedHeight)).toBe(true)
+      expect(appliedHeight).toBeGreaterThan(0)
+      expect(animationFrames.pending()).toBe(0)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('cancels a pending frame measurement when switching documents', async () => {
+    const animationFrames = stubAnimationFrameQueue()
+    const observers = stubResizeObservers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    const wrapper = mount(DocumentReader, {
+      props: { document: DOCUMENT, loading: false, error: null },
+    })
+
+    await flushPromises()
+    const frame = wrapper.get('iframe')
+    Object.defineProperty(frame.element, 'isConnected', { configurable: true, value: true })
+    Object.defineProperty(frame.element, 'contentDocument', {
+      configurable: true,
+      value: { documentElement: { scrollHeight: 1800, offsetHeight: 0 }, body: null },
+    })
+    Object.defineProperty(frame.element, 'contentWindow', {
+      configurable: true,
+      value: { ResizeObserver: globalThis.ResizeObserver },
+    })
+    await frame.trigger('load')
+    expect(animationFrames.pending()).toBe(1)
+
+    await wrapper.setProps({ document: SECOND_DOCUMENT })
+
+    expect(observers[0]?.disconnect).toHaveBeenCalledOnce()
+    expect(animationFrames.cancel).toHaveBeenCalledOnce()
+    expect(animationFrames.pending()).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('cleans up its observer and pending frame measurement on iframe error', async () => {
+    const animationFrames = stubAnimationFrameQueue()
+    const observers = stubResizeObservers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    const wrapper = mount(DocumentReader, {
+      props: { document: DOCUMENT, loading: false, error: null },
+    })
+
+    await flushPromises()
+    const frame = wrapper.get('iframe')
+    Object.defineProperty(frame.element, 'isConnected', { configurable: true, value: true })
+    Object.defineProperty(frame.element, 'contentDocument', {
+      configurable: true,
+      value: { documentElement: { scrollHeight: 1800, offsetHeight: 0 }, body: null },
+    })
+    Object.defineProperty(frame.element, 'contentWindow', {
+      configurable: true,
+      value: { ResizeObserver: globalThis.ResizeObserver },
+    })
+    await frame.trigger('load')
+    expect(animationFrames.pending()).toBe(1)
+
+    await frame.trigger('error')
+
+    expect(observers[0]?.disconnect).toHaveBeenCalledOnce()
+    expect(animationFrames.cancel).toHaveBeenCalledOnce()
+    expect(animationFrames.pending()).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('cleans up its observer and pending frame measurement on unmount', async () => {
+    const animationFrames = stubAnimationFrameQueue()
+    const observers = stubResizeObservers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    const wrapper = mount(DocumentReader, {
+      props: { document: DOCUMENT, loading: false, error: null },
+    })
+
+    await flushPromises()
+    const frame = wrapper.get('iframe')
+    Object.defineProperty(frame.element, 'isConnected', { configurable: true, value: true })
+    Object.defineProperty(frame.element, 'contentDocument', {
+      configurable: true,
+      value: { documentElement: { scrollHeight: 1800, offsetHeight: 0 }, body: null },
+    })
+    Object.defineProperty(frame.element, 'contentWindow', {
+      configurable: true,
+      value: { ResizeObserver: globalThis.ResizeObserver },
+    })
+    await frame.trigger('load')
+    expect(animationFrames.pending()).toBe(1)
+
+    wrapper.unmount()
+
+    expect(observers[0]?.disconnect).toHaveBeenCalledOnce()
+    expect(animationFrames.cancel).toHaveBeenCalledOnce()
+    expect(animationFrames.pending()).toBe(0)
   })
 
   it('aborts an unfinished probe when unmounted', () => {
