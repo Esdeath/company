@@ -1,7 +1,7 @@
 """Create community account, comment, and delivery tables.
 
-Revision ID: 20260723_03
-Revises: 20260721_02
+Revision ID: 20260724_04
+Revises: 20260723_03
 Create Date: 2026-07-23
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "20260723_03"
-down_revision: str | Sequence[str] | None = "20260721_02"
+revision: str = "20260724_04"
+down_revision: str | Sequence[str] | None = "20260723_03"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -53,6 +53,15 @@ def test_document_sort_order_migration_preserves_current_display_order() -> None
     assert "row_number() OVER" in migration
 
 
+def test_user_comments_migration_follows_document_sort_order() -> None:
+    migration = (
+        Path(__file__).parents[1] / "migrations/versions/20260724_04_user_comments.py"
+    ).read_text()
+
+    assert 'revision: str = "20260724_04"' in migration
+    assert 'down_revision: str | Sequence[str] | None = "20260723_03"' in migration
+
+
 def test_community_foreign_keys_preserve_lifecycle_rules() -> None:
     foreign_keys = {
         table_name: {
