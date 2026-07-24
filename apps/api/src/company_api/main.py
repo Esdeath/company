@@ -1,9 +1,12 @@
+import asyncio
 import logging
-from collections.abc import AsyncIterator
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from html import escape
 from typing import Literal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,6 +14,9 @@ from pydantic import BaseModel
 from company_api.auth import AuthOperations, AuthService
 from company_api.auth_repository import SqlAlchemyAuthRepository
 from company_api.auth_routes import router as auth_router
+from company_api.comment_repository import SqlAlchemyCommentRepository
+from company_api.comment_routes import router as comment_router
+from company_api.comment_service import CommentOperations, CommentService
 from company_api.config import Settings
 from company_api.content_store import ContentStore
 from company_api.db import (
@@ -18,9 +24,37 @@ from company_api.db import (
     SqlAlchemyReadinessProbe,
     create_engine_and_session_factory,
 )
+from company_api.email_outbox import (
+    EmailDispatcher,
+    EmailJob,
+    SqlAlchemyEmailOutboxRepository,
+)
+from company_api.email_tokens import EmailTokenSigner
 from company_api.library_service import LibraryOperations, LibraryService
+from company_api.mailer import (
+    ConsoleMailer,
+    EmailMessage,
+    FileCaptureMailer,
+    Mailer,
+    SmtpMailer,
+    UnavailableMailer,
+)
+from company_api.models import UserTokenPurpose
+from company_api.moderation_repository import SqlAlchemyModerationRepository
+from company_api.moderation_routes import router as moderation_router
+from company_api.moderation_service import ModerationOperations, ModerationService
+from company_api.notification_routes import router as notification_router
+from company_api.notification_service import (
+    NotificationOperations,
+    NotificationService,
+    SqlAlchemyNotificationRepository,
+)
+from company_api.rate_limit import SqlAlchemyRateLimiter
 from company_api.repository import SqlAlchemyLibraryRepository
 from company_api.routes import router as library_router
+from company_api.user_auth import UserAuthOperations, UserAuthService
+from company_api.user_auth_repository import SqlAlchemyUserAuthRepository
+from company_api.user_auth_routes import router as user_auth_router
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +63,85 @@ class HealthResponse(BaseModel):
     status: Literal["live", "ready", "not_ready"]
 
 
+def _mailer(settings: Settings) -> Mailer:
+    if settings.email_backend == "smtp":
+        return SmtpMailer(settings) if settings.smtp_configured else UnavailableMailer()
+    if settings.email_backend == "file":
+        return FileCaptureMailer(settings)
+    return ConsoleMailer()
+
+
+def _unsubscribe_token_factory(signer: EmailTokenSigner) -> Callable[[], tuple[uuid.UUID, str]]:
+    def issue() -> tuple[uuid.UUID, str]:
+        token_id = uuid.uuid4()
+        token = signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)
+        return token_id, signer.digest(token)
+
+    return issue
+
+
+def _message_factory(
+    signer: EmailTokenSigner, settings: Settings
+) -> Callable[[EmailJob], EmailMessage]:
+    base_url = settings.public_base_url.rstrip("/")
+
+    def create_message(job: EmailJob) -> EmailMessage:
+        username = escape(str(job.payload.get("username", "读者")), quote=True)
+        if job.template == "verify_email":
+            if job.token_id is None:
+                raise ValueError("token email is missing a token id")
+            token = signer.issue(job.token_id, UserTokenPurpose.VERIFY_EMAIL)
+            subject = "验证你的研究资料库账号"
+            action = "完成邮箱验证"
+            url = f"{base_url}/#verify-email={token}"
+        elif job.template == "reset_password":
+            if job.token_id is None:
+                raise ValueError("token email is missing a token id")
+            token = signer.issue(job.token_id, UserTokenPurpose.RESET_PASSWORD)
+            subject = "重置你的研究资料库密码"
+            action = "重置密码"
+            url = f"{base_url}/#password-reset={token}"
+        elif job.template == "comment_reply":
+            if job.token_id is None:
+                raise ValueError("reply email is missing an unsubscribe token")
+            actor_username = escape(str(job.payload.get("actor_username", "一位读者")), quote=True)
+            company_id = str(job.payload.get("company_id", ""))
+            document_id = str(job.payload.get("document_id", ""))
+            comment_id = str(job.payload.get("comment_id", ""))
+            if not company_id or not document_id or not comment_id:
+                raise ValueError("reply email is missing its comment deep link")
+            subject = "你的评论收到了回复"
+            url = f"{base_url}/?company={company_id}&document={document_id}&comment={comment_id}"
+            token = signer.issue(job.token_id, UserTokenPurpose.UNSUBSCRIBE)
+            unsubscribe = f"\n不再接收评论回复邮件：{base_url}/#unsubscribe={token}"
+            return EmailMessage(
+                recipient=job.recipient,
+                subject=subject,
+                text_body=(
+                    f"{username}，你好。{actor_username} 回复了你的评论：\n{url}{unsubscribe}"
+                ),
+            )
+        else:
+            raise ValueError("unsupported email template")
+        return EmailMessage(
+            recipient=job.recipient,
+            subject=subject,
+            text_body=f"{username}，你好。请打开以下链接{action}：\n{url}",
+        )
+
+    return create_message
+
+
 def create_app(
     settings: Settings | None = None,
     readiness_probe: ReadinessProbe | None = None,
     library_service: LibraryOperations | None = None,
     auth_service: AuthOperations | None = None,
+    user_auth_service: UserAuthOperations | None = None,
+    comment_service: CommentOperations | None = None,
+    moderation_service: ModerationOperations | None = None,
+    email_dispatcher: EmailDispatcher | None = None,
+    notification_service: NotificationOperations | None = None,
 ) -> FastAPI:
     # BaseSettings supplies required fields from the environment at runtime.
     resolved_settings = settings if settings is not None else Settings()  # type: ignore[call-arg]
@@ -41,34 +149,101 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = resolved_settings
-        if readiness_probe is not None and library_service is not None and auth_service is not None:
-            app.state.readiness_probe = readiness_probe
-            app.state.library_service = library_service
-            app.state.auth_service = auth_service
-            yield
-            return
+        owns_engine = not (
+            readiness_probe is not None and library_service is not None and auth_service is not None
+        )
+        engine = None
+        dispatcher = email_dispatcher
+        dispatcher_stop: asyncio.Event | None = None
+        dispatcher_task: asyncio.Task[None] | None = None
 
-        engine, session_factory = create_engine_and_session_factory(resolved_settings)
         try:
-            app.state.readiness_probe = (
-                readiness_probe if readiness_probe is not None else SqlAlchemyReadinessProbe(engine)
-            )
-            app.state.library_service = library_service
-            if app.state.library_service is None:
-                repository = SqlAlchemyLibraryRepository(session_factory)
-                app.state.library_service = LibraryService(
-                    repository,
-                    ContentStore(resolved_settings.content_root),
+            if not owns_engine:
+                app.state.readiness_probe = readiness_probe
+                app.state.library_service = library_service
+                app.state.auth_service = auth_service
+                app.state.user_auth_service = user_auth_service
+                app.state.comment_service = comment_service
+                app.state.moderation_service = moderation_service
+                app.state.notification_service = notification_service
+            else:
+                engine, session_factory = create_engine_and_session_factory(resolved_settings)
+                app.state.readiness_probe = (
+                    readiness_probe
+                    if readiness_probe is not None
+                    else SqlAlchemyReadinessProbe(engine)
                 )
-            app.state.auth_service = auth_service
-            if app.state.auth_service is None:
-                app.state.auth_service = AuthService(
-                    SqlAlchemyAuthRepository(session_factory),
-                    resolved_settings,
+                app.state.library_service = library_service
+                if app.state.library_service is None:
+                    repository = SqlAlchemyLibraryRepository(session_factory)
+                    app.state.library_service = LibraryService(
+                        repository,
+                        ContentStore(resolved_settings.content_root),
+                    )
+                app.state.auth_service = auth_service
+                if app.state.auth_service is None:
+                    app.state.auth_service = AuthService(
+                        SqlAlchemyAuthRepository(session_factory),
+                        resolved_settings,
+                    )
+                app.state.user_auth_service = user_auth_service
+                signer = EmailTokenSigner(
+                    resolved_settings.user_token_signing_key.get_secret_value()
                 )
+                unsubscribe_token_factory = _unsubscribe_token_factory(signer)
+                if app.state.user_auth_service is None:
+                    app.state.user_auth_service = UserAuthService(
+                        SqlAlchemyUserAuthRepository(session_factory),
+                        SqlAlchemyRateLimiter(session_factory),
+                        signer,
+                        resolved_settings,
+                    )
+                app.state.comment_service = comment_service
+                if app.state.comment_service is None:
+                    app.state.comment_service = CommentService(
+                        SqlAlchemyCommentRepository(
+                            session_factory,
+                            unsubscribe_token_factory=unsubscribe_token_factory,
+                        ),
+                        SqlAlchemyRateLimiter(session_factory),
+                    )
+                app.state.moderation_service = moderation_service
+                if app.state.moderation_service is None:
+                    app.state.moderation_service = ModerationService(
+                        SqlAlchemyModerationRepository(
+                            session_factory,
+                            unsubscribe_token_factory=unsubscribe_token_factory,
+                        )
+                    )
+                app.state.notification_service = notification_service
+                if app.state.notification_service is None:
+                    app.state.notification_service = NotificationService(
+                        SqlAlchemyNotificationRepository(session_factory), signer
+                    )
+                if dispatcher is None:
+                    dispatcher = EmailDispatcher(
+                        SqlAlchemyEmailOutboxRepository(
+                            session_factory,
+                            max_attempts=resolved_settings.email_max_attempts,
+                        ),
+                        _mailer(resolved_settings),
+                        _message_factory(signer, resolved_settings),
+                        interval_seconds=resolved_settings.email_dispatch_interval_seconds,
+                    )
+
+            if dispatcher is not None:
+                dispatcher_stop = asyncio.Event()
+                dispatcher_task = asyncio.create_task(dispatcher.run(dispatcher_stop))
+                await asyncio.sleep(0)
             yield
         finally:
-            await engine.dispose()
+            try:
+                if dispatcher_stop is not None and dispatcher_task is not None:
+                    dispatcher_stop.set()
+                    await dispatcher_task
+            finally:
+                if engine is not None:
+                    await engine.dispose()
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(
@@ -76,8 +251,40 @@ def create_app(
         allow_origins=resolved_settings.cors_origin_list,
         allow_credentials=True,
     )
+
+    @app.middleware("http")
+    async def disable_user_account_cache(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        path = request.url.path
+        is_user_account_request = (
+            path.startswith("/api/v1/user-auth/")
+            or path == "/api/v1/users/me"
+            or path.startswith("/api/v1/users/me/")
+        )
+        if not is_user_account_request:
+            return await call_next(request)
+
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.error("User account request failed")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "服务器暂时无法处理请求，请稍后重试"},
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return response
+
     app.include_router(library_router)
     app.include_router(auth_router)
+    app.include_router(user_auth_router)
+    app.include_router(notification_router)
+    app.include_router(comment_router)
+    app.include_router(moderation_router)
 
     @app.get("/api/health/live", response_model=HealthResponse)
     async def live() -> HealthResponse:

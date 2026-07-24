@@ -79,3 +79,143 @@ def test_admin_password_must_be_an_argon2_hash() -> None:
 def test_cookie_name_uses_host_prefix_only_for_https() -> None:
     assert settings(session_cookie_secure=True).session_cookie_name.startswith("__Host-")
     assert settings(session_cookie_secure=False).session_cookie_name == "company-admin-session"
+
+
+def test_production_rejects_non_smtp_email_backend() -> None:
+    with pytest.raises(ValidationError, match="SMTP"):
+        settings(app_environment="production", email_backend="console")
+
+
+def test_production_registration_requires_complete_smtp() -> None:
+    with pytest.raises(ValidationError, match="SMTP"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=True,
+            public_base_url="https://research.example.com",
+        )
+
+
+def test_production_rejects_the_local_user_token_signing_key() -> None:
+    with pytest.raises(ValidationError, match="signing key"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="local-development-only-signing-key",
+        )
+
+
+@pytest.mark.parametrize(
+    "public_base_url",
+    [
+        "http://research.example.com",
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://research.example.com/articles",
+        "https://research.example.com?preview=true",
+        "https://research.example.com#comments",
+    ],
+)
+def test_production_requires_a_public_origin_even_when_registration_is_disabled(
+    public_base_url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="HTTPS public base URL"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=False,
+            public_base_url=public_base_url,
+        )
+
+
+@pytest.mark.parametrize("signing_key", ["", " " * 32, "x" * 31])
+def test_production_rejects_blank_or_short_user_token_signing_keys(signing_key: str) -> None:
+    with pytest.raises(ValidationError, match="signing key"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key=signing_key,
+        )
+
+
+def test_smtp_configured_strips_and_validates_host_and_sender() -> None:
+    configured = settings(
+        smtp_host=" smtp.example.com ",
+        smtp_sender=" sender@example.com ",
+    )
+
+    assert configured.smtp_host == "smtp.example.com"
+    assert configured.smtp_sender == "sender@example.com"
+    assert configured.smtp_configured is True
+
+
+@pytest.mark.parametrize(
+    ("smtp_host", "smtp_sender"),
+    [
+        (" ", "sender@example.com"),
+        ("smtp://example.com", "sender@example.com"),
+        ("smtp.example.com", "not-an-email"),
+    ],
+)
+def test_smtp_configured_rejects_invalid_host_or_sender(
+    smtp_host: str,
+    smtp_sender: str,
+) -> None:
+    configured = settings(smtp_host=smtp_host, smtp_sender=smtp_sender)
+
+    assert configured.smtp_configured is False
+
+
+@pytest.mark.parametrize("public_base_url", ["https://", "https://:443", "https://example.com:bad"])
+def test_production_rejects_malformed_https_base_urls(public_base_url: str) -> None:
+    with pytest.raises(ValidationError, match="HTTPS"):
+        settings(
+            app_environment="production",
+            email_backend="smtp",
+            user_token_signing_key="x" * 32,
+            user_registration_enabled=True,
+            smtp_host="smtp.example.com",
+            smtp_sender="sender@example.com",
+            public_base_url=public_base_url,
+        )
+
+
+@pytest.mark.parametrize(
+    "public_base_url",
+    ["https://research.example.com", "https://research.example.com/"],
+)
+def test_production_accepts_an_https_origin_with_optional_root_slash(
+    public_base_url: str,
+) -> None:
+    configured = settings(
+        app_environment="production",
+        email_backend="smtp",
+        user_token_signing_key="x" * 32,
+        user_registration_enabled=True,
+        smtp_host="smtp.example.com",
+        smtp_sender="sender@example.com",
+        public_base_url=public_base_url,
+    )
+
+    assert configured.smtp_configured is True
+
+
+@pytest.mark.parametrize("smtp_timeout_seconds", [0.9, 120.1])
+def test_smtp_timeout_is_bounded(smtp_timeout_seconds: float) -> None:
+    with pytest.raises(ValidationError):
+        settings(smtp_timeout_seconds=smtp_timeout_seconds)
+
+
+def test_test_environment_allows_file_email_backend() -> None:
+    configured = settings(app_environment="test", email_backend="file")
+
+    assert configured.smtp_configured is False
+
+
+def test_user_cookie_is_separate_from_admin_cookie() -> None:
+    configured = settings(session_cookie_secure=True)
+
+    assert configured.user_session_cookie_name == "__Host-company-user-session"
+    assert configured.user_session_cookie_name != configured.session_cookie_name

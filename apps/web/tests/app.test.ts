@@ -1,15 +1,58 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
 import App from '../app/app.vue'
+import * as community from '../app/api/community'
 import * as library from '../app/api/library'
+import AuthDialog from '../app/components/AuthDialog.vue'
+import CommentSection from '../app/components/CommentSection.vue'
+import SiteUserControls from '../app/components/SiteUserControls.vue'
+import type { Comment, UserAuthState, VerifyEmailInput } from '../app/types/community'
 import type { Company, DocumentItem } from '../app/types/content'
 
 vi.mock('../app/api/library', () => ({
   listCompanies: vi.fn(),
   listDocuments: vi.fn(),
 }))
+
+const sessionState = ref<UserAuthState | null>(null)
+const restoreSession = vi.fn()
+const logoutSession = vi.fn()
+const replaceSessionState = vi.fn((next: UserAuthState) => {
+  sessionState.value = next
+  return next
+})
+const verifySessionEmail = vi.fn(async (input: VerifyEmailInput) => {
+  const next = await community.verifyEmail(input)
+  sessionState.value = next
+  return next
+})
+
+vi.mock('../app/composables/useUserSession', () => ({
+  useUserSession: () => ({
+    state: sessionState,
+    user: computed(() => sessionState.value?.user ?? null),
+    authenticated: computed(() => sessionState.value?.authenticated === true),
+    loading: ref(false),
+    restore: restoreSession,
+    logout: logoutSession,
+    replaceState: replaceSessionState,
+    verifyEmail: verifySessionEmail,
+  }),
+}))
+
+vi.mock('../app/api/community', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../app/api/community')>()
+  return {
+    ...actual,
+    getCommentThread: vi.fn(),
+    listDocumentComments: vi.fn(),
+    listNotifications: vi.fn(),
+    unsubscribeEmail: vi.fn(),
+    verifyEmail: vi.fn(),
+  }
+})
 
 const companies: Company[] = [
   {
@@ -64,6 +107,24 @@ const companyTwoDocuments: DocumentItem[] = [
   },
 ]
 
+function comment(overrides: Partial<Comment> = {}): Comment {
+  return {
+    id: 'thread-root',
+    document_id: 'document-3',
+    parent_id: null,
+    body: '深链评论',
+    status: 'published',
+    author: { id: 'user-2', username: '研究读者' },
+    created_at: '2026-07-24T08:00:00Z',
+    edited_at: null,
+    replies: [],
+    can_edit: false,
+    can_delete: false,
+    can_report: true,
+    ...overrides,
+  }
+}
+
 type Unmountable = { unmount: () => void }
 const mountedWrappers: Unmountable[] = []
 
@@ -105,6 +166,45 @@ describe('公开资料阅读工作台', () => {
     vi.mocked(library.listDocuments).mockReset().mockImplementation(async (companyId) =>
       companyId === 'company-1' ? companyOneDocuments : companyTwoDocuments,
     )
+    sessionState.value = {
+      authenticated: false,
+      user: null,
+      csrf_token: null,
+      expires_at: null,
+      registration_enabled: true,
+    }
+    restoreSession.mockReset().mockResolvedValue(sessionState.value)
+    logoutSession.mockReset().mockResolvedValue(undefined)
+    vi.mocked(community.listDocumentComments).mockReset().mockResolvedValue({
+      items: [],
+      viewer_pending: [],
+      next_cursor: null,
+      total_count: 0,
+    })
+    vi.mocked(community.getCommentThread).mockReset()
+    vi.mocked(community.listNotifications).mockReset().mockResolvedValue({ items: [], unread_count: 0 })
+    vi.mocked(community.unsubscribeEmail).mockReset().mockResolvedValue({
+      message: '已停止接收评论回复邮件',
+    })
+    vi.mocked(community.verifyEmail).mockReset().mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: 'user-1',
+        email: 'reader@example.com',
+        username: '价值读者',
+        email_verified_at: '2026-07-24T08:00:00Z',
+        first_comment_approved_at: null,
+        reply_email_enabled: true,
+      },
+      csrf_token: 'verified-csrf',
+      expires_at: '2026-08-24T08:00:00Z',
+      registration_enabled: true,
+    })
+    window.history.replaceState({}, '', '/')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
   })
 
@@ -112,8 +212,138 @@ describe('公开资料阅读工作台', () => {
     for (const wrapper of mountedWrappers.splice(0).reverse()) wrapper.unmount()
     document.body.innerHTML = ''
     document.body.style.overflow = ''
+    window.history.replaceState({}, '', '/')
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
     vi.unstubAllGlobals()
     vi.clearAllMocks()
+  })
+
+  it('starts session restoration in parallel with the company request', async () => {
+    const sessionRequest = deferred<UserAuthState>()
+    const companyRequest = deferred<Company[]>()
+    restoreSession.mockReturnValueOnce(sessionRequest.promise)
+    vi.mocked(library.listCompanies).mockReturnValueOnce(companyRequest.promise)
+
+    const wrapper = track(mount(App))
+    await nextTick()
+    expect(restoreSession).toHaveBeenCalledOnce()
+    expect(library.listCompanies).toHaveBeenCalledOnce()
+
+    sessionRequest.resolve(sessionState.value!)
+    companyRequest.resolve(companies)
+    await flushPromises()
+    expect(wrapper.get('[data-company-id="company-1"]').exists()).toBe(true)
+  })
+
+  it('consumes an email-verification fragment before submitting the token', async () => {
+    window.history.replaceState({}, '', '/#verify-email=verification-token')
+    vi.mocked(community.verifyEmail).mockImplementationOnce(async (input) => {
+      expect(window.location.hash).toBe('')
+      expect(input).toEqual({ token: 'verification-token' })
+      return {
+        authenticated: true,
+        user: {
+          id: 'user-1', email: 'reader@example.com', username: '价值读者',
+          email_verified_at: '2026-07-24T08:00:00Z', first_comment_approved_at: null,
+          reply_email_enabled: true,
+        },
+        csrf_token: 'verified-csrf', expires_at: null, registration_enabled: true,
+      }
+    })
+
+    const wrapper = await mountWorkspace()
+
+    expect(community.verifyEmail).toHaveBeenCalledOnce()
+    expect(window.location.href).not.toContain('verification-token')
+    expect(wrapper.get('button[aria-label="账户：价值读者"]').exists()).toBe(true)
+  })
+
+  it('opens password reset from a fragment and clears it before user input', async () => {
+    window.history.replaceState({}, '', '/?company=company-1#password-reset=reset-token')
+
+    const wrapper = await mountWorkspace()
+
+    const controls = wrapper.getComponent(SiteUserControls)
+    expect(controls.props('resetToken')).toBe('reset-token')
+    expect(controls.getComponent(AuthDialog).props('resetToken')).toBe('reset-token')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('重设密码')
+    expect(window.location.pathname + window.location.search + window.location.hash).toBe('/?company=company-1')
+  })
+
+  it('unsubscribes from a fragment only after removing the token from the address', async () => {
+    window.history.replaceState({}, '', '/#unsubscribe=unsubscribe-token')
+    vi.mocked(community.unsubscribeEmail).mockImplementationOnce(async (token) => {
+      expect(window.location.hash).toBe('')
+      expect(token).toBe('unsubscribe-token')
+      return { message: '已停止接收评论回复邮件' }
+    })
+
+    const wrapper = await mountWorkspace()
+
+    expect(community.unsubscribeEmail).toHaveBeenCalledOnce()
+    expect(window.location.href).not.toContain('unsubscribe-token')
+    expect(wrapper.get('[role="status"]').text()).toContain('已停止接收评论回复邮件')
+  })
+
+  it('preserves unrelated page fragments', async () => {
+    window.history.replaceState({}, '', '/#research-notes')
+
+    await mountWorkspace()
+
+    expect(window.location.hash).toBe('#research-notes')
+    expect(community.unsubscribeEmail).not.toHaveBeenCalled()
+    expect(community.verifyEmail).not.toHaveBeenCalled()
+  })
+
+  it('restores a deep-linked document and scrolls an off-page target before cleaning the URL target', async () => {
+    window.history.replaceState({}, '', '/?company=company-2&document=document-3&comment=target-comment')
+    vi.mocked(community.getCommentThread).mockResolvedValue({
+      root: comment({
+        replies: [comment({ id: 'target-comment', parent_id: 'thread-root' })],
+      }),
+      target_comment_id: 'target-comment',
+      viewer_pending: [],
+    })
+    const wrapper = await mountWorkspace()
+
+    expect(library.listDocuments).toHaveBeenCalledWith('company-2')
+    expect(wrapper.get('[data-document-id="document-3"]').attributes('aria-current')).toBe('true')
+    expect(community.getCommentThread).toHaveBeenCalledWith('target-comment')
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+    expect(wrapper.get('[data-comment-id="target-comment"]').classes()).toContain('comment-target')
+    expect(window.location.search).toBe('?company=company-2&document=document-3')
+  })
+
+  it('reports a missing deep-link target without replacing the article', async () => {
+    window.history.replaceState({}, '', '/?company=company-1&document=document-1&comment=missing-comment')
+    vi.mocked(community.getCommentThread).mockRejectedValueOnce(new Error('评论不存在'))
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.text()).toContain('这条评论已不存在或暂时无法查看')
+    expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
+  })
+
+  it('retires the deep-link target after the reader deliberately changes company', async () => {
+    window.history.replaceState({}, '', '/?company=company-2&document=document-3&comment=target-comment')
+    vi.mocked(community.getCommentThread).mockResolvedValue({
+      root: comment({ id: 'target-comment' }),
+      target_comment_id: 'target-comment',
+      viewer_pending: [],
+    })
+    const wrapper = await mountWorkspace()
+    expect(wrapper.getComponent(CommentSection).props('targetCommentId')).toBe('target-comment')
+
+    await wrapper.get('[data-company-id="company-1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(CommentSection).props('targetCommentId')).toBeNull()
+  })
+
+  it('keeps the article available when comments fail to load', async () => {
+    vi.mocked(community.listDocumentComments).mockRejectedValueOnce(new Error('评论服务暂不可用'))
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
+    expect(wrapper.get('.comment-section [role="alert"]').text()).toContain('评论服务暂不可用')
   })
 
   it('selects the first company and document for immediate reading', async () => {

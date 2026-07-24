@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -25,11 +26,14 @@ class FailingProbe:
 
 
 class FakeEngine:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.dispose_calls = 0
+        self.events = events
 
     async def dispose(self) -> None:
         self.dispose_calls += 1
+        if self.events is not None:
+            self.events.append("engine disposed")
 
 
 class ExternalProbe:
@@ -38,6 +42,32 @@ class ExternalProbe:
 
     async def check(self) -> None:
         return None
+
+
+class TrackingDispatcher:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.run_calls = 0
+
+    async def run(self, stop: asyncio.Event) -> None:
+        self.run_calls += 1
+        self.events.append("dispatcher started")
+        await stop.wait()
+        self.events.append("dispatcher stopped")
+
+
+class FailingDispatcher:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+
+    async def run(self, stop: asyncio.Event) -> None:
+        await stop.wait()
+        self.events.append("dispatcher failed")
+        raise RuntimeError("dispatcher shutdown failed")
+
+
+def quiet_dispatcher() -> TrackingDispatcher:
+    return TrackingDispatcher([])
 
 
 def settings() -> Settings:
@@ -50,7 +80,9 @@ def settings() -> Settings:
 
 
 def test_live_returns_live_without_calling_failing_probe() -> None:
-    with TestClient(create_app(settings(), FailingProbe())) as client:
+    with TestClient(
+        create_app(settings(), FailingProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+    ) as client:
         response = client.get("/api/health/live")
 
     assert response.status_code == 200
@@ -67,7 +99,7 @@ def test_app_owned_engine_is_disposed_on_normal_shutdown(
         lambda resolved_settings: (engine, object()),
     )
 
-    with TestClient(create_app(settings())):
+    with TestClient(create_app(settings(), email_dispatcher=quiet_dispatcher())):  # type: ignore[arg-type]
         pass
 
     assert engine.dispose_calls == 1
@@ -91,7 +123,7 @@ def test_app_owned_engine_is_disposed_when_content_store_construction_fails(
 
     with (
         pytest.raises(RuntimeError, match="content store construction failed"),
-        TestClient(create_app(settings())),
+        TestClient(create_app(settings(), email_dispatcher=quiet_dispatcher())),  # type: ignore[arg-type]
     ):
         pass
 
@@ -128,10 +160,109 @@ def test_injected_dependencies_do_not_dispose_external_engine(
     assert external_engine.dispose_calls == 0
 
 
+def test_injected_user_auth_and_dispatcher_do_not_create_an_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    dispatcher = TrackingDispatcher(events)
+
+    def fail_if_factory_called(resolved_settings: Settings) -> None:
+        del resolved_settings
+        raise AssertionError("app must not create an engine for injected dependencies")
+
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        fail_if_factory_called,
+    )
+
+    with TestClient(
+        create_app(
+            settings(),
+            SuccessfulProbe(),
+            library_service=object(),  # type: ignore[arg-type]
+            auth_service=object(),  # type: ignore[arg-type]
+            user_auth_service=object(),  # type: ignore[arg-type]
+            email_dispatcher=dispatcher,  # type: ignore[arg-type]
+        )
+    ):
+        assert events == ["dispatcher started"]
+
+    assert events == ["dispatcher started", "dispatcher stopped"]
+    assert dispatcher.run_calls == 1
+
+
+def test_dispatcher_stops_before_app_owned_engine_is_disposed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    engine = FakeEngine(events)
+    dispatcher = TrackingDispatcher(events)
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        lambda resolved_settings: (engine, object()),
+    )
+
+    with TestClient(create_app(settings(), email_dispatcher=dispatcher)):  # type: ignore[arg-type]
+        assert events == ["dispatcher started"]
+
+    assert events == ["dispatcher started", "dispatcher stopped", "engine disposed"]
+    assert dispatcher.run_calls == 1
+
+
+def test_dispatcher_failure_does_not_skip_app_owned_engine_disposal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    engine = FakeEngine(events)
+    monkeypatch.setattr(
+        main_module,
+        "create_engine_and_session_factory",
+        lambda resolved_settings: (engine, object()),
+    )
+
+    with (
+        pytest.raises(RuntimeError, match="dispatcher shutdown failed"),
+        TestClient(
+            create_app(settings(), email_dispatcher=FailingDispatcher(events))  # type: ignore[arg-type]
+        ),
+    ):
+        pass
+
+    assert events == ["dispatcher failed", "engine disposed"]
+
+
+def test_user_account_error_boundary_does_not_swallow_unrelated_route_errors() -> None:
+    application = create_app(
+        settings(),
+        SuccessfulProbe(),
+        library_service=object(),  # type: ignore[arg-type]
+        auth_service=object(),  # type: ignore[arg-type]
+        user_auth_service=object(),  # type: ignore[arg-type]
+        email_dispatcher=quiet_dispatcher(),  # type: ignore[arg-type]
+    )
+
+    @application.get("/unrelated-error")
+    async def unrelated_error() -> None:
+        raise RuntimeError("unrelated route failed")
+
+    with (
+        TestClient(application) as client,
+        pytest.raises(RuntimeError, match="unrelated route failed"),
+    ):
+        client.get("/unrelated-error")
+
+
 def test_injected_probe_is_preserved_when_library_service_is_injected() -> None:
     service = object()
     with TestClient(
-        create_app(settings(), SuccessfulProbe(), library_service=service)  # type: ignore[arg-type]
+        create_app(
+            settings(),
+            SuccessfulProbe(),
+            library_service=service,  # type: ignore[arg-type]
+            email_dispatcher=quiet_dispatcher(),  # type: ignore[arg-type]
+        )
     ) as client:
         response = client.get("/api/health/ready")
 
@@ -139,7 +270,9 @@ def test_injected_probe_is_preserved_when_library_service_is_injected() -> None:
 
 
 def test_ready_returns_ready_when_probe_succeeds() -> None:
-    with TestClient(create_app(settings(), SuccessfulProbe())) as client:
+    with TestClient(
+        create_app(settings(), SuccessfulProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+    ) as client:
         response = client.get("/api/health/ready")
 
     assert response.status_code == 200
@@ -147,7 +280,9 @@ def test_ready_returns_ready_when_probe_succeeds() -> None:
 
 
 def test_ready_returns_safe_not_ready_response_when_probe_fails() -> None:
-    with TestClient(create_app(settings(), FailingProbe())) as client:
+    with TestClient(
+        create_app(settings(), FailingProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+    ) as client:
         response = client.get("/api/health/ready")
 
     assert response.status_code == 503
@@ -168,7 +303,9 @@ def test_ready_logs_only_a_fixed_safe_message_when_probe_fails(
 ) -> None:
     with (
         caplog.at_level(logging.ERROR, logger="company_api.main"),
-        TestClient(create_app(settings(), FailingProbe())) as client,
+        TestClient(
+            create_app(settings(), FailingProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+        ) as client,
     ):
         response = client.get("/api/health/ready")
 
@@ -187,7 +324,9 @@ def test_ready_logs_only_a_fixed_safe_message_when_probe_fails(
 
 
 def test_cors_allows_configured_origin() -> None:
-    with TestClient(create_app(settings(), SuccessfulProbe())) as client:
+    with TestClient(
+        create_app(settings(), SuccessfulProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+    ) as client:
         response = client.get(
             "/api/health/live",
             headers={"Origin": "http://localhost:3000"},
@@ -198,7 +337,9 @@ def test_cors_allows_configured_origin() -> None:
 
 
 def test_cors_does_not_allow_unconfigured_origin() -> None:
-    with TestClient(create_app(settings(), SuccessfulProbe())) as client:
+    with TestClient(
+        create_app(settings(), SuccessfulProbe(), email_dispatcher=quiet_dispatcher())  # type: ignore[arg-type]
+    ) as client:
         response = client.get(
             "/api/health/live",
             headers={"Origin": "https://example.com"},

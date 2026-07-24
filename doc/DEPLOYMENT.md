@@ -10,7 +10,7 @@
 Internet :80/:443
   └── 宿主机 Nginx（/usr/local/nginx）
         ├── /admin/ HTTPS 管理入口
-        ├── /api/v1/auth/login 每 IP 限速
+        ├── 管理员与普通用户认证、评论写入按 IP 限速
         ├── /api/ 交给 FastAPI 做会话与 CSRF 校验
         └── 127.0.0.1:8080
               └── edge 容器
@@ -119,6 +119,7 @@ make admin-password-hash
 
 ```bash
 POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+USER_TOKEN_SIGNING_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 read -r -s -p "粘贴 Argon2 管理员哈希：" ADMIN_PASSWORD_HASH
 echo
 install -m 600 /dev/null /srv/company/secrets/company.env
@@ -132,15 +133,39 @@ install -m 600 /dev/null /srv/company/secrets/company.env
     'CORS_ORIGINS=http://localhost:3000,http://localhost:5173' \
     'CONTENT_ROOT=/data/content' \
     'SESSION_COOKIE_SECURE=true' \
-    'SESSION_LIFETIME_SECONDS=43200'
+    'SESSION_LIFETIME_SECONDS=43200' \
+    'APP_ENVIRONMENT=production' \
+    'USER_REGISTRATION_ENABLED=false' \
+    'COMMENT_WRITES_ENABLED=true' \
+    'USER_SESSION_LIFETIME_SECONDS=2592000' \
+    'EMAIL_BACKEND=smtp' \
+    'SMTP_HOST=' \
+    'SMTP_PORT=587' \
+    'SMTP_USERNAME=' \
+    'SMTP_PASSWORD=' \
+    'SMTP_STARTTLS=true' \
+    'SMTP_TIMEOUT_SECONDS=10' \
+    'SMTP_SENDER=' \
+    'PUBLIC_BASE_URL=https://www.ayaseeri.com' \
+    'EMAIL_DISPATCH_INTERVAL_SECONDS=2' \
+    'EMAIL_MAX_ATTEMPTS=8'
+  printf 'USER_TOKEN_SIGNING_KEY=%s\n' "$USER_TOKEN_SIGNING_KEY"
 } > /srv/company/secrets/company.env
 chown root:root /srv/company/secrets/company.env
 ln -sfn /srv/company/secrets/company.env /srv/company/app/.env
 ```
 
-管理端与 API 通过同一个 HTTPS 域名通信，因此不需要把公网域名加入 CORS。`SESSION_COOKIE_SECURE=true` 不能在生产中关闭。不要输出或截图完整环境文件。
+管理端与 API 通过同一个 HTTPS 域名通信，因此不需要把公网域名加入 CORS。`SESSION_COOKIE_SECURE=true` 不能在生产中关闭。`USER_TOKEN_SIGNING_KEY` 必须长期保存，轮换会使尚未使用的邮件链接失效。不要输出或截图完整环境文件。
 
-### 3. 构建和传输离线镜像
+### 3. 配置 SMTP 并分阶段开放注册
+
+首次迁移和部署必须保持 `USER_REGISTRATION_ENABLED=false`。此时 `EMAIL_BACKEND=smtp` 可以在 `SMTP_HOST`、`SMTP_SENDER` 等字段仍为空时启动 API，既不会回退到 console/file 后端，也不会开放注册；若数据库已有邮件任务，发送会以固定的无敏感信息错误失败并进入发件箱退避重试。
+
+API 启动后，填写 SMTP 服务商提供的 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_STARTTLS`、`SMTP_TIMEOUT_SECONDS` 和 `SMTP_SENDER`，并把 `PUBLIC_BASE_URL` 设为无路径的 HTTPS 站点地址。`SMTP_TIMEOUT_SECONDS` 必须在 1 到 120 秒之间，默认 10 秒。`SMTP_PASSWORD` 只存在 `/srv/company/secrets/company.env`；日常部署会原样保留 SMTP 凭据，不会写入仓库或终端输出。
+
+发件域名的 SPF 与 DKIM 记录由所选 SMTP 服务商提供和验证。先发送注册验证与密码重置测试邮件，确认链接回到正确的 HTTPS 域名，并观察发件箱没有持续失败，再把 `USER_REGISTRATION_ENABLED=true`。不要在 SMTP 尚未工作时开放注册。`EMAIL_DISPATCH_INTERVAL_SECONDS` 控制领取间隔，`EMAIL_MAX_ATTEMPTS` 控制最大尝试次数；失败任务保存在 PostgreSQL，API 重启后继续重试。
+
+### 4. 构建和传输离线镜像
 
 ECS 为 x86_64，而开发 Mac 可能是 Apple Silicon。Mac 上使用 Docker Desktop 构建单架构镜像包：
 
@@ -169,7 +194,7 @@ sha256sum -c company-ecs-amd64-images.tar.gz.sha256
 
 导入脚本会在已有应用镜像时先增加带时间的 `rollback-*` 标签，再用 `--no-build --pull never` 启动，避免 ECS 再次访问 Docker Hub。首次部署没有上一版镜像，因此不会生成可用的回滚标签。
 
-### 4. 配置域名、Nginx 与 HTTPS
+### 5. 配置域名、Nginx 与 HTTPS
 
 域名 `ayaseeri.com` 和 `www.ayaseeri.com` 的 A 记录必须指向 ECS。首次申请证书前：
 
@@ -226,7 +251,7 @@ sleep 2
 systemctl start nginx
 ```
 
-### 5. 启用本地备份
+### 6. 启用本地备份
 
 ```bash
 install -m 750 \
@@ -241,7 +266,7 @@ systemctl daemon-reload
 systemctl enable --now company-backup.timer
 ```
 
-备份脚本短暂暂停 API 写入，将 PostgreSQL archive dump 和内容卷放入同一个时间戳目录，校验两份文件，保留 30 天并更新 `latest` 软链接。目前只完成 ECS 本地备份；它不能防止整台 ECS 或云盘丢失，资料规模扩大后应再复制到 OSS。
+备份脚本短暂暂停 API 写入，将 PostgreSQL archive dump 和 `content_data` 内容卷放入同一个时间戳目录，校验两份文件，保留 30 天并更新 `latest` 软链接。PostgreSQL 备份包含普通用户、评论、举报、通知、邮件发件箱和限流记录；内容卷包含上传资料。恢复演练必须同时恢复两者。目前只完成 ECS 本地备份；它不能防止整台 ECS 或云盘丢失，资料规模扩大后应再复制到 OSS。
 
 ## 管理端访问
 
@@ -261,7 +286,9 @@ make deploy-aliyun
 DEPLOY_TARGET=root@<ECS-IP> make deploy-aliyun
 ```
 
-脚本会依次运行本地 `make check`、复用一个 SSH 连接、构建 linux/amd64 离线镜像、创建 ECS 发布前备份、rsync 代码、上传并校验镜像、补齐安全环境变量、运行 Alembic migration、启动 Compose、更新 Nginx，最后验证公开首页、管理端、匿名会话和未授权写入的 401。使用 root 密码登录时通常只需输入一次。
+脚本会依次运行本地 `make check`、复用一个 SSH 连接、构建 linux/amd64 离线镜像、创建 ECS 发布前备份、rsync 代码、上传并校验镜像、补齐安全环境变量、运行 Alembic migration、启动 Compose、更新 Nginx，最后验证公开首页、管理端、匿名会话和未授权写入的 401。首次社区版本发布会在远端生成并保存 32 字节 URL-safe `USER_TOKEN_SIGNING_KEY`；后续发布保留该密钥、已有 SMTP 凭据和当前 `COMMENT_WRITES_ENABLED` 值，并把注册恢复为关闭状态，必须在测试邮件成功后再次手工开启。这样事故期间设置的评论只读模式不会被日常修复发布意外解除。使用 root 密码登录时通常只需输入一次。
+
+社区功能上线顺序是：保持注册关闭并做备份，运行增量 Alembic migration，部署 API、Web 和 Admin，更新 Nginx，配置 SMTP 与发件域名，发送测试邮件，最后开放注册。上线初期监控待审核评论、429 命中、发件箱失败与积压。
 
 第一次从旧版升级到管理员认证时，脚本会提示创建生产管理员密码。后续发布会保留原密码；需要主动更换时运行：
 
@@ -304,6 +331,8 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 `/admin/` 必须输出 `200`，未登录 session JSON 必须包含 `"authenticated":false`，最后一个未认证写入请求必须输出 `401`。再用浏览器实际登录、创建或上传一份测试资料并退出，确认退出后刷新会回到登录页。`/api/health/live` 与 `/api/health/ready` 是唯一不版本化的基础设施例外，业务 API 使用 `/api/v1`。
 
 ## 应用回滚
+
+社区功能异常时先设置 `USER_REGISTRATION_ENABLED=false` 和 `COMMENT_WRITES_ENABLED=false`，重建 API 容器。后一个开关只拒绝发布、编辑、删除和举报，已发布评论仍可读取，因此可以先回到只读评论而不丢数据。普通应用回滚不要执行破坏性 Alembic 迁移；旧应用会忽略新增表，PostgreSQL 中的社区数据仍随备份保留。
 
 已有旧版应用镜像时，导入脚本会输出本次生成的 `rollback-<时间>` 标签。新版本异常且没有不兼容数据库迁移时，重新标记三个应用镜像：
 

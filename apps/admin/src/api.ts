@@ -1,9 +1,17 @@
 import type {
   AuthState,
+  CommentStatus,
   Company,
   CompanyInput,
   DocumentItem,
   LoginInput,
+  ModerationComment,
+  ModerationCommentPage,
+  ModerationReport,
+  ModerationReportPage,
+  ModerationUser,
+  ModerationUserPage,
+  ReportStatus,
   UploadBatch,
 } from './types'
 
@@ -12,6 +20,8 @@ type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respons
 let csrfToken = ''
 
 export class AuthenticationRequiredError extends Error {}
+
+export class ModerationConflictError extends Error {}
 
 function authenticatedInit(init: RequestInit): RequestInit {
   const headers = new Headers(init.headers)
@@ -33,6 +43,7 @@ async function request<T>(url: string, init: RequestInit, fetcher: Fetcher): Pro
       // Keep the status-based fallback when an upstream response is not JSON.
     }
     if (response.status === 401) throw new AuthenticationRequiredError(message)
+    if (response.status === 409) throw new ModerationConflictError(message)
     throw new Error(message)
   }
 
@@ -73,6 +84,10 @@ export async function logout(fetcher: Fetcher = fetch): Promise<void> {
 
 export function isAuthenticationRequired(error: unknown): boolean {
   return error instanceof AuthenticationRequiredError
+}
+
+export function isModerationConflict(error: unknown): boolean {
+  return error instanceof ModerationConflictError
 }
 
 export function listCompanies(fetcher: Fetcher = fetch): Promise<Company[]> {
@@ -144,4 +159,85 @@ export function reorderDocuments(
 
 export function deleteDocument(documentId: string, fetcher: Fetcher = fetch): Promise<void> {
   return request(`/api/v1/documents/${documentId}`, { method: 'DELETE' }, fetcher)
+}
+
+function moderationQuery(values: Record<string, string | undefined>): string {
+  const params = new URLSearchParams()
+  for (const [name, value] of Object.entries(values)) {
+    if (value) params.set(name, value)
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+export function listModerationComments(
+  status: CommentStatus | undefined,
+  cursor: string | undefined,
+  fetcher: Fetcher = fetch,
+): Promise<ModerationCommentPage> {
+  return request(
+    `/api/v1/admin/comments${moderationQuery({ status, cursor })}`,
+    { method: 'GET' },
+    fetcher,
+  )
+}
+
+export function approveComment(commentId: string, fetcher: Fetcher = fetch): Promise<ModerationComment> {
+  return request(`/api/v1/admin/comments/${commentId}/approve`, { method: 'POST' }, fetcher)
+}
+
+export function rejectComment(
+  commentId: string,
+  reason: string,
+  fetcher: Fetcher = fetch,
+): Promise<ModerationComment> {
+  return request(
+    `/api/v1/admin/comments/${commentId}/reject`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) },
+    fetcher,
+  )
+}
+
+export function removeComment(commentId: string, fetcher: Fetcher = fetch): Promise<ModerationComment> {
+  return request(`/api/v1/admin/comments/${commentId}/remove`, { method: 'POST' }, fetcher)
+}
+
+export function listCommentReports(
+  status: ReportStatus | undefined,
+  cursor: string | undefined,
+  fetcher: Fetcher = fetch,
+): Promise<ModerationReportPage> {
+  return request(
+    `/api/v1/admin/comment-reports${moderationQuery({ status, cursor })}`,
+    { method: 'GET' },
+    fetcher,
+  )
+}
+
+export function resolveCommentReport(
+  reportId: string,
+  resolution: Extract<ReportStatus, 'kept' | 'removed'>,
+  fetcher: Fetcher = fetch,
+): Promise<ModerationReport> {
+  return request(
+    `/api/v1/admin/comment-reports/${reportId}/resolve`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution }) },
+    fetcher,
+  )
+}
+
+export function listModerationUsers(
+  query: string,
+  cursor: string | undefined,
+  fetcher: Fetcher = fetch,
+): Promise<ModerationUserPage> {
+  return request(`/api/v1/admin/users${moderationQuery({ q: query, cursor })}`, { method: 'GET' }, fetcher)
+}
+
+export function suspendUser(userId: string, fetcher: Fetcher = fetch): Promise<ModerationUser> {
+  return request(`/api/v1/admin/users/${userId}/suspend`, { method: 'POST' }, fetcher)
+}
+
+export function restoreUser(userId: string, fetcher: Fetcher = fetch): Promise<ModerationUser> {
+  return request(`/api/v1/admin/users/${userId}/restore`, { method: 'POST' }, fetcher)
 }

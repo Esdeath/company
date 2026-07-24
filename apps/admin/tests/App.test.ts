@@ -12,12 +12,22 @@ vi.mock('../src/api', () => ({
   deleteDocument: vi.fn(),
   getSession: vi.fn(),
   isAuthenticationRequired: vi.fn(() => false),
+  isModerationConflict: vi.fn(() => false),
+  listCommentReports: vi.fn(),
   listCompanies: vi.fn(),
+  listModerationComments: vi.fn(),
+  listModerationUsers: vi.fn(),
   listDocuments: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
+  approveComment: vi.fn(),
+  rejectComment: vi.fn(),
+  removeComment: vi.fn(),
   renameDocument: vi.fn(),
   reorderDocuments: vi.fn(),
+  resolveCommentReport: vi.fn(),
+  restoreUser: vi.fn(),
+  suspendUser: vi.fn(),
   uploadDocuments: vi.fn(),
 }))
 
@@ -94,6 +104,9 @@ describe('资料管理工作台', () => {
     vi.mocked(api.renameDocument).mockReset().mockResolvedValue(documents[0]!)
     vi.mocked(api.reorderDocuments).mockReset().mockResolvedValue(documents)
     vi.mocked(api.deleteDocument).mockReset().mockResolvedValue(undefined)
+    vi.mocked(api.listModerationComments).mockReset().mockResolvedValue({ items: [], next_cursor: null })
+    vi.mocked(api.listCommentReports).mockReset().mockResolvedValue({ items: [], next_cursor: null })
+    vi.mocked(api.listModerationUsers).mockReset().mockResolvedValue({ items: [], next_cursor: null })
   })
 
   afterEach(() => {
@@ -116,6 +129,26 @@ describe('资料管理工作台', () => {
     expect(wrapper.get('a[href="/"]').text()).toContain('公开站点')
     expect(wrapper.text()).toContain('所有资料变更均要求有效管理员会话')
     expect(wrapper.text()).toContain('admin')
+  })
+
+  it('switches authenticated workspaces without disturbing the document workspace', async () => {
+    const wrapper = await mountWorkspace()
+    const sections = wrapper.findAll('.admin-section-nav button')
+
+    expect(sections.map((section) => section.text())).toEqual(['资料', '评论审核', '用户'])
+    expect(wrapper.get('#admin-panel-documents').attributes('aria-labelledby')).toBe('admin-tab-documents')
+    for (const tab of sections) {
+      expect(wrapper.find(`#${tab.attributes('aria-controls')}`).exists()).toBe(true)
+    }
+    expect(wrapper.find('#moderation-title').exists()).toBe(false)
+    await sections[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#moderation-title').text()).toBe('评论审核')
+    expect(wrapper.get('#admin-panel-comments').attributes('aria-labelledby')).toBe('admin-tab-comments')
+
+    await sections[0]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('input[aria-label="重命名 年度报告"]').exists()).toBe(true)
   })
 
   it('shows the login form before loading private workspace data', async () => {

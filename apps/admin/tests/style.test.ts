@@ -2,6 +2,12 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const stylesheet = readFileSync('src/style.css', 'utf8')
+const task12Components = [
+  'src/App.vue',
+  'src/components/AdminSectionNav.vue',
+  'src/components/CommentModeration.vue',
+  'src/components/UserManagement.vue',
+].map((file) => readFileSync(file, 'utf8'))
 
 describe('responsive workspace styles', () => {
   it('keeps operational controls in one column below 48rem', () => {
@@ -25,5 +31,15 @@ describe('responsive workspace styles', () => {
     expect(stylesheet).toMatch(
       /\.document-row:not\(\.document-row--busy\)\s*\{[^}]*touch-action:\s*none/,
     )
+  })
+
+  it('keeps Task 12 typography at zero letter spacing', () => {
+    expect(stylesheet).toMatch(
+      /\.moderation-workspace \.section-label > div > p,[\s\S]*?letter-spacing:\s*0;/,
+    )
+    expect(stylesheet).toMatch(/\.user-workspace \.section-label > p[\s\S]*?letter-spacing:\s*0;/)
+    expect(stylesheet).toMatch(/\.moderation-notice[\s\S]*?letter-spacing:\s*0;/)
+    expect(stylesheet).toMatch(/\.moderation-success[\s\S]*?letter-spacing:\s*0;/)
+    for (const component of task12Components) expect(component).not.toContain('letter-spacing')
   })
 })

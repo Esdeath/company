@@ -205,7 +205,14 @@ fi
   fi
   printf '%s\n' \
     'SESSION_COOKIE_SECURE=true' \
-    'SESSION_LIFETIME_SECONDS=43200'
+    'SESSION_LIFETIME_SECONDS=43200' \
+    'APP_ENVIRONMENT=production' \
+    'USER_REGISTRATION_ENABLED=false' \
+    'USER_SESSION_LIFETIME_SECONDS=2592000' \
+    'EMAIL_BACKEND=smtp' \
+    'EMAIL_DISPATCH_INTERVAL_SECONDS=2' \
+    'EMAIL_MAX_ATTEMPTS=8'
+  printf 'PUBLIC_BASE_URL=%s\n' "$PUBLIC_URL"
 } > "$AUTH_SNIPPET"
 chmod 600 "$AUTH_SNIPPET"
 
@@ -292,6 +299,7 @@ remote_root=$3
 
 python3 - "$env_file" "$snippet" <<'PY'
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -314,6 +322,17 @@ for line in env_path.read_text(encoding="utf-8").splitlines():
 for key, line in updates.items():
     if key not in seen:
         result.append(line)
+
+signing_key_name = "USER_TOKEN_SIGNING_KEY"
+has_signing_key = any(
+    line.startswith(f"{signing_key_name}=")
+    and line.split("=", 1)[1].strip()
+    and line.split("=", 1)[1].strip() != "local-development-only-signing-key"
+    for line in result
+)
+if not has_signing_key:
+    result = [line for line in result if not line.startswith(f"{signing_key_name}=")]
+    result.append(f"{signing_key_name}={secrets.token_urlsafe(32)}")
 
 temporary = env_path.with_suffix(".tmp")
 temporary.write_text("\n".join(result) + "\n", encoding="utf-8")
