@@ -12,6 +12,9 @@ from pydantic import BaseModel
 from company_api.auth import AuthOperations, AuthService
 from company_api.auth_repository import SqlAlchemyAuthRepository
 from company_api.auth_routes import router as auth_router
+from company_api.comment_repository import SqlAlchemyCommentRepository
+from company_api.comment_routes import router as comment_router
+from company_api.comment_service import CommentOperations, CommentService
 from company_api.config import Settings
 from company_api.content_store import ContentStore
 from company_api.db import (
@@ -56,19 +59,35 @@ def _message_factory(
     base_url = settings.public_base_url.rstrip("/")
 
     def create_message(job: EmailJob) -> EmailMessage:
-        if job.token_id is None:
-            raise ValueError("token email is missing a token id")
         username = str(job.payload.get("username", "读者"))
         if job.template == "verify_email":
+            if job.token_id is None:
+                raise ValueError("token email is missing a token id")
             token = signer.issue(job.token_id, UserTokenPurpose.VERIFY_EMAIL)
             subject = "验证你的研究资料库账号"
             action = "完成邮箱验证"
             url = f"{base_url}/?verify-email={token}"
         elif job.template == "reset_password":
+            if job.token_id is None:
+                raise ValueError("token email is missing a token id")
             token = signer.issue(job.token_id, UserTokenPurpose.RESET_PASSWORD)
             subject = "重置你的研究资料库密码"
             action = "重置密码"
             url = f"{base_url}/?password-reset={token}"
+        elif job.template == "comment_reply":
+            actor_username = str(job.payload.get("actor_username", "一位读者"))
+            company_id = str(job.payload.get("company_id", ""))
+            document_id = str(job.payload.get("document_id", ""))
+            comment_id = str(job.payload.get("comment_id", ""))
+            if not company_id or not document_id or not comment_id:
+                raise ValueError("reply email is missing its comment deep link")
+            subject = "你的评论收到了回复"
+            url = f"{base_url}/?company={company_id}&document={document_id}&comment={comment_id}"
+            return EmailMessage(
+                recipient=job.recipient,
+                subject=subject,
+                text_body=f"{username}，你好。{actor_username} 回复了你的评论：\n{url}",
+            )
         else:
             raise ValueError("unsupported email template")
         return EmailMessage(
@@ -86,6 +105,7 @@ def create_app(
     library_service: LibraryOperations | None = None,
     auth_service: AuthOperations | None = None,
     user_auth_service: UserAuthOperations | None = None,
+    comment_service: CommentOperations | None = None,
     email_dispatcher: EmailDispatcher | None = None,
 ) -> FastAPI:
     # BaseSettings supplies required fields from the environment at runtime.
@@ -108,6 +128,7 @@ def create_app(
                 app.state.library_service = library_service
                 app.state.auth_service = auth_service
                 app.state.user_auth_service = user_auth_service
+                app.state.comment_service = comment_service
             else:
                 engine, session_factory = create_engine_and_session_factory(resolved_settings)
                 app.state.readiness_probe = (
@@ -138,6 +159,11 @@ def create_app(
                         SqlAlchemyRateLimiter(session_factory),
                         signer,
                         resolved_settings,
+                    )
+                app.state.comment_service = comment_service
+                if app.state.comment_service is None:
+                    app.state.comment_service = CommentService(
+                        SqlAlchemyCommentRepository(session_factory)
                     )
                 if dispatcher is None:
                     dispatcher = EmailDispatcher(
@@ -201,6 +227,7 @@ def create_app(
     app.include_router(library_router)
     app.include_router(auth_router)
     app.include_router(user_auth_router)
+    app.include_router(comment_router)
 
     @app.get("/api/health/live", response_model=HealthResponse)
     async def live() -> HealthResponse:
