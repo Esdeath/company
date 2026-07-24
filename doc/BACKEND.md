@@ -52,7 +52,7 @@ HTML 内容保持上传字节。Markdown 使用 `doc/templates/markdown/template
 
 ## 公开阅读
 
-公开目录列出已建立索引的资料内容。HTML 原文件与 Markdown 生成页都可被同一个 iframe 阅读器加载；iframe 保留空 `sandbox`。服务不根据内容决定资料是否显示。
+公开目录列出已建立索引的资料内容。HTML 原文件与 Markdown 生成页都可被同一个 iframe 阅读器加载；公开阅读器仅用 `allow-same-origin` 读取同源正文的渲染高度，不授予脚本等其他权限。该测量边界不改变内容响应与文件存储，服务也不根据内容决定资料是否显示。
 
 ## 账户、评论与通知
 

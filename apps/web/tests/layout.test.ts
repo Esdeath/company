@@ -19,14 +19,13 @@ function rule(selector: string): string {
 }
 
 describe('公开资料阅读工作台布局', () => {
-  it('fills the viewport row and keeps comments after the reader', () => {
-    expect(rule('.site-shell')).toContain('height: 100svh')
-    expect(rule('.library-main')).toContain('min-height: 0')
-    expect(rule('.library-main')).toContain('padding-block: 0')
-    expect(rule('.library-workspace')).toContain('height: 100%')
-    expect(rule('.document-reader')).toContain('height: 100%')
+  it('lets the full article and comments participate in natural page flow', () => {
+    expect(rule('.site-shell')).toContain('min-height: 100svh')
+    expect(rule('.site-shell')).not.toMatch(/(?:^|\n)\s*height:\s*100svh/)
+    expect(rule('.library-workspace')).not.toContain('height: 100%')
+    expect(rule('.document-reader')).toContain('min-height: clamp(32rem, 72svh, 58rem)')
+    expect(rule('.document-reader')).not.toMatch(/(?:^|\n)\s*height:\s*100%/)
     expect(rule('.document-reader')).toContain('overflow: hidden')
-    expect(rule('.document-frame')).toContain('height: 100%')
     expect(app).toMatch(/class="reading-column"[\s\S]*<DocumentReader[\s\S]*<CommentSection/)
   })
 
@@ -39,7 +38,7 @@ describe('公开资料阅读工作台布局', () => {
     expect(rule('html,\nbody')).toContain('overflow-x: hidden')
     expect(rule('.library-workspace')).toContain('min-width: 0')
     expect(rule('.reading-column')).toContain('min-width: 0')
-    expect(rule('.library-directory')).toContain('max-height: 100%')
+    expect(rule('.library-directory')).toContain('max-height: calc(100svh - 3rem)')
     expect(css).not.toMatch(/font-size:\s*[^;]*(vw|svw)/)
     const letterSpacingValues = [...css.matchAll(/letter-spacing:\s*([^;}]+)/g)]
       .map((match) => match[1]?.trim())

@@ -28,7 +28,7 @@ Skill 或人工资料 → 管理员选择公司 → 上传 HTML/Markdown → 按
 
 ## 系统边界
 
-Skill 在网站外运行。HTML 和 Markdown Skill 输出视为可信管理员输入；系统按扩展名处理文件，不检查正文、远程资源、脚本、业务元数据或重复内容。公开端与管理端使用同一个空 `sandbox` iframe 阅读器。数据库保存公司与资料索引，不保存文件正文。
+Skill 在网站外运行。HTML 和 Markdown Skill 输出视为可信管理员输入；系统按扩展名处理文件，不检查正文、远程资源、脚本、业务元数据或重复内容。公开端与管理端使用同一个仅允许同源测量的 `sandbox` iframe 阅读器，`allow-same-origin` 只供父页面读取渲染高度，不允许脚本等其他权限。数据库保存公司与资料索引，不保存文件正文。
 
 写入接口只接受已登录管理员，并同时校验服务器会话与 `X-CSRF-Token`。本地开发使用非 Secure Cookie，生产必须设置 `SESSION_COOKIE_SECURE=true` 并只通过 HTTPS 宿主机 Nginx 进入；容器端口仍不得直接暴露公网。
 
