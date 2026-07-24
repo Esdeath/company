@@ -21,11 +21,16 @@ function openLogin() {
   authOpen.value = true
 }
 
+async function focusSessionTrigger() {
+  await nextTick()
+  const trigger = session.authenticated.value ? accountTrigger.value : loginTrigger.value
+  if (trigger?.isConnected) trigger.focus()
+}
+
 async function finishAuthentication(state: UserAuthState) {
   session.replaceState(state)
   authOpen.value = false
-  await nextTick()
-  accountTrigger.value?.focus()
+  await focusSessionTrigger()
 }
 
 async function openAccountMenu() {
@@ -37,10 +42,7 @@ async function openAccountMenu() {
 async function closeAccountMenu(restoreFocus = true) {
   if (!menuOpen.value) return
   menuOpen.value = false
-  if (restoreFocus) {
-    await nextTick()
-    accountTrigger.value?.focus()
-  }
+  if (restoreFocus) await focusSessionTrigger()
 }
 
 function toggleAccountMenu() {
@@ -55,15 +57,12 @@ function openAccountSettings() {
 
 async function closeAccountSettings() {
   accountOpen.value = false
-  await nextTick()
-  if (session.authenticated.value) accountTrigger.value?.focus()
-  else loginTrigger.value?.focus()
+  await focusSessionTrigger()
 }
 
 async function finishDeletion() {
   accountOpen.value = false
-  await nextTick()
-  loginTrigger.value?.focus()
+  await focusSessionTrigger()
 }
 
 async function logout() {
@@ -73,7 +72,7 @@ async function logout() {
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : '退出登录失败'
   } finally {
-    void closeAccountMenu()
+    await closeAccountMenu()
   }
 }
 

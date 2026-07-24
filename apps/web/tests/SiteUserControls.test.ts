@@ -63,7 +63,17 @@ describe('SiteUserControls', () => {
       expires_at: '2026-08-23T08:00:00Z',
       registration_enabled: true,
     }
+    logout.mockImplementationOnce(async () => {
+      state.value = {
+        authenticated: false,
+        user: null,
+        csrf_token: null,
+        expires_at: null,
+        registration_enabled: true,
+      }
+    })
     const wrapper = mount(SiteUserControls, {
+      attachTo: document.body,
       global: {
         stubs: {
           NotificationMenu: { template: '<button aria-label="通知"><svg class="lucide-bell" /></button>' },
@@ -79,6 +89,28 @@ describe('SiteUserControls', () => {
     await wrapper.get('button[name="logout-user"]').trigger('click')
     await flushPromises()
     expect(logout).toHaveBeenCalledOnce()
+    const login = wrapper.get('button[aria-label="登录"]')
+    expect(document.activeElement).toBe(login.element)
+  })
+
+  it('returns focus to the connected account button when logout fails', async () => {
+    state.value = {
+      authenticated: true,
+      user: {
+        id: 'user-1', email: 'reader@example.com', username: '价值读者',
+        email_verified_at: null, first_comment_approved_at: null, reply_email_enabled: true,
+      },
+      csrf_token: 'csrf', expires_at: null, registration_enabled: true,
+    }
+    logout.mockRejectedValueOnce(new Error('退出登录失败'))
+    const wrapper = mount(SiteUserControls, { attachTo: document.body })
+    const account = wrapper.get('button[aria-label="账户：价值读者"]')
+    await account.trigger('click')
+    await wrapper.get('button[name="logout-user"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('退出登录失败')
+    expect(document.activeElement).toBe(account.element)
   })
 
   it('returns focus to the user button after Escape closes its menu', async () => {
