@@ -63,7 +63,7 @@ class NotificationRepository(Protocol):
         self,
         token_id: UUID,
         token_digest: str,
-        challenge_hash: str,
+        challenge_hash: str | None,
         *,
         now: datetime,
     ) -> bool: ...
@@ -76,7 +76,7 @@ class NotificationOperations(Protocol):
 
     async def mark_all_read(self, user_id: UUID) -> None: ...
 
-    async def unsubscribe(self, token: str, challenge: str) -> None: ...
+    async def unsubscribe(self, token: str, *, anonymous_challenge: str | None = None) -> None: ...
 
 
 class NotificationService:
@@ -115,12 +115,12 @@ class NotificationService:
     async def mark_all_read(self, user_id: UUID) -> None:
         await self._repository.mark_all_read(user_id, now=self._clock())
 
-    async def unsubscribe(self, token: str, challenge: str) -> None:
+    async def unsubscribe(self, token: str, *, anonymous_challenge: str | None = None) -> None:
         token_id, digest = _validate_unsubscribe_token(self._token_signer, token)
-        if not challenge or not await self._repository.unsubscribe(
+        if not await self._repository.unsubscribe(
             token_id,
             digest,
-            token_hash(challenge),
+            token_hash(anonymous_challenge) if anonymous_challenge else None,
             now=self._clock(),
         ):
             raise UnsubscribeTokenInvalid
@@ -187,7 +187,7 @@ class SqlAlchemyNotificationRepository:
         self,
         token_id: UUID,
         token_digest: str,
-        challenge_hash: str,
+        challenge_hash: str | None,
         *,
         now: datetime,
     ) -> bool:
@@ -220,19 +220,20 @@ class SqlAlchemyNotificationRepository:
             ):
                 await session.commit()
                 return False
-            consumed_challenge = (
-                await session.execute(
-                    delete(UserAuthChallenge)
-                    .where(
-                        UserAuthChallenge.token_hash == challenge_hash,
-                        UserAuthChallenge.expires_at > now,
+            if challenge_hash is not None:
+                consumed_challenge = (
+                    await session.execute(
+                        delete(UserAuthChallenge)
+                        .where(
+                            UserAuthChallenge.token_hash == challenge_hash,
+                            UserAuthChallenge.expires_at > now,
+                        )
+                        .returning(UserAuthChallenge.token_hash)
                     )
-                    .returning(UserAuthChallenge.token_hash)
-                )
-            ).scalar_one_or_none()
-            if consumed_challenge is None:
-                await session.commit()
-                return False
+                ).scalar_one_or_none()
+                if consumed_challenge is None:
+                    await session.commit()
+                    return False
             token.consumed_at = now
             user.reply_email_enabled = False
             user.updated_at = now

@@ -96,17 +96,26 @@ async function request<T>(url: string, init: RequestInit, fetcher: Fetcher): Pro
   return (await response.json()) as T
 }
 
-async function anonymousRequest<T>(url: string, init: RequestInit, fetcher: Fetcher): Promise<T> {
+async function requestWithFreshSessionCsrf<T>(
+  url: string,
+  init: RequestInit,
+  fetcher: Fetcher,
+  allowAuthenticated: boolean,
+): Promise<T> {
   const session = await getUserSession(fetcher)
-  if (session.authenticated || !session.csrf_token) {
+  if (!session.csrf_token || (!allowAuthenticated && session.authenticated)) {
     throw new Error('无法获取匿名请求校验，请刷新页面后重试')
   }
 
   try {
     return await request<T>(url, init, fetcher)
   } finally {
-    csrfToken = ''
+    if (!session.authenticated) csrfToken = ''
   }
+}
+
+function anonymousRequest<T>(url: string, init: RequestInit, fetcher: Fetcher): Promise<T> {
+  return requestWithFreshSessionCsrf(url, init, fetcher, false)
 }
 
 function rememberState(state: UserAuthState): UserAuthState {
@@ -258,7 +267,12 @@ export function markAllNotificationsRead(fetcher: Fetcher = fetch): Promise<void
 }
 
 export function unsubscribeEmail(token: string, fetcher: Fetcher = fetch): Promise<MessageResponse> {
-  return anonymousRequest('/api/v1/user-auth/unsubscribe', jsonInit('POST', { token }), fetcher)
+  return requestWithFreshSessionCsrf(
+    '/api/v1/user-auth/unsubscribe',
+    jsonInit('POST', { token }),
+    fetcher,
+    true,
+  )
 }
 
 export function isUserAuthenticationRequired(error: unknown): error is UserAuthenticationRequiredError {

@@ -91,4 +91,25 @@ describe('useUserSession', () => {
     expect(session.state.value?.user).toBeNull()
     await expect(session.requireLogin()).resolves.toBe(false)
   })
+
+  it('keeps the user and CSRF when a current-password action returns 422', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '当前密码错误' }), { status: 422 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' }), { status: 201 })),
+    )
+    const { useUserSession } = await freshSession()
+    const { createComment, deleteAccount } = await import('../app/api/community')
+    const session = useUserSession()
+
+    await session.restore()
+    await expect(deleteAccount({ password: 'wrong-password' })).rejects.toThrow('当前密码错误')
+    await createComment('document-1', { body: '会话仍有效' })
+
+    expect(session.state.value).toEqual(authenticatedSession)
+    expect(new Headers((fetch.mock.calls[2]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('session-csrf')
+  })
 })

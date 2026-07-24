@@ -166,6 +166,14 @@ def _raise_domain_error(error: Exception) -> Never:
     raise HTTPException(status_code=status_code, detail=detail, headers=NO_STORE_HEADERS) from error
 
 
+def _raise_current_password_error(error: CredentialsInvalid) -> Never:
+    raise HTTPException(
+        status_code=422,
+        detail="当前密码错误",
+        headers=NO_STORE_HEADERS,
+    ) from error
+
+
 @router.get("/api/v1/user-auth/session", response_model=UserAuthState)
 async def read_session(
     response: Response,
@@ -331,6 +339,8 @@ async def update_password(
     _disable_cache(response)
     try:
         updated = await service.update_password(session, data.current_password, data.password)
+    except CredentialsInvalid as error:
+        _raise_current_password_error(error)
     except DOMAIN_ERRORS as error:
         _raise_domain_error(error)
     _set_session_cookie(response, settings, updated.session_token)
@@ -370,6 +380,8 @@ async def delete_account(
     _disable_cache(response)
     try:
         await service.delete_account(session, data.password)
+    except CredentialsInvalid as error:
+        _raise_current_password_error(error)
     except DOMAIN_ERRORS as error:
         _raise_domain_error(error)
     _delete_session_cookie(response, settings)

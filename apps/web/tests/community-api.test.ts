@@ -9,6 +9,7 @@ import {
   getUserSession,
   loginUser,
   logoutUser,
+  unsubscribeEmail,
   verifyEmail,
 } from '../app/api/community'
 
@@ -156,6 +157,23 @@ describe('community API client', () => {
     await createComment('document-1', { body: '会话仍有效', parent_id: null }, fetchMock)
 
     expect(new Headers((fetchMock.mock.calls[2]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('session-csrf')
+  })
+
+  it('unsubscribes with a fresh anonymous challenge or an authenticated session CSRF', async () => {
+    const anonymousFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(anonymousSession)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: '已停止接收评论回复邮件' })))
+    const authenticatedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: '已停止接收评论回复邮件' })))
+
+    await unsubscribeEmail('anonymous-token', anonymousFetch)
+    await unsubscribeEmail('session-token', authenticatedFetch)
+
+    expect(new Headers((anonymousFetch.mock.calls[1]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('anonymous-challenge')
+    expect(new Headers((authenticatedFetch.mock.calls[1]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('session-csrf')
   })
 
   it('never reaches browser storage for CSRF or passwords', async () => {

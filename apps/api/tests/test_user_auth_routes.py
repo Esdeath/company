@@ -379,6 +379,29 @@ def test_authenticated_mutation_distinguishes_missing_session_from_bad_csrf(
     assert bad_csrf.json() == {"detail": "CSRF 校验失败，请刷新页面后重试"}
 
 
+def test_current_password_errors_do_not_invalidate_an_authenticated_session(
+    client: TestClient, auth: FakeUserAuth
+) -> None:
+    authenticate(client)
+    auth.error = CredentialsInvalid()
+    headers = {"X-CSRF-Token": "session-csrf"}
+
+    password = client.patch(
+        "/api/v1/users/me/password",
+        headers=headers,
+        json={"current_password": "wrong-pass", "password": "replacement1"},
+    )
+    deleted = client.request(
+        "DELETE", "/api/v1/users/me", headers=headers, json={"password": "wrong-pass"}
+    )
+
+    for response in (password, deleted):
+        assert response.status_code == 422
+        assert response.json() == {"detail": "当前密码错误"}
+        assert "set-cookie" not in response.headers
+        assert_no_store(response)
+
+
 @pytest.mark.parametrize(
     ("error", "status_code", "detail"),
     [

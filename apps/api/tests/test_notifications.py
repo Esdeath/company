@@ -100,15 +100,16 @@ class MemoryNotifications:
         self,
         token_id: UUID,
         token_digest: str,
-        challenge_hash: str,
+        challenge_hash: str | None,
         *,
         now: datetime,
     ) -> bool:
         del token_digest
         del now
-        if challenge_hash not in self.challenges:
+        if challenge_hash is not None and challenge_hash not in self.challenges:
             return False
-        self.challenges.remove(challenge_hash)
+        if challenge_hash is not None:
+            self.challenges.remove(challenge_hash)
         user_id = self.unsubscribe_tokens.pop(token_id, None)
         if user_id is None:
             return False
@@ -197,11 +198,22 @@ def test_unsubscribe_is_one_time_and_only_changes_reply_email_preference(
     service: NotificationService, repository: MemoryNotifications
 ) -> None:
     token = EmailTokenSigner("x" * 32).issue(UUID(int=9), UserTokenPurpose.UNSUBSCRIBE)
-    run(service.unsubscribe(token, "challenge"))
+    run(service.unsubscribe(token, anonymous_challenge="challenge"))
 
     assert repository.reply_email_enabled[USER_ID] is False
     with pytest.raises(UnsubscribeTokenInvalid):
-        run(service.unsubscribe(token, "challenge"))
+        run(service.unsubscribe(token, anonymous_challenge="challenge"))
+
+
+def test_authenticated_unsubscribe_does_not_consume_an_anonymous_challenge(
+    service: NotificationService, repository: MemoryNotifications
+) -> None:
+    token = EmailTokenSigner("x" * 32).issue(UUID(int=9), UserTokenPurpose.UNSUBSCRIBE)
+
+    run(service.unsubscribe(token, anonymous_challenge=None))
+
+    assert repository.reply_email_enabled[USER_ID] is False
+    assert repository.challenges == {token_hash("challenge")}
 
 
 def test_sqlalchemy_unsubscribe_locks_user_before_revalidating_the_token() -> None:

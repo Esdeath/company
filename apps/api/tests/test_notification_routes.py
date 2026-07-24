@@ -95,8 +95,8 @@ class Notifications:
     async def mark_all_read(self, user_id: UUID) -> None:
         self.calls.append(("mark_all_read", user_id))
 
-    async def unsubscribe(self, token: str, challenge: str) -> None:
-        self.calls.append(("unsubscribe", token, challenge))
+    async def unsubscribe(self, token: str, *, anonymous_challenge: str | None = None) -> None:
+        self.calls.append(("unsubscribe", token, anonymous_challenge))
         if self.error is not None:
             raise self.error
 
@@ -172,20 +172,37 @@ def test_notification_ownership_is_a_safe_not_found_response(
     assert response.json() == {"detail": "通知不存在"}
 
 
-def test_unsubscribe_requires_anonymous_challenge_and_never_exposes_delivery_errors(
+def test_unsubscribe_accepts_an_authenticated_session_or_anonymous_challenge(
     client: TestClient, notifications: Notifications
 ) -> None:
     missing_challenge = client.post("/api/v1/user-auth/unsubscribe", json={"token": "email-token"})
-    completed = client.post(
+    anonymous = client.post(
         "/api/v1/user-auth/unsubscribe",
         headers={"X-CSRF-Token": "anonymous-challenge"},
         json={"token": "email-token"},
     )
+    authenticate(client)
+    bad_session_csrf = client.post(
+        "/api/v1/user-auth/unsubscribe",
+        headers={"X-CSRF-Token": "wrong-token"},
+        json={"token": "email-token"},
+    )
+    authenticated = client.post(
+        "/api/v1/user-auth/unsubscribe",
+        headers={"X-CSRF-Token": "session-csrf"},
+        json={"token": "email-token"},
+    )
 
     assert missing_challenge.status_code == 422
-    assert completed.status_code == 200
-    assert completed.json() == {"message": "已停止接收评论回复邮件"}
-    assert notifications.calls == [("unsubscribe", "email-token", "anonymous-challenge")]
+    assert anonymous.status_code == 200
+    assert anonymous.json() == {"message": "已停止接收评论回复邮件"}
+    assert bad_session_csrf.status_code == 403
+    assert bad_session_csrf.json() == {"detail": "CSRF 校验失败，请刷新页面后重试"}
+    assert authenticated.status_code == 200
+    assert notifications.calls == [
+        ("unsubscribe", "email-token", "anonymous-challenge"),
+        ("unsubscribe", "email-token", None),
+    ]
 
 
 def test_unsubscribe_hides_unexpected_delivery_failures(

@@ -10,7 +10,12 @@ from company_api.notification_service import (
     NotificationOperations,
     UnsubscribeTokenInvalid,
 )
-from company_api.user_auth_routes import UserCsrfDependency, UserSessionDependency
+from company_api.user_auth_routes import (
+    OptionalUserSession,
+    UserAuthServiceDependency,
+    UserCsrfDependency,
+    UserSessionDependency,
+)
 from company_api.user_schemas import (
     MessageResponse,
     NotificationPage,
@@ -74,11 +79,29 @@ async def unsubscribe(
     data: UnsubscribeRequest,
     response: Response,
     service: NotificationServiceDependency,
-    challenge: Annotated[str, Header(alias="X-CSRF-Token", min_length=1)],
+    session: OptionalUserSession,
+    auth: UserAuthServiceDependency,
+    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
 ) -> MessageResponse:
     response.headers.update(NO_STORE_HEADERS)
+    if session is not None and session.current_user is not None:
+        if not auth.csrf_is_valid(session, csrf_token or ""):
+            raise HTTPException(
+                status_code=403,
+                detail="CSRF 校验失败，请刷新页面后重试",
+                headers=NO_STORE_HEADERS,
+            )
+        anonymous_challenge = None
+    else:
+        if not csrf_token:
+            raise HTTPException(
+                status_code=422,
+                detail="请求校验已失效，请刷新页面后重试",
+                headers=NO_STORE_HEADERS,
+            )
+        anonymous_challenge = csrf_token
     try:
-        await service.unsubscribe(data.token, challenge)
+        await service.unsubscribe(data.token, anonymous_challenge=anonymous_challenge)
     except UnsubscribeTokenInvalid as error:
         raise HTTPException(
             status_code=422,
