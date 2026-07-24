@@ -25,6 +25,7 @@ import type {
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 let csrfToken = ''
+const authenticationRequiredListeners = new Set<() => void>()
 
 export class UserAuthenticationRequiredError extends Error {
   constructor(message: string) {
@@ -45,6 +46,15 @@ export class RateLimitedError extends Error {
     super(message)
     this.name = 'RateLimitedError'
   }
+}
+
+export function onUserAuthenticationRequired(listener: () => void): () => void {
+  authenticationRequiredListeners.add(listener)
+  return () => authenticationRequiredListeners.delete(listener)
+}
+
+function notifyAuthenticationRequired() {
+  for (const listener of authenticationRequiredListeners) listener()
 }
 
 function isSafeMethod(method: string | undefined): boolean {
@@ -74,6 +84,7 @@ async function request<T>(url: string, init: RequestInit, fetcher: Fetcher): Pro
     const message = await responseMessage(response)
     if (response.status === 401) {
       csrfToken = ''
+      notifyAuthenticationRequired()
       throw new UserAuthenticationRequiredError(message)
     }
     if (response.status === 409) throw new ConflictError(message)
@@ -83,6 +94,19 @@ async function request<T>(url: string, init: RequestInit, fetcher: Fetcher): Pro
 
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+async function anonymousRequest<T>(url: string, init: RequestInit, fetcher: Fetcher): Promise<T> {
+  const session = await getUserSession(fetcher)
+  if (session.authenticated || !session.csrf_token) {
+    throw new Error('无法获取匿名请求校验，请刷新页面后重试')
+  }
+
+  try {
+    return await request<T>(url, init, fetcher)
+  } finally {
+    csrfToken = ''
+  }
 }
 
 function rememberState(state: UserAuthState): UserAuthState {
@@ -105,17 +129,19 @@ export function getUserSession(fetcher: Fetcher = fetch): Promise<UserAuthState>
 }
 
 export function registerUser(input: RegisterInput, fetcher: Fetcher = fetch): Promise<MessageResponse> {
-  return request('/api/v1/user-auth/register', jsonInit('POST', input), fetcher)
+  return anonymousRequest('/api/v1/user-auth/register', jsonInit('POST', input), fetcher)
 }
 
 export function verifyEmail(input: VerifyEmailInput, fetcher: Fetcher = fetch): Promise<UserAuthState> {
-  return request<UserAuthState>('/api/v1/user-auth/verify-email', jsonInit('POST', input), fetcher).then(
-    rememberState,
-  )
+  return anonymousRequest<UserAuthState>(
+    '/api/v1/user-auth/verify-email',
+    jsonInit('POST', input),
+    fetcher,
+  ).then(rememberState)
 }
 
 export function loginUser(input: LoginInput, fetcher: Fetcher = fetch): Promise<UserAuthState> {
-  return request<UserAuthState>('/api/v1/user-auth/login', jsonInit('POST', input), fetcher).then(
+  return anonymousRequest<UserAuthState>('/api/v1/user-auth/login', jsonInit('POST', input), fetcher).then(
     rememberState,
   )
 }
@@ -132,14 +158,14 @@ export function requestPasswordReset(
   input: PasswordResetRequestInput,
   fetcher: Fetcher = fetch,
 ): Promise<MessageResponse> {
-  return request('/api/v1/user-auth/password-reset/request', jsonInit('POST', input), fetcher)
+  return anonymousRequest('/api/v1/user-auth/password-reset/request', jsonInit('POST', input), fetcher)
 }
 
 export function confirmPasswordReset(
   input: PasswordResetConfirmInput,
   fetcher: Fetcher = fetch,
 ): Promise<UserAuthState> {
-  return request<UserAuthState>(
+  return anonymousRequest<UserAuthState>(
     '/api/v1/user-auth/password-reset/confirm',
     jsonInit('POST', input),
     fetcher,
@@ -171,11 +197,8 @@ export function updatePreferences(
 }
 
 export async function deleteAccount(input: AccountDeleteInput, fetcher: Fetcher = fetch): Promise<void> {
-  try {
-    await request('/api/v1/users/me', jsonInit('DELETE', input), fetcher)
-  } finally {
-    csrfToken = ''
-  }
+  await request('/api/v1/users/me', jsonInit('DELETE', input), fetcher)
+  csrfToken = ''
 }
 
 export function listDocumentComments(
@@ -235,7 +258,7 @@ export function markAllNotificationsRead(fetcher: Fetcher = fetch): Promise<void
 }
 
 export function unsubscribeEmail(token: string, fetcher: Fetcher = fetch): Promise<MessageResponse> {
-  return request('/api/v1/user-auth/unsubscribe', jsonInit('POST', { token }), fetcher)
+  return anonymousRequest('/api/v1/user-auth/unsubscribe', jsonInit('POST', { token }), fetcher)
 }
 
 export function isUserAuthenticationRequired(error: unknown): error is UserAuthenticationRequiredError {

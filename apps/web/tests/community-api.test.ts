@@ -5,9 +5,11 @@ import {
   RateLimitedError,
   UserAuthenticationRequiredError,
   createComment,
+  deleteAccount,
   getUserSession,
   loginUser,
   logoutUser,
+  verifyEmail,
 } from '../app/api/community'
 
 const anonymousSession = {
@@ -43,6 +45,7 @@ describe('community API client', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(anonymousSession)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...anonymousSession, csrf_token: 'login-challenge' })))
       .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
 
@@ -51,13 +54,49 @@ describe('community API client', () => {
     await logoutUser(fetchMock)
 
     const sessionInit = fetchMock.mock.calls[0]?.[1] as RequestInit
-    const loginInit = fetchMock.mock.calls[1]?.[1] as RequestInit
-    const logoutInit = fetchMock.mock.calls[2]?.[1] as RequestInit
+    const loginInit = fetchMock.mock.calls[2]?.[1] as RequestInit
+    const logoutInit = fetchMock.mock.calls[3]?.[1] as RequestInit
 
     expect(sessionInit).toEqual(expect.objectContaining({ credentials: 'same-origin', method: 'GET' }))
-    expect(new Headers(loginInit.headers).get('X-CSRF-Token')).toBe('anonymous-challenge')
+    expect(new Headers(loginInit.headers).get('X-CSRF-Token')).toBe('login-challenge')
     expect(new Headers(logoutInit.headers).get('X-CSRF-Token')).toBe('session-csrf')
     expect(logoutInit).toEqual(expect.objectContaining({ credentials: 'same-origin', method: 'POST' }))
+  })
+
+  it('gets a fresh anonymous challenge before a first login and every retry', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...anonymousSession, csrf_token: 'challenge-one' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '邮箱或密码错误' }), { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...anonymousSession, csrf_token: 'challenge-two' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+
+    await expect(loginUser({ email: 'reader@example.com', password: 'password123' }, fetchMock)).rejects.toBeInstanceOf(UserAuthenticationRequiredError)
+    await loginUser({ email: 'reader@example.com', password: 'password123' }, fetchMock)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/user-auth/session',
+      '/api/v1/user-auth/login',
+      '/api/v1/user-auth/session',
+      '/api/v1/user-auth/login',
+    ])
+    expect(new Headers((fetchMock.mock.calls[1]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('challenge-one')
+    expect(new Headers((fetchMock.mock.calls[3]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('challenge-two')
+  })
+
+  it('refreshes a consumed anonymous challenge before retrying email verification', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...anonymousSession, csrf_token: 'verify-one' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '链接无效或已过期' }), { status: 422 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...anonymousSession, csrf_token: 'verify-two' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+
+    await expect(verifyEmail({ token: 'verify-token' }, fetchMock)).rejects.toThrow('链接无效或已过期')
+    await verifyEmail({ token: 'verify-token' }, fetchMock)
+
+    expect(new Headers((fetchMock.mock.calls[1]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('verify-one')
+    expect(new Headers((fetchMock.mock.calls[3]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('verify-two')
   })
 
   it('handles 204 responses and clears CSRF even when logout fails', async () => {
@@ -89,6 +128,34 @@ describe('community API client', () => {
     await expect(getUserSession(authentication)).rejects.toBeInstanceOf(UserAuthenticationRequiredError)
     await expect(getUserSession(conflict)).rejects.toBeInstanceOf(ConflictError)
     await expect(getUserSession(rateLimited)).rejects.toBeInstanceOf(RateLimitedError)
+  })
+
+  it('retains a valid session CSRF token when account deletion fails', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '密码错误' }), { status: 422 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' }), { status: 201 }))
+
+    await getUserSession(fetchMock)
+    await expect(deleteAccount({ password: 'wrong-password' }, fetchMock)).rejects.toThrow('密码错误')
+    await createComment('document-1', { body: '仍在登录', parent_id: null }, fetchMock)
+
+    expect(new Headers((fetchMock.mock.calls[2]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('session-csrf')
+  })
+
+  it('retains a valid session CSRF token when account deletion cannot reach the server', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'comment-1' }), { status: 201 }))
+
+    await getUserSession(fetchMock)
+    await expect(deleteAccount({ password: 'correct-password' }, fetchMock)).rejects.toThrow('network unavailable')
+    await createComment('document-1', { body: '会话仍有效', parent_id: null }, fetchMock)
+
+    expect(new Headers((fetchMock.mock.calls[2]?.[1] as RequestInit).headers).get('X-CSRF-Token')).toBe('session-csrf')
   })
 
   it('never reaches browser storage for CSRF or passwords', async () => {

@@ -49,7 +49,13 @@ function resetMessages() {
   fieldErrors.value = {}
 }
 
+function clearPasswords() {
+  password.value = ''
+  confirmation.value = ''
+}
+
 function setMode(nextMode: DialogMode) {
+  clearPasswords()
   mode.value = nextMode
   resetMessages()
   void focusFirstControl()
@@ -72,6 +78,7 @@ function finishAuthentication(state: UserAuthState) {
 
 function closeDialog(force = false) {
   if (busy.value && !force) return
+  clearPasswords()
   emit('close')
   void nextTick(() => restoreFocusTo?.focus())
 }
@@ -90,6 +97,7 @@ async function submitVerification(token: string) {
     finishAuthentication(await session.verifyEmail({ token }))
   } catch (error) {
     errorMessage.value = errorText(error)
+    clearPasswords()
     mode.value = 'login'
   } finally {
     busy.value = false
@@ -117,6 +125,7 @@ async function submit() {
         username: username.value,
         password: password.value,
       })
+      clearPasswords()
       successMessage.value = response.message
       mode.value = 'verification-sent'
       return
@@ -150,6 +159,7 @@ async function submit() {
 
 function prepareOpen() {
   restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  clearPasswords()
   resetMessages()
   mode.value = props.resetToken ? 'reset-confirm' : 'login'
   void focusFirstControl()

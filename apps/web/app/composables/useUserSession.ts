@@ -6,6 +6,7 @@ import {
   isUserAuthenticationRequired,
   loginUser,
   logoutUser,
+  onUserAuthenticationRequired,
   registerUser,
   requestPasswordReset,
   verifyEmail as verifyEmailRequest,
@@ -42,6 +43,10 @@ function remember(next: UserAuthState): UserAuthState {
 function clearAfterAuthenticationFailure(error: unknown): void {
   if (isUserAuthenticationRequired(error)) state.value = anonymousState()
 }
+
+onUserAuthenticationRequired(() => {
+  state.value = anonymousState()
+})
 
 export function useUserSession() {
   const user = computed(() => state.value?.user ?? null)

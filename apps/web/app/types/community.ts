@@ -125,6 +125,24 @@ export type CommentReport = {
   created_at: Timestamp
   resolved_at: Timestamp | null
   resolved_by: string | null
+  comment: ModerationComment
+}
+
+export type ModerationComment = {
+  id: Identifier
+  document_id: Identifier
+  document_title: string
+  author_id: Identifier | null
+  author_username: string | null
+  parent_id: Identifier | null
+  body: string | null
+  status: CommentStatus
+  created_at: Timestamp
+  edited_at: Timestamp | null
+  moderated_at: Timestamp | null
+  deleted_at: Timestamp | null
+  moderation_reason: string | null
+  moderated_by: string | null
 }
 
 export type NotificationType = 'reply' | 'comment_approved' | 'comment_rejected'

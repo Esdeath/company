@@ -69,4 +69,26 @@ describe('useUserSession', () => {
     expect(session.state.value?.authenticated).toBe(false)
     expect(draft.body).toBe('不要清除这条草稿')
   })
+
+  it('clears shared session state when a direct comment request receives a 401', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify(authenticatedSession)))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '用户会话已失效，请重新登录' }), { status: 401 })),
+    )
+    const { useUserSession } = await freshSession()
+    const { createComment } = await import('../app/api/community')
+    const session = useUserSession()
+
+    await session.restore()
+    await expect(createComment('document-1', { body: '保留在调用方的草稿' })).rejects.toMatchObject({
+      name: 'UserAuthenticationRequiredError',
+    })
+
+    expect(session.state.value?.authenticated).toBe(false)
+    expect(session.state.value?.user).toBeNull()
+    await expect(session.requireLogin()).resolves.toBe(false)
+  })
 })

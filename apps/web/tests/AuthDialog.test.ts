@@ -132,4 +132,18 @@ describe('AuthDialog', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
     expect(document.activeElement).toBe(trigger)
   })
+
+  it('clears password fields when changing modes and closing', async () => {
+    const wrapper = mountDialog()
+    const password = wrapper.get<HTMLInputElement>('input[name="password"]')
+    await password.setValue('password123')
+
+    await wrapper.get('button[name="show-password-reset"]').trigger('click')
+    await wrapper.get('button[name="back-to-login"]').trigger('click')
+    expect(wrapper.get<HTMLInputElement>('input[name="password"]').element.value).toBe('')
+
+    await wrapper.get('input[name="password"]').setValue('password456')
+    await wrapper.get('button[name="close-auth-dialog"]').trigger('click')
+    expect(wrapper.get<HTMLInputElement>('input[name="password"]').element.value).toBe('')
+  })
 })
