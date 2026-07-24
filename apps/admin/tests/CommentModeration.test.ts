@@ -14,6 +14,7 @@ vi.mock('../src/api', () => ({
   rejectComment: vi.fn(),
   removeComment: vi.fn(),
   resolveCommentReport: vi.fn(),
+  suspendUser: vi.fn(),
 }))
 
 const comment: ModerationComment = {
@@ -43,6 +44,7 @@ describe('评论审核工作台', () => {
     vi.mocked(api.rejectComment).mockReset().mockResolvedValue({ ...comment, status: 'rejected' })
     vi.mocked(api.removeComment).mockReset().mockResolvedValue({ ...comment, status: 'deleted' })
     vi.mocked(api.resolveCommentReport).mockReset().mockResolvedValue({ ...report, status: 'kept' })
+    vi.mocked(api.suspendUser).mockReset().mockResolvedValue({ id: comment.author_id, status: 'suspended' })
     vi.mocked(api.isAuthenticationRequired).mockReset().mockReturnValue(false)
     vi.mocked(api.isModerationConflict).mockReset().mockReturnValue(false)
   })
@@ -107,6 +109,81 @@ describe('评论审核工作台', () => {
     await wrapper.get('button[aria-label="通过 评论 reader"]').trigger('click')
     await flushPromises()
     expect(api.listModerationComments).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.moderation-notice').text()).toContain('内容已由其他操作处理，列表已刷新')
+  })
+
+  it('only renders transitions valid for each comment status', async () => {
+    vi.mocked(api.listModerationComments)
+      .mockResolvedValueOnce({ items: [comment], next_cursor: null })
+      .mockResolvedValueOnce({
+        items: [
+          comment,
+          { ...comment, id: 'published', status: 'published' },
+          { ...comment, id: 'rejected', status: 'rejected' },
+          { ...comment, id: 'deleted', status: 'deleted' },
+        ],
+        next_cursor: null,
+      })
+    const wrapper = await mountWorkspace()
+    await wrapper.get('#moderation-tab-all').trigger('click')
+    await flushPromises()
+    const rows = wrapper.findAll('.moderation-row')
+
+    expect(rows[0]!.text()).toContain('通过')
+    expect(rows[0]!.text()).toContain('驳回')
+    expect(rows[0]!.text()).toContain('停用用户')
+    expect(rows[1]!.text()).toContain('移除')
+    expect(rows[1]!.text()).toContain('停用用户')
+    expect(rows[2]!.find('.moderation-actions').exists()).toBe(false)
+    expect(rows[3]!.find('.moderation-actions').exists()).toBe(false)
+  })
+
+  it('suspends an eligible comment author and refreshes the active list', async () => {
+    const wrapper = await mountWorkspace()
+    await wrapper.get('button[aria-label="停用用户 reader（待审评论）"]').trigger('click')
+    await flushPromises()
+    expect(api.suspendUser).toHaveBeenCalledWith('user-1')
+    expect(api.listModerationComments).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a conflict notice visible when the refreshed report list succeeds', async () => {
+    vi.mocked(api.isModerationConflict).mockReturnValue(true)
+    vi.mocked(api.resolveCommentReport).mockRejectedValue(new Error('内容状态已被其他操作修改'))
+    const wrapper = await mountWorkspace()
+    await wrapper.get('#moderation-tab-reports').trigger('click')
+    await flushPromises()
+    await wrapper.get('button[aria-label="保留被举报评论"]').trigger('click')
+    await flushPromises()
+    expect(api.listCommentReports).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.moderation-notice').text()).toContain('内容已由其他操作处理，列表已刷新')
+  })
+
+  it('offers a direct retry after the initial list request fails', async () => {
+    vi.mocked(api.listModerationComments)
+      .mockRejectedValueOnce(new Error('队列暂不可用'))
+      .mockResolvedValueOnce({ items: [comment], next_cursor: null })
+    const wrapper = await mountWorkspace()
+    expect(wrapper.get('.moderation-error').text()).toContain('队列暂不可用')
+    await wrapper.get('button[name="retry-moderation"]').trigger('click')
+    await flushPromises()
+    expect(api.listModerationComments).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain(comment.body)
+  })
+
+  it('supports roving keyboard navigation and focuses the rejection reason after reveal', async () => {
+    const wrapper = mount(CommentModeration, { attachTo: document.body })
+    await flushPromises()
+    const pendingTab = wrapper.get('#moderation-tab-pending')
+    await pendingTab.trigger('keydown', { key: 'End' })
+    await flushPromises()
+    expect(wrapper.get('#moderation-tab-all').element).toBe(document.activeElement)
+    expect(wrapper.get('#moderation-tab-all').attributes('aria-controls')).toBe('moderation-panel-all')
+
+    await wrapper.get('#moderation-tab-pending').trigger('click')
+    await flushPromises()
+    await wrapper.get('button[aria-label="驳回 评论 reader"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('textarea[name="rejection-reason"]').element).toBe(document.activeElement)
   })
 
   it('emits an authentication boundary when the administrator session expires', async () => {

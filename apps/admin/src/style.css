@@ -280,8 +280,15 @@ h1 {
   min-width: 0;
 }
 
-.moderation-workspace h2,
-.user-workspace h2 {
+.moderation-workspace .section-label h2,
+.user-workspace .section-label h2 {
+  letter-spacing: 0;
+}
+
+.moderation-workspace .section-label > p,
+.user-workspace .section-label > p,
+.moderation-workspace .format-badge,
+.user-workspace .format-badge {
   letter-spacing: 0;
 }
 
@@ -398,6 +405,16 @@ h1 {
   letter-spacing: 0;
 }
 
+.moderation-notice {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-left: 0.2rem solid var(--green);
+  color: #3f5f50;
+  background: var(--green-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
 .moderation-more {
   margin-block-start: 1rem;
 }
@@ -412,6 +429,16 @@ h1 {
 
 .user-search .text-action {
   justify-self: start;
+}
+
+.user-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0;
 }
 
 .section-label {

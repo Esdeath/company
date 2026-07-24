@@ -11,7 +11,6 @@ import {
 import type { ModerationUser } from '../types'
 
 const emit = defineEmits<{ authenticationRequired: [] }>()
-
 const query = ref('')
 const searchedQuery = ref('')
 const users = ref<ModerationUser[]>([])
@@ -19,6 +18,7 @@ const nextCursor = ref<string | null>(null)
 const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref('')
+const conflictNotice = ref('')
 const pendingIds = ref<string[]>([])
 let requestGeneration = 0
 
@@ -53,7 +53,11 @@ function submitSearch() {
   searchedQuery.value = query.value.trim()
   users.value = []
   nextCursor.value = null
+  error.value = ''
   if (!searchedQuery.value) {
+    requestGeneration += 1
+    loading.value = false
+    loadingMore.value = false
     error.value = '请输入用户名或邮箱'
     return
   }
@@ -64,6 +68,11 @@ function isPending(id: string): boolean {
   return pendingIds.value.includes(id)
 }
 
+function showConflictAndRefresh() {
+  conflictNotice.value = '内容已由其他操作处理，列表已刷新'
+  void search()
+}
+
 async function updateUser(user: ModerationUser, operation: () => Promise<ModerationUser>) {
   if (isPending(user.id)) return
   pendingIds.value = [...pendingIds.value, user.id]
@@ -72,7 +81,7 @@ async function updateUser(user: ModerationUser, operation: () => Promise<Moderat
     const saved = await operation()
     users.value = users.value.map((item) => (item.id === saved.id ? saved : item))
   } catch (caught) {
-    if (isModerationConflict(caught)) void search()
+    if (isModerationConflict(caught)) showConflictAndRefresh()
     else error.value = errorMessage(caught)
   } finally {
     pendingIds.value = pendingIds.value.filter((id) => id !== user.id)
@@ -87,27 +96,42 @@ async function suspend(user: ModerationUser) {
 async function restore(user: ModerationUser) {
   await updateUser(user, () => restoreUser(user.id))
 }
+
+function verificationLabel(user: ModerationUser): string {
+  return user.email_verified_at ? '邮箱已验证' : '待验证'
+}
+
+function approvalLabel(user: ModerationUser): string {
+  return user.first_comment_approved_at
+    ? `首条评论已通过 · ${user.first_comment_approved_at}`
+    : '尚无通过评论'
+}
+
+function statusLabel(user: ModerationUser): string {
+  if (user.status === 'active') return '正常'
+  if (user.status === 'suspended') return '已停用'
+  return '待验证'
+}
 </script>
 
 <template>
   <section class="user-workspace" aria-labelledby="users-title">
-    <div class="section-label">
-      <p>社区管理</p>
-      <h2 id="users-title">用户管理</h2>
-    </div>
+    <div class="section-label"><p>社区管理</p><h2 id="users-title">用户管理</h2></div>
     <form class="user-search" aria-label="搜索用户" @submit.prevent="submitSearch">
       <label for="user-search">用户名或邮箱</label>
       <input id="user-search" v-model="query" name="user-search" autocomplete="off" />
       <button class="text-action" type="submit" :disabled="loading">搜索</button>
     </form>
     <p v-if="error" class="moderation-error" role="alert">{{ error }}</p>
+    <p v-if="conflictNotice" class="moderation-notice" role="status">{{ conflictNotice }}</p>
     <p v-if="loading" class="empty-state" aria-live="polite">正在查询用户…</p>
     <p v-else-if="searchedQuery && users.length === 0" class="empty-state">没有匹配的用户。</p>
     <ul v-else-if="users.length" class="user-list">
       <li v-for="user in users" :key="user.id" class="user-row">
-        <div class="user-row__heading"><span class="moderation-author">{{ user.username }}</span><span class="format-badge">{{ user.status === 'suspended' ? '已停用' : '正常' }}</span></div>
+        <div class="user-row__heading"><span class="moderation-author">{{ user.username }}</span><span class="format-badge">{{ statusLabel(user) }}</span></div>
         <p class="moderation-meta">{{ user.email }} · {{ user.comment_count }} 条评论</p>
-        <div class="moderation-actions">
+        <p class="user-details"><span>{{ verificationLabel(user) }}</span><span>{{ approvalLabel(user) }}</span></p>
+        <div v-if="user.status === 'active' || user.status === 'suspended'" class="moderation-actions">
           <button v-if="user.status === 'active'" class="text-action text-action--danger" type="button" :aria-label="`停用用户 ${user.username}`" :disabled="isPending(user.id)" @click="suspend(user)">停用</button>
           <button v-else class="text-action" type="button" :aria-label="`恢复用户 ${user.username}`" :disabled="isPending(user.id)" @click="restore(user)">恢复</button>
         </div>

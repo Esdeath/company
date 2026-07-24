@@ -58,7 +58,7 @@ export type CommentStatus = 'pending' | 'published' | 'rejected' | 'deleted'
 
 export type ReportStatus = 'open' | 'kept' | 'removed'
 
-export type UserStatus = 'active' | 'suspended'
+export type UserStatus = 'pending_verification' | 'active' | 'suspended'
 
 export type ModerationComment = {
   id: string

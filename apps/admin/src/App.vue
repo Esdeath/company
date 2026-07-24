@@ -353,7 +353,14 @@ onMounted(initializeAuthentication)
 
       <AdminSectionNav :active="activeSection" @select="activeSection = $event" />
 
-      <div v-if="activeSection === 'documents'" class="workspace" :aria-busy="loading || documentsLoading">
+      <div
+        v-if="activeSection === 'documents'"
+        id="admin-panel-documents"
+        class="workspace"
+        role="tabpanel"
+        aria-labelledby="admin-tab-documents"
+        :aria-busy="loading || documentsLoading"
+      >
         <CompanyPicker
           :companies="companies"
           :selected-id="selectedCompanyId"
@@ -390,11 +397,17 @@ onMounted(initializeAuthentication)
         </div>
       </div>
 
-      <CommentModeration
+      <div
         v-else-if="activeSection === 'comments'"
-        @authentication-required="returnToLogin"
-      />
-      <UserManagement v-else @authentication-required="returnToLogin" />
+        id="admin-panel-comments"
+        role="tabpanel"
+        aria-labelledby="admin-tab-comments"
+      >
+        <CommentModeration @authentication-required="returnToLogin" />
+      </div>
+      <div v-else id="admin-panel-users" role="tabpanel" aria-labelledby="admin-tab-users">
+        <UserManagement @authentication-required="returnToLogin" />
+      </div>
 
       <nav class="public-return" aria-label="站点入口">
         <a href="/"><span aria-hidden="true">←</span> 前往公开站点</a>
