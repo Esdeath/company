@@ -237,3 +237,23 @@ def test_reply_email_escapes_content_and_reconstructs_its_stored_unsubscribe_tok
     assert "&lt;writer&gt;" in message.text_body
     assert f"/?unsubscribe={token}" in message.text_body
     assert signer.matches(stored.id, stored.purpose, stored.token_hash, token)
+
+
+def test_reply_email_without_an_unsubscribe_token_is_rejected_before_delivery() -> None:
+    job = EmailJob(
+        id=NOTIFICATION_ID,
+        token_id=None,
+        template="comment_reply",
+        recipient="reader@example.com",
+        payload={
+            "username": "reader",
+            "actor_username": "writer",
+            "company_id": str(UUID(int=1)),
+            "document_id": str(UUID(int=2)),
+            "comment_id": str(UUID(int=3)),
+        },
+        attempts=1,
+    )
+
+    with pytest.raises(ValueError, match="unsubscribe token"):
+        _message_factory(EmailTokenSigner("x" * 32), settings())(job)

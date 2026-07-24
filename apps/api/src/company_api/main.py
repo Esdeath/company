@@ -95,6 +95,8 @@ def _message_factory(
             action = "重置密码"
             url = f"{base_url}/?password-reset={token}"
         elif job.template == "comment_reply":
+            if job.token_id is None:
+                raise ValueError("reply email is missing an unsubscribe token")
             actor_username = escape(str(job.payload.get("actor_username", "一位读者")), quote=True)
             company_id = str(job.payload.get("company_id", ""))
             document_id = str(job.payload.get("document_id", ""))
@@ -103,10 +105,8 @@ def _message_factory(
                 raise ValueError("reply email is missing its comment deep link")
             subject = "你的评论收到了回复"
             url = f"{base_url}/?company={company_id}&document={document_id}&comment={comment_id}"
-            unsubscribe = ""
-            if job.token_id is not None:
-                token = signer.issue(job.token_id, UserTokenPurpose.UNSUBSCRIBE)
-                unsubscribe = f"\n不再接收评论回复邮件：{base_url}/?unsubscribe={token}"
+            token = signer.issue(job.token_id, UserTokenPurpose.UNSUBSCRIBE)
+            unsubscribe = f"\n不再接收评论回复邮件：{base_url}/?unsubscribe={token}"
             return EmailMessage(
                 recipient=job.recipient,
                 subject=subject,
