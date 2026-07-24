@@ -309,6 +309,51 @@ describe('CommentSection', () => {
     expect(wrapper.emitted('target-resolved')).toEqual([['target']])
   })
 
+  it('waits for the regular list to reveal a thread before resolving its target', async () => {
+    const list = deferred<CommentPage>()
+    vi.mocked(community.listDocumentComments).mockReturnValueOnce(list.promise)
+    vi.mocked(community.getCommentThread).mockResolvedValueOnce({
+      root: comment({ id: 'target' }),
+      target_comment_id: 'target',
+      viewer_pending: [],
+    })
+    const wrapper = mountSection({ targetCommentId: 'target' })
+    await flushPromises()
+    expect(wrapper.emitted('target-resolved')).toBeUndefined()
+    expect(wrapper.find('[data-comment-id="target"]').exists()).toBe(false)
+
+    list.resolve(page())
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="target"]').exists()).toBe(true)
+    expect(wrapper.emitted('target-resolved')).toEqual([['target']])
+  })
+
+  it('reports a missing requested target without failing the regular comment list', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(page())
+    vi.mocked(community.getCommentThread).mockRejectedValueOnce(new Error('评论不存在'))
+    const wrapper = mountSection({ targetCommentId: 'missing' })
+    await flushPromises()
+
+    expect(wrapper.emitted('target-missing')).toEqual([['missing']])
+    expect(wrapper.find('[data-comment-id="comment-1"]').exists()).toBe(true)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('rejects a requested thread that belongs to another document', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(page())
+    vi.mocked(community.getCommentThread).mockResolvedValueOnce({
+      root: comment({ id: 'foreign-root', document_id: 'document-2' }),
+      target_comment_id: 'foreign-target',
+      viewer_pending: [],
+    })
+    const wrapper = mountSection({ targetCommentId: 'foreign-target' })
+    await flushPromises()
+
+    expect(wrapper.emitted('target-missing')).toEqual([['foreign-target']])
+    expect(wrapper.emitted('target-resolved')).toBeUndefined()
+    expect(wrapper.find('[data-comment-id="foreign-root"]').exists()).toBe(false)
+  })
+
   it('keeps mutations to an off-page target thread visible', async () => {
     vi.mocked(community.listDocumentComments).mockResolvedValue(page({ items: [comment({ id: 'paged-root' })] }))
     vi.mocked(community.getCommentThread).mockResolvedValue({

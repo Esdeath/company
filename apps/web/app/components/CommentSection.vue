@@ -25,6 +25,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'login-required': []
+  'target-missing': [commentId: string]
   'target-resolved': [commentId: string]
 }>()
 
@@ -51,6 +52,7 @@ const commentDrafts = new Map<string, string>()
 const replyDrafts = new Map<string, { parentId: string | null; body: string }>()
 let listGeneration = 0
 let threadGeneration = 0
+let pendingResolvedTargetId: string | null = null
 
 const visibleRoots = computed(() => {
   const allRoots = mergeById([...roots.value, ...threadRoots.value])
@@ -154,8 +156,21 @@ async function loadComments(reset = true) {
     if (generation === listGeneration) {
       loading.value = false
       loadingMore.value = false
+      if (pendingResolvedTargetId && !errorMessage.value) {
+        resolveVisibleTarget(pendingResolvedTargetId)
+      }
     }
   }
+}
+
+function resolveVisibleTarget(commentId: string) {
+  if (props.targetCommentId !== commentId) return
+  if (loading.value || errorMessage.value) {
+    pendingResolvedTargetId = commentId
+    return
+  }
+  pendingResolvedTargetId = null
+  emit('target-resolved', commentId)
 }
 
 function applyPage(page: CommentPage, reset: boolean) {
@@ -170,11 +185,17 @@ async function loadTargetThread(commentId: string) {
   try {
     const thread = await getCommentThread(commentId)
     if (generation !== threadGeneration) return
+    if (thread.root.document_id !== props.documentId) {
+      emit('target-missing', commentId)
+      return
+    }
     threadRoots.value = mergeById([...threadRoots.value, thread.root])
     threadViewerPending.value = thread.viewer_pending
-    emit('target-resolved', thread.target_comment_id)
+    resolveVisibleTarget(thread.target_comment_id)
   } catch {
-    // The regular list remains useful when a deep-linked comment was removed.
+    if (generation === threadGeneration && props.targetCommentId === commentId) {
+      emit('target-missing', commentId)
+    }
   }
 }
 
@@ -310,6 +331,7 @@ watch(
     threadRoots.value = []
     viewerPending.value = []
     threadViewerPending.value = []
+    pendingResolvedTargetId = null
     nextCursor.value = null
     totalCount.value = 0
     errorMessage.value = null
@@ -326,6 +348,7 @@ watch(
   () => {
     listGeneration += 1
     threadGeneration += 1
+    pendingResolvedTargetId = null
     roots.value = roots.value.map(publicComment)
     threadRoots.value = threadRoots.value.map(publicComment)
     viewerPending.value = []
@@ -342,6 +365,7 @@ watch(
   () => props.targetCommentId,
   (targetCommentId) => {
     threadGeneration += 1
+    pendingResolvedTargetId = null
     threadRoots.value = []
     threadViewerPending.value = []
     if (targetCommentId) void loadTargetThread(targetCommentId)

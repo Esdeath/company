@@ -1,15 +1,43 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
 import App from '../app/app.vue'
+import * as community from '../app/api/community'
 import * as library from '../app/api/library'
+import CommentSection from '../app/components/CommentSection.vue'
+import type { Comment, UserAuthState } from '../app/types/community'
 import type { Company, DocumentItem } from '../app/types/content'
 
 vi.mock('../app/api/library', () => ({
   listCompanies: vi.fn(),
   listDocuments: vi.fn(),
 }))
+
+const sessionState = ref<UserAuthState | null>(null)
+const restoreSession = vi.fn()
+const logoutSession = vi.fn()
+
+vi.mock('../app/composables/useUserSession', () => ({
+  useUserSession: () => ({
+    state: sessionState,
+    user: computed(() => sessionState.value?.user ?? null),
+    authenticated: computed(() => sessionState.value?.authenticated === true),
+    loading: ref(false),
+    restore: restoreSession,
+    logout: logoutSession,
+  }),
+}))
+
+vi.mock('../app/api/community', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../app/api/community')>()
+  return {
+    ...actual,
+    getCommentThread: vi.fn(),
+    listDocumentComments: vi.fn(),
+    listNotifications: vi.fn(),
+  }
+})
 
 const companies: Company[] = [
   {
@@ -61,6 +89,24 @@ const companyTwoDocuments: DocumentItem[] = [
   },
 ]
 
+function comment(overrides: Partial<Comment> = {}): Comment {
+  return {
+    id: 'thread-root',
+    document_id: 'document-3',
+    parent_id: null,
+    body: '深链评论',
+    status: 'published',
+    author: { id: 'user-2', username: '研究读者' },
+    created_at: '2026-07-24T08:00:00Z',
+    edited_at: null,
+    replies: [],
+    can_edit: false,
+    can_delete: false,
+    can_report: true,
+    ...overrides,
+  }
+}
+
 type Unmountable = { unmount: () => void }
 const mountedWrappers: Unmountable[] = []
 
@@ -102,6 +148,28 @@ describe('公开资料阅读工作台', () => {
     vi.mocked(library.listDocuments).mockReset().mockImplementation(async (companyId) =>
       companyId === 'company-1' ? companyOneDocuments : companyTwoDocuments,
     )
+    sessionState.value = {
+      authenticated: false,
+      user: null,
+      csrf_token: null,
+      expires_at: null,
+      registration_enabled: true,
+    }
+    restoreSession.mockReset().mockResolvedValue(sessionState.value)
+    logoutSession.mockReset().mockResolvedValue(undefined)
+    vi.mocked(community.listDocumentComments).mockReset().mockResolvedValue({
+      items: [],
+      viewer_pending: [],
+      next_cursor: null,
+      total_count: 0,
+    })
+    vi.mocked(community.getCommentThread).mockReset()
+    vi.mocked(community.listNotifications).mockReset().mockResolvedValue({ items: [], unread_count: 0 })
+    window.history.replaceState({}, '', '/')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
   })
 
@@ -109,8 +177,78 @@ describe('公开资料阅读工作台', () => {
     for (const wrapper of mountedWrappers.splice(0).reverse()) wrapper.unmount()
     document.body.innerHTML = ''
     document.body.style.overflow = ''
+    window.history.replaceState({}, '', '/')
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
     vi.unstubAllGlobals()
     vi.clearAllMocks()
+  })
+
+  it('starts session restoration in parallel with the company request', async () => {
+    const sessionRequest = deferred<UserAuthState>()
+    const companyRequest = deferred<Company[]>()
+    restoreSession.mockReturnValueOnce(sessionRequest.promise)
+    vi.mocked(library.listCompanies).mockReturnValueOnce(companyRequest.promise)
+
+    const wrapper = track(mount(App))
+    await nextTick()
+    expect(restoreSession).toHaveBeenCalledOnce()
+    expect(library.listCompanies).toHaveBeenCalledOnce()
+
+    sessionRequest.resolve(sessionState.value!)
+    companyRequest.resolve(companies)
+    await flushPromises()
+    expect(wrapper.get('[data-company-id="company-1"]').exists()).toBe(true)
+  })
+
+  it('restores a deep-linked document and scrolls an off-page target before cleaning the URL target', async () => {
+    window.history.replaceState({}, '', '/?company=company-2&document=document-3&comment=target-comment')
+    vi.mocked(community.getCommentThread).mockResolvedValue({
+      root: comment({
+        replies: [comment({ id: 'target-comment', parent_id: 'thread-root' })],
+      }),
+      target_comment_id: 'target-comment',
+      viewer_pending: [],
+    })
+    const wrapper = await mountWorkspace()
+
+    expect(library.listDocuments).toHaveBeenCalledWith('company-2')
+    expect(wrapper.get('[data-document-id="document-3"]').attributes('aria-current')).toBe('true')
+    expect(community.getCommentThread).toHaveBeenCalledWith('target-comment')
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+    expect(wrapper.get('[data-comment-id="target-comment"]').classes()).toContain('comment-target')
+    expect(window.location.search).toBe('?company=company-2&document=document-3')
+  })
+
+  it('reports a missing deep-link target without replacing the article', async () => {
+    window.history.replaceState({}, '', '/?company=company-1&document=document-1&comment=missing-comment')
+    vi.mocked(community.getCommentThread).mockRejectedValueOnce(new Error('评论不存在'))
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.text()).toContain('这条评论已不存在或暂时无法查看')
+    expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
+  })
+
+  it('retires the deep-link target after the reader deliberately changes company', async () => {
+    window.history.replaceState({}, '', '/?company=company-2&document=document-3&comment=target-comment')
+    vi.mocked(community.getCommentThread).mockResolvedValue({
+      root: comment({ id: 'target-comment' }),
+      target_comment_id: 'target-comment',
+      viewer_pending: [],
+    })
+    const wrapper = await mountWorkspace()
+    expect(wrapper.getComponent(CommentSection).props('targetCommentId')).toBe('target-comment')
+
+    await wrapper.get('[data-company-id="company-1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(CommentSection).props('targetCommentId')).toBeNull()
+  })
+
+  it('keeps the article available when comments fail to load', async () => {
+    vi.mocked(community.listDocumentComments).mockRejectedValueOnce(new Error('评论服务暂不可用'))
+    const wrapper = await mountWorkspace()
+
+    expect(wrapper.get('iframe').attributes('src')).toBe('/api/v1/documents/document-1/content')
+    expect(wrapper.get('.comment-section [role="alert"]').text()).toContain('评论服务暂不可用')
   })
 
   it('selects the first company and document for immediate reading', async () => {
