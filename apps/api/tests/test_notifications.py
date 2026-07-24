@@ -242,6 +242,43 @@ def test_sqlalchemy_unsubscribe_locks_user_before_revalidating_the_token() -> No
     assert session.token.consumed_at == NOW
 
 
+def test_sqlalchemy_unsubscribe_allows_an_existing_token_for_a_suspended_user() -> None:
+    session = UnsubscribeSession(user_status=UserStatus.SUSPENDED)
+    repository = SqlAlchemyNotificationRepository(UnsubscribeFactory(session))  # type: ignore[arg-type]
+
+    result = run(
+        repository.unsubscribe(
+            TOKEN_ID,
+            "token-digest",
+            token_hash("challenge"),
+            now=NOW,
+        )
+    )
+
+    assert result is True
+    assert session.user.reply_email_enabled is False
+    assert session.token.consumed_at == NOW
+
+
+def test_sqlalchemy_unsubscribe_rejects_a_pending_verification_user() -> None:
+    session = UnsubscribeSession(user_status=UserStatus.PENDING_VERIFICATION)
+    repository = SqlAlchemyNotificationRepository(UnsubscribeFactory(session))  # type: ignore[arg-type]
+
+    result = run(
+        repository.unsubscribe(
+            TOKEN_ID,
+            "token-digest",
+            token_hash("challenge"),
+            now=NOW,
+        )
+    )
+
+    assert result is False
+    assert session.user.reply_email_enabled is True
+    assert session.token.consumed_at is None
+    assert session.events == ["commit"]
+
+
 @pytest.mark.parametrize("token_after_owner", [None, "changed"])
 def test_sqlalchemy_unsubscribe_rejects_a_token_that_disappears_or_changes_after_owner_lookup(
     token_after_owner: str | None,
@@ -266,6 +303,26 @@ def test_sqlalchemy_unsubscribe_rejects_a_token_that_disappears_or_changes_after
 
 def test_reply_side_effects_keep_the_notification_when_reply_email_is_opted_out() -> None:
     recipient = stored_user(reply_email_enabled=False)
+    session = SideEffectSession(recipient)
+
+    run(
+        add_reply_publication_side_effects(
+            session,  # type: ignore[arg-type]
+            comment_id=COMMENT_ID,
+            document_id=DOCUMENT_ID,
+            actor_id=OTHER_USER_ID,
+            actor_username="writer",
+            reply_target=reply_target(),
+            created_at=NOW,
+            unsubscribe_token_factory=lambda: (TOKEN_ID, "unused"),
+        )
+    )
+
+    assert [type(item) for item in session.added] == [Notification]
+
+
+def test_suspended_reply_target_keeps_the_notification_without_staging_email() -> None:
+    recipient = stored_user(reply_email_enabled=True, status=UserStatus.SUSPENDED)
     session = SideEffectSession(recipient)
 
     run(
@@ -339,7 +396,11 @@ def test_email_dispatch_exhaustion_does_not_remove_the_paired_notification() -> 
     assert notification.read_at is None
 
 
-def stored_user(*, reply_email_enabled: bool) -> User:
+def stored_user(
+    *,
+    reply_email_enabled: bool,
+    status: UserStatus = UserStatus.ACTIVE,
+) -> User:
     return User(
         id=USER_ID,
         email="reader@example.com",
@@ -347,8 +408,8 @@ def stored_user(*, reply_email_enabled: bool) -> User:
         username="reader",
         normalized_username="reader",
         password_hash="hash",
-        status=UserStatus.ACTIVE,
-        email_verified_at=NOW,
+        status=status,
+        email_verified_at=None if status == UserStatus.PENDING_VERIFICATION else NOW,
         first_comment_approved_at=NOW,
         reply_email_enabled=reply_email_enabled,
         created_at=NOW,
@@ -403,8 +464,13 @@ class ScalarResult:
 
 
 class UnsubscribeSession:
-    def __init__(self, *, token_after_owner: str | None = "token-digest") -> None:
-        self.user = stored_user(reply_email_enabled=True)
+    def __init__(
+        self,
+        *,
+        token_after_owner: str | None = "token-digest",
+        user_status: UserStatus = UserStatus.ACTIVE,
+    ) -> None:
+        self.user = stored_user(reply_email_enabled=True, status=user_status)
         self.token = UserToken(
             id=TOKEN_ID,
             token_hash="token-digest",
@@ -430,7 +496,14 @@ class UnsubscribeSession:
         if self.scalar_calls == 1:
             return USER_ID
         if self.scalar_calls == 2:
-            return self.user
+            compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[attr-defined]
+            status_filter = next(
+                value for name, value in compiled.params.items() if name.startswith("status_")
+            )
+            allowed_statuses = (
+                {status_filter} if isinstance(status_filter, UserStatus) else set(status_filter)
+            )
+            return self.user if self.user.status in allowed_statuses else None
         if self.token_after_owner is None:
             return None
         self.token.token_hash = self.token_after_owner

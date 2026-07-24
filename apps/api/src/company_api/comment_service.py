@@ -4,7 +4,7 @@ import base64
 import json
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
@@ -27,9 +27,13 @@ from company_api.comment_schemas import (
     CommentThreadRead,
 )
 from company_api.models import CommentStatus
-from company_api.user_auth import CurrentUser
+from company_api.rate_limit import RateLimiter
+from company_api.user_auth import CurrentUser, RateLimitExceeded
 
 PAGE_SIZE = 20
+COMMENT_WRITE_LIMIT = 20
+COMMENT_REPORT_LIMIT = 5
+COMMENT_RATE_LIMIT_WINDOW = timedelta(minutes=1)
 
 
 class CursorRecord(Protocol):
@@ -90,11 +94,13 @@ class CommentService:
     def __init__(
         self,
         repository: CommentRepository,
+        rate_limiter: RateLimiter,
         *,
         clock: Callable[[], datetime] | None = None,
         uuid_factory: Callable[[], UUID] = uuid.uuid4,
     ) -> None:
         self._repository = repository
+        self._rate_limiter = rate_limiter
         self._clock = clock or (lambda: datetime.now(UTC))
         self._uuid_factory = uuid_factory
 
@@ -136,6 +142,7 @@ class CommentService:
         body: str,
         parent_id: UUID | None,
     ) -> CommentRead:
+        await self._consume_rate_limit(actor, action="comment_write", limit=COMMENT_WRITE_LIMIT)
         _validate_comment_body(body)
         if not await self._repository.document_exists(document_id):
             raise DocumentNotFound
@@ -204,6 +211,7 @@ class CommentService:
         )
 
     async def update_comment(self, comment_id: UUID, actor: CurrentUser, body: str) -> CommentRead:
+        await self._consume_rate_limit(actor, action="comment_write", limit=COMMENT_WRITE_LIMIT)
         _validate_comment_body(body)
         saved = await self._repository.update_owned_comment(
             comment_id, actor.id, body, now=self._clock()
@@ -213,6 +221,7 @@ class CommentService:
         return self._read(saved, actor.id)
 
     async def delete_comment(self, comment_id: UUID, actor: CurrentUser) -> CommentRead:
+        await self._consume_rate_limit(actor, action="comment_write", limit=COMMENT_WRITE_LIMIT)
         saved = await self._repository.delete_owned_comment(comment_id, actor.id, now=self._clock())
         if saved is None:
             raise CommentNotFound
@@ -225,6 +234,7 @@ class CommentService:
         reason: str,
         details: str | None,
     ) -> None:
+        await self._consume_rate_limit(actor, action="comment_report", limit=COMMENT_REPORT_LIMIT)
         clean_reason = reason.strip()
         clean_details = details.strip() if details is not None else None
         if not clean_reason or len(clean_reason) > 100:
@@ -248,6 +258,22 @@ class CommentService:
             raise DuplicateCommentReport from error
         except InvalidCommentReportError as error:
             raise CommentReportNotAllowed from error
+
+    async def _consume_rate_limit(
+        self,
+        actor: CurrentUser,
+        *,
+        action: str,
+        limit: int,
+    ) -> None:
+        if not await self._rate_limiter.consume(
+            action,
+            str(actor.id),
+            limit=limit,
+            window=COMMENT_RATE_LIMIT_WINDOW,
+            now=self._clock(),
+        ):
+            raise RateLimitExceeded
 
     def _read(
         self,

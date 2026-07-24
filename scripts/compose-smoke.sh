@@ -197,7 +197,7 @@ for record in reversed(records):
     if record.get("recipient") != recipient:
         continue
     for word in record.get("text_body", "").split():
-        value = parse_qs(urlsplit(word).query).get("verify-email")
+        value = parse_qs(urlsplit(word).fragment).get("verify-email")
         if value:
             print(value[0])
             raise SystemExit(0)

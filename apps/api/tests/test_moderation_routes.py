@@ -609,3 +609,27 @@ def test_suspend_revokes_sessions_atomically_and_restore_preserves_trust() -> No
 
     assert restored.status == UserStatus.ACTIVE
     assert restored.first_comment_approved_at == NOW
+
+
+def test_suspend_then_restore_returns_unverified_account_to_pending_verification() -> None:
+    account = user(status=UserStatus.PENDING_VERIFICATION)
+    account.email_verified_at = None
+    suspend_session = UserAdminSession(account)
+    suspend_repository = SqlAlchemyModerationRepository(
+        UserAdminFactory(suspend_session),  # type: ignore[arg-type]
+        unsubscribe_token_factory=unsubscribe_token_factory,
+    )
+
+    suspended = run(suspend_repository.suspend_user(USER_ID, now=NOW))
+
+    assert suspended.status == UserStatus.SUSPENDED
+    restore_session = UserAdminSession(account)
+    restore_repository = SqlAlchemyModerationRepository(
+        UserAdminFactory(restore_session),  # type: ignore[arg-type]
+        unsubscribe_token_factory=unsubscribe_token_factory,
+    )
+
+    restored = run(restore_repository.restore_user(USER_ID, now=NOW))
+
+    assert restored.status == UserStatus.PENDING_VERIFICATION
+    assert restored.email_verified_at is None

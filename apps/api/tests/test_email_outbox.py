@@ -243,6 +243,56 @@ class RecordingMailer:
             raise self.error
 
 
+class RecoveringRepository(FakeRepository):
+    def __init__(self, email_job: EmailJob, stop: asyncio.Event) -> None:
+        super().__init__(email_job, stop)
+        self.claim_calls = 0
+
+    async def claim_batch(self, now: datetime, lease_id: UUID, limit: int) -> list[EmailJob]:
+        self.claim_calls += 1
+        self.events.append(("claim", now, lease_id, limit))
+        if self.claim_calls == 1:
+            raise RuntimeError(
+                "postgresql://user:password@postgres private@example.com Cookie=raw-token"
+            )
+        return [self.job]
+
+
+class RecoveringPersistenceRepository(FakeRepository):
+    def __init__(
+        self,
+        email_job: EmailJob,
+        stop: asyncio.Event,
+        *,
+        failure: str,
+    ) -> None:
+        super().__init__(email_job, stop)
+        self.failure = failure
+        self.failed_once = False
+
+    async def mark_sent(self, job_id: UUID, lease_id: UUID, sent_at: datetime) -> bool:
+        self.events.append(("sent", job_id, lease_id, sent_at))
+        if self.failure == "mark_sent" and not self.failed_once:
+            self.failed_once = True
+            raise RuntimeError("postgres password private@example.com raw-token")
+        self.stop.set()
+        return True
+
+    async def reschedule(
+        self,
+        job_id: UUID,
+        lease_id: UUID,
+        now: datetime,
+        error: Exception,
+    ) -> bool:
+        self.events.append(("retry", job_id, lease_id, now, type(error).__name__))
+        if self.failure == "reschedule" and not self.failed_once:
+            self.failed_once = True
+            raise RuntimeError("postgres password private@example.com raw-token")
+        self.stop.set()
+        return True
+
+
 def job() -> EmailJob:
     return EmailJob(
         id=JOB_ID,
@@ -287,6 +337,74 @@ def test_dispatcher_sends_after_claim_commit_and_marks_success() -> None:
         ("claim", NOW, LEASE_ID, 5),
         ("sent", JOB_ID, LEASE_ID, NOW),
     ]
+
+
+def test_dispatcher_recovers_after_transient_claim_failure_without_logging_secrets(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    repository = RecoveringRepository(job(), stop)
+    mailer = RecordingMailer()
+
+    with caplog.at_level(logging.WARNING, logger="company_api.email_outbox"):
+        run(dispatcher(repository, mailer).run(stop))
+
+    assert mailer.messages == [EmailMessage("private@example.com", "Verify", "fixed body")]
+    assert repository.events == [
+        ("claim", NOW, LEASE_ID, 5),
+        ("claim", NOW, LEASE_ID, 5),
+        ("sent", JOB_ID, LEASE_ID, NOW),
+    ]
+    assert [record.getMessage() for record in caplog.records] == ["Email outbox claim failed"]
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "password" not in logged
+    assert "private@example.com" not in logged
+    assert "Cookie" not in logged
+    assert "raw-token" not in logged
+
+
+def test_dispatcher_recovers_after_mark_sent_failure_without_logging_secrets(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    repository = RecoveringPersistenceRepository(job(), stop, failure="mark_sent")
+    mailer = RecordingMailer()
+
+    with caplog.at_level(logging.WARNING, logger="company_api.email_outbox"):
+        run(dispatcher(repository, mailer).run(stop))
+
+    assert mailer.messages == [
+        EmailMessage("private@example.com", "Verify", "fixed body"),
+        EmailMessage("private@example.com", "Verify", "fixed body"),
+    ]
+    assert [event[0] for event in repository.events] == ["claim", "sent", "claim", "sent"]
+    assert [record.getMessage() for record in caplog.records] == ["Email outbox mark-sent failed"]
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "password" not in logged
+    assert "private@example.com" not in logged
+    assert "raw-token" not in logged
+
+
+def test_dispatcher_recovers_after_reschedule_failure_without_logging_secrets(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    repository = RecoveringPersistenceRepository(job(), stop, failure="reschedule")
+    mailer = RecordingMailer(error=RuntimeError("private@example.com raw-token"))
+
+    with caplog.at_level(logging.WARNING, logger="company_api.email_outbox"):
+        run(dispatcher(repository, mailer).run(stop))
+
+    assert [event[0] for event in repository.events] == ["claim", "retry", "claim", "retry"]
+    assert [record.getMessage() for record in caplog.records] == [
+        "Email delivery failed",
+        "Email outbox reschedule failed",
+        "Email delivery failed",
+    ]
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "password" not in logged
+    assert "private@example.com" not in logged
+    assert "raw-token" not in logged
 
 
 def test_dispatcher_reschedules_failure_and_logs_no_private_data(

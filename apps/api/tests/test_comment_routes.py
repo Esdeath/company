@@ -239,5 +239,5 @@ def test_reply_email_message_contains_a_token_bound_unsubscribe_link() -> None:
         in message.text_body
     )
     assert (
-        f"/?unsubscribe={signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)}" in message.text_body
+        f"/#unsubscribe={signer.issue(token_id, UserTokenPurpose.UNSUBSCRIBE)}" in message.text_body
     )

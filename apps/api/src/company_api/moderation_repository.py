@@ -342,7 +342,11 @@ class SqlAlchemyModerationRepository:
             if user is None:
                 raise ModerationTargetMissingError
             if user.status == UserStatus.SUSPENDED:
-                user.status = UserStatus.ACTIVE
+                user.status = (
+                    UserStatus.ACTIVE
+                    if user.email_verified_at is not None
+                    else UserStatus.PENDING_VERIFICATION
+                )
                 user.updated_at = now
             elif user.status != UserStatus.ACTIVE:
                 raise ModerationStateConflictError

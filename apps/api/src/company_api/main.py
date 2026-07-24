@@ -93,14 +93,14 @@ def _message_factory(
             token = signer.issue(job.token_id, UserTokenPurpose.VERIFY_EMAIL)
             subject = "验证你的研究资料库账号"
             action = "完成邮箱验证"
-            url = f"{base_url}/?verify-email={token}"
+            url = f"{base_url}/#verify-email={token}"
         elif job.template == "reset_password":
             if job.token_id is None:
                 raise ValueError("token email is missing a token id")
             token = signer.issue(job.token_id, UserTokenPurpose.RESET_PASSWORD)
             subject = "重置你的研究资料库密码"
             action = "重置密码"
-            url = f"{base_url}/?password-reset={token}"
+            url = f"{base_url}/#password-reset={token}"
         elif job.template == "comment_reply":
             if job.token_id is None:
                 raise ValueError("reply email is missing an unsubscribe token")
@@ -113,7 +113,7 @@ def _message_factory(
             subject = "你的评论收到了回复"
             url = f"{base_url}/?company={company_id}&document={document_id}&comment={comment_id}"
             token = signer.issue(job.token_id, UserTokenPurpose.UNSUBSCRIBE)
-            unsubscribe = f"\n不再接收评论回复邮件：{base_url}/?unsubscribe={token}"
+            unsubscribe = f"\n不再接收评论回复邮件：{base_url}/#unsubscribe={token}"
             return EmailMessage(
                 recipient=job.recipient,
                 subject=subject,
@@ -204,7 +204,8 @@ def create_app(
                         SqlAlchemyCommentRepository(
                             session_factory,
                             unsubscribe_token_factory=unsubscribe_token_factory,
-                        )
+                        ),
+                        SqlAlchemyRateLimiter(session_factory),
                     )
                 app.state.moderation_service = moderation_service
                 if app.state.moderation_service is None:

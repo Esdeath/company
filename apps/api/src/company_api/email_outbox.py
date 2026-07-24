@@ -179,25 +179,35 @@ class EmailDispatcher:
     async def run(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
             lease_id = self._lease_id_factory()
-            jobs = await self._repository.claim_batch(
-                self._clock(),
-                lease_id,
-                self._batch_limit,
-            )
+            try:
+                jobs = await self._repository.claim_batch(
+                    self._clock(),
+                    lease_id,
+                    self._batch_limit,
+                )
+            except Exception:
+                LOGGER.warning("Email outbox claim failed")
+                jobs = []
             for job in jobs:
                 try:
                     message = self._message_factory(job)
                     await self._mailer.send(message)
                 except Exception as error:
                     LOGGER.warning("Email delivery failed")
-                    await self._repository.reschedule(
-                        job.id,
-                        lease_id,
-                        self._clock(),
-                        error,
-                    )
+                    try:
+                        await self._repository.reschedule(
+                            job.id,
+                            lease_id,
+                            self._clock(),
+                            error,
+                        )
+                    except Exception:
+                        LOGGER.warning("Email outbox reschedule failed")
                 else:
-                    await self._repository.mark_sent(job.id, lease_id, self._clock())
+                    try:
+                        await self._repository.mark_sent(job.id, lease_id, self._clock())
+                    except Exception:
+                        LOGGER.warning("Email outbox mark-sent failed")
 
             if not stop.is_set():
                 with contextlib.suppress(TimeoutError):

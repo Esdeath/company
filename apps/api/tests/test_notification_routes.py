@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 import pytest
@@ -252,8 +253,36 @@ def test_reply_email_escapes_content_and_reconstructs_its_stored_unsubscribe_tok
     )
     assert "&lt;reader&gt;" in message.text_body
     assert "&lt;writer&gt;" in message.text_body
-    assert f"/?unsubscribe={token}" in message.text_body
+    assert f"/#unsubscribe={token}" in message.text_body
     assert signer.matches(stored.id, stored.purpose, stored.token_hash, token)
+
+
+@pytest.mark.parametrize(
+    ("template", "purpose", "fragment_key"),
+    [
+        ("verify_email", UserTokenPurpose.VERIFY_EMAIL, "verify-email"),
+        ("reset_password", UserTokenPurpose.RESET_PASSWORD, "password-reset"),
+    ],
+)
+def test_account_action_email_keeps_its_token_out_of_the_request_query(
+    template: str, purpose: UserTokenPurpose, fragment_key: str
+) -> None:
+    token_id = UUID(int=101)
+    signer = EmailTokenSigner("x" * 32)
+    message = _message_factory(signer, settings())(
+        EmailJob(
+            id=NOTIFICATION_ID,
+            token_id=token_id,
+            template=template,
+            recipient="reader@example.com",
+            payload={"username": "reader"},
+            attempts=1,
+        )
+    )
+
+    action_url = urlsplit(message.text_body.splitlines()[-1])
+    assert action_url.query == ""
+    assert parse_qs(action_url.fragment) == {fragment_key: [signer.issue(token_id, purpose)]}
 
 
 def test_reply_email_without_an_unsubscribe_token_is_rejected_before_delivery() -> None:

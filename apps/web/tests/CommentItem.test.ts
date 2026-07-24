@@ -66,7 +66,7 @@ describe('CommentItem', () => {
     expect(wrapper.emitted('delete')).toEqual([['comment-1']])
   })
 
-  it('renders replies in a nested ordered list without allowing a second reply level', () => {
+  it('renders replies at one visual level and forwards their reply commands', async () => {
     const wrapper = mountItem({
       ...COMMENT,
       replies: [{ ...COMMENT, id: 'reply-1', parent_id: 'comment-1', can_edit: false, can_delete: false }],
@@ -74,5 +74,8 @@ describe('CommentItem', () => {
 
     expect(wrapper.get('ol').element.tagName).toBe('OL')
     expect(wrapper.find('ol ol').exists()).toBe(false)
+    expect(wrapper.get('button[name="reply-reply-1"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('button[name="reply-reply-1"]').trigger('click')
+    expect(wrapper.emitted('reply')).toEqual([['reply-1']])
   })
 })

@@ -65,7 +65,7 @@ function mountSection(props: Record<string, unknown> = {}) {
   })
 }
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => vi.resetAllMocks())
 
 describe('CommentSection', () => {
   it('shows loading, error/retry, and logged-out prompts', async () => {
@@ -130,6 +130,37 @@ describe('CommentSection', () => {
     ])
     await wrapper.get('button[name="reply-new"]').trigger('click')
     expect(wrapper.get('textarea[name="reply-body-new"]').exists()).toBe(true)
+  })
+
+  it('submits a reply to a reply through the one-level thread UI', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(
+      page({
+        items: [
+          comment({
+            id: 'root',
+            replies: [comment({ id: 'direct-reply', parent_id: 'root' })],
+          }),
+        ],
+        total_count: 2,
+      }),
+    )
+    vi.mocked(community.createComment).mockResolvedValue(
+      comment({ id: 'flattened-reply', parent_id: 'root', body: '回复一级回复' }),
+    )
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="reply-direct-reply"]').trigger('click')
+    await wrapper.get('textarea[name="reply-body-direct-reply"]').setValue('回复一级回复')
+    await wrapper.get('form.comment-section__reply').trigger('submit')
+    await flushPromises()
+
+    expect(community.createComment).toHaveBeenCalledWith('document-1', {
+      body: '回复一级回复',
+      parent_id: 'direct-reply',
+    })
+    expect(wrapper.find('[data-comment-id="flattened-reply"]').exists()).toBe(true)
+    expect(wrapper.get('[data-comment-id="root"]').find('ol ol').exists()).toBe(false)
   })
 
   it('ignores stale list responses when its document changes', async () => {
@@ -225,6 +256,157 @@ describe('CommentSection', () => {
     expect((wrapper.get('textarea[name="comment-body"]').element as HTMLTextAreaElement).value).toBe('资料一草稿')
   })
 
+  it('isolates overlapping publishes when the selected document changes', async () => {
+    const firstCreate = deferred<Comment>()
+    const secondCreate = deferred<Comment>()
+    vi.mocked(community.listDocumentComments)
+      .mockResolvedValueOnce(page({ items: [], total_count: 0 }))
+      .mockResolvedValueOnce(page({ items: [], total_count: 0 }))
+    vi.mocked(community.createComment)
+      .mockReturnValueOnce(firstCreate.promise)
+      .mockReturnValueOnce(secondCreate.promise)
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('textarea[name="comment-body"]').setValue('资料一发布中')
+    await wrapper.get('form.comment-section__composer').trigger('submit')
+    expect(community.createComment).toHaveBeenLastCalledWith('document-1', {
+      body: '资料一发布中',
+      parent_id: null,
+    })
+
+    await wrapper.setProps({ documentId: 'document-2' })
+    await flushPromises()
+    await wrapper.get('textarea[name="comment-body"]').setValue('资料二发布中')
+    expect(wrapper.get('button[name="publish-comment"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('form.comment-section__composer').trigger('submit')
+    expect(community.createComment).toHaveBeenLastCalledWith('document-2', {
+      body: '资料二发布中',
+      parent_id: null,
+    })
+
+    firstCreate.resolve(comment({ id: 'stale-created', body: '资料一发布中' }))
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="stale-created"]').exists()).toBe(false)
+    expect((wrapper.get('textarea[name="comment-body"]').element as HTMLTextAreaElement).value).toBe('资料二发布中')
+    expect(wrapper.get('button[name="publish-comment"]').attributes('disabled')).toBeDefined()
+
+    secondCreate.resolve(
+      comment({ id: 'current-created', document_id: 'document-2', body: '资料二发布中' }),
+    )
+    await flushPromises()
+    expect(wrapper.find('[data-comment-id="current-created"]').exists()).toBe(true)
+    expect((wrapper.get('textarea[name="comment-body"]').element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('does not let an old edit completion clear the current document edit draft', async () => {
+    const firstUpdate = deferred<Comment>()
+    vi.mocked(community.listDocumentComments)
+      .mockResolvedValueOnce(
+        page({ items: [comment({ id: 'first-edit', can_edit: true, can_delete: true })] }),
+      )
+      .mockResolvedValueOnce(
+        page({
+          items: [
+            comment({
+              id: 'second-edit',
+              document_id: 'document-2',
+              body: '资料二原文',
+              can_edit: true,
+              can_delete: true,
+            }),
+          ],
+        }),
+      )
+    vi.mocked(community.updateComment).mockReturnValueOnce(firstUpdate.promise)
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="edit-first-edit"]').trigger('click')
+    await wrapper.get('textarea[name="edit-body-first-edit"]').setValue('资料一编辑')
+    await wrapper.get('form.comment-item__edit').trigger('submit')
+    await wrapper.setProps({ documentId: 'document-2' })
+    await flushPromises()
+    await wrapper.get('button[name="edit-second-edit"]').trigger('click')
+    await wrapper.get('textarea[name="edit-body-second-edit"]').setValue('资料二编辑')
+
+    firstUpdate.resolve(
+      comment({ id: 'first-edit', body: '资料一编辑', can_edit: true, can_delete: true }),
+    )
+    await flushPromises()
+
+    expect(wrapper.find('textarea[name="edit-body-second-edit"]').exists()).toBe(true)
+    expect((wrapper.get('textarea[name="edit-body-second-edit"]').element as HTMLTextAreaElement).value).toBe('资料二编辑')
+    expect(wrapper.text()).not.toContain('资料一编辑')
+  })
+
+  it('does not apply an old delete completion to the current document', async () => {
+    const firstDelete = deferred<Comment>()
+    vi.mocked(community.listDocumentComments)
+      .mockResolvedValueOnce(
+        page({ items: [comment({ id: 'shared-delete', can_delete: true })], total_count: 1 }),
+      )
+      .mockResolvedValueOnce(
+        page({
+          items: [
+            comment({
+              id: 'shared-delete',
+              document_id: 'document-2',
+              body: '资料二评论',
+              can_delete: true,
+            }),
+          ],
+          total_count: 1,
+        }),
+      )
+    vi.mocked(community.deleteComment).mockReturnValueOnce(firstDelete.promise)
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="delete-shared-delete"]').trigger('click')
+    await wrapper.get('button[name="confirm-delete-shared-delete"]').trigger('click')
+    await wrapper.setProps({ documentId: 'document-2' })
+    await flushPromises()
+    firstDelete.resolve(
+      comment({ id: 'shared-delete', status: 'deleted', body: null, can_delete: true }),
+    )
+    await flushPromises()
+
+    expect(wrapper.get('[data-comment-id="shared-delete"]').text()).toContain('资料二评论')
+    expect(wrapper.get('[data-comment-id="shared-delete"]').text()).not.toContain('此评论已删除')
+    expect(wrapper.get('.comment-section__header > span').text()).toBe('1 条')
+  })
+
+  it('isolates overlapping reports when the selected document changes', async () => {
+    const firstReport = deferred<undefined>()
+    const secondReport = deferred<undefined>()
+    vi.mocked(community.listDocumentComments)
+      .mockResolvedValueOnce(page({ items: [comment({ id: 'shared-report' })] }))
+      .mockResolvedValueOnce(
+        page({ items: [comment({ id: 'shared-report', document_id: 'document-2' })] }),
+      )
+    vi.mocked(community.reportComment)
+      .mockReturnValueOnce(firstReport.promise)
+      .mockReturnValueOnce(secondReport.promise)
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="report-shared-report"]').trigger('click')
+    await wrapper.setProps({ documentId: 'document-2' })
+    await flushPromises()
+    expect(wrapper.get('button[name="report-shared-report"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('button[name="report-shared-report"]').trigger('click')
+    expect(community.reportComment).toHaveBeenCalledTimes(2)
+
+    firstReport.resolve()
+    await flushPromises()
+    expect(wrapper.get('button[name="report-shared-report"]').text()).toContain('正在举报')
+
+    secondReport.resolve()
+    await flushPromises()
+    expect(wrapper.get('button[name="report-shared-report"]').text()).toContain('已举报')
+  })
+
   it('merges a private pending reply below its public parent', async () => {
     vi.mocked(community.listDocumentComments).mockResolvedValue(
       page({
@@ -240,6 +422,86 @@ describe('CommentSection', () => {
       'pending-reply',
     ])
     expect(wrapper.get('[data-comment-id="public-root"] ol').exists()).toBe(true)
+  })
+
+  it('increments the published total after creating a published reply', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(
+      page({
+        items: [
+          comment({
+            id: 'count-root',
+            replies: [comment({ id: 'count-reply', parent_id: 'count-root' })],
+          }),
+        ],
+        total_count: 2,
+      }),
+    )
+    vi.mocked(community.createComment).mockResolvedValue(
+      comment({ id: 'second-count-reply', parent_id: 'count-root' }),
+    )
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="reply-count-root"]').trigger('click')
+    await wrapper.get('textarea[name="reply-body-count-root"]').setValue('新增公开回复')
+    await wrapper.get('form.comment-section__reply').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('.comment-section__header > span').text()).toBe('3 条')
+  })
+
+  it('decrements the published total only when deleting a published comment', async () => {
+    vi.mocked(community.listDocumentComments).mockResolvedValue(
+      page({
+        items: [
+          comment({
+            id: 'delete-root',
+            replies: [
+              comment({
+                id: 'published-reply',
+                parent_id: 'delete-root',
+                can_delete: true,
+              }),
+            ],
+          }),
+        ],
+        viewer_pending: [
+          comment({ id: 'pending-delete', status: 'pending', can_delete: true, can_report: false }),
+        ],
+        total_count: 2,
+      }),
+    )
+    vi.mocked(community.deleteComment)
+      .mockResolvedValueOnce(
+        comment({
+          id: 'published-reply',
+          parent_id: 'delete-root',
+          status: 'deleted',
+          body: null,
+          can_delete: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        comment({
+          id: 'pending-delete',
+          status: 'deleted',
+          body: null,
+          can_delete: true,
+          can_report: false,
+        }),
+      )
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await wrapper.get('button[name="delete-published-reply"]').trigger('click')
+    await wrapper.get('button[name="confirm-delete-published-reply"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.comment-section__header > span').text()).toBe('1 条')
+
+    await wrapper.get('button[name="delete-pending-delete"]').trigger('click')
+    await wrapper.get('button[name="confirm-delete-pending-delete"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.comment-section__header > span').text()).toBe('1 条')
   })
 
   it('edits, deletes, and reports a comment only once', async () => {

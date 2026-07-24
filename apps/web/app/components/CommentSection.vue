@@ -52,6 +52,7 @@ const commentDrafts = new Map<string, string>()
 const replyDrafts = new Map<string, { parentId: string | null; body: string }>()
 let listGeneration = 0
 let threadGeneration = 0
+let documentGeneration = 0
 let pendingResolvedTargetId: string | null = null
 
 const visibleRoots = computed(() => {
@@ -121,6 +122,10 @@ function publicComment(comment: Comment): Comment {
 
 function errorText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : '评论暂时无法处理，请稍后重试'
+}
+
+function isCurrentDocument(documentId: string, generation: number): boolean {
+  return props.documentId === documentId && documentGeneration === generation
 }
 
 function saveDrafts(documentId: string) {
@@ -213,8 +218,11 @@ async function publish(parentId: string | null = null) {
 
   publishing.value = true
   actionError.value = null
+  const documentId = props.documentId
+  const generation = documentGeneration
   try {
-    const created = await createComment(props.documentId, { body, parent_id: parentId })
+    const created = await createComment(documentId, { body, parent_id: parentId })
+    if (!isCurrentDocument(documentId, generation)) return
     if (created.status === 'pending') {
       viewerPending.value = mergeById([...viewerPending.value, created])
     } else if (created.parent_id) {
@@ -224,8 +232,8 @@ async function publish(parentId: string | null = null) {
       }))
     } else {
       roots.value = mergeById([...roots.value, created])
-      totalCount.value += 1
     }
+    if (created.status === 'published') totalCount.value += 1
     if (parentId) {
       replyDraft.value = ''
       replyTo.value = null
@@ -233,16 +241,22 @@ async function publish(parentId: string | null = null) {
       draft.value = ''
     }
   } catch (error) {
+    if (!isCurrentDocument(documentId, generation)) return
     if (isUserAuthenticationRequired(error)) requestLogin()
     else actionError.value = errorText(error)
   } finally {
-    publishing.value = false
+    if (isCurrentDocument(documentId, generation)) publishing.value = false
   }
 }
 
 function beginReply(commentId: string) {
   replyTo.value = commentId
   editingCommentId.value = null
+}
+
+function isReplyingTo(root: Comment): boolean {
+  if (!replyTo.value) return false
+  return root.id === replyTo.value || root.replies.some((reply) => reply.id === replyTo.value)
 }
 
 function beginEdit(commentId: string) {
@@ -277,11 +291,16 @@ async function saveEdit(commentId: string) {
   const body = editingDraft.value.trim()
   if (!body || body.length > MAX_COMMENT_LENGTH) return
   actionError.value = null
+  const documentId = props.documentId
+  const generation = documentGeneration
   try {
-    replaceComment(await updateComment(commentId, { body }))
+    const updated = await updateComment(commentId, { body })
+    if (!isCurrentDocument(documentId, generation)) return
+    replaceComment(updated)
     editingCommentId.value = null
     editingDraft.value = ''
   } catch (error) {
+    if (!isCurrentDocument(documentId, generation)) return
     if (isUserAuthenticationRequired(error)) requestLogin()
     else actionError.value = errorText(error)
   }
@@ -289,9 +308,18 @@ async function saveEdit(commentId: string) {
 
 async function removeComment(commentId: string) {
   actionError.value = null
+  const documentId = props.documentId
+  const generation = documentGeneration
+  const previousStatus = findComment(commentId)?.status
   try {
-    replaceComment(await deleteComment(commentId))
+    const deleted = await deleteComment(commentId)
+    if (!isCurrentDocument(documentId, generation)) return
+    replaceComment(deleted)
+    if (previousStatus === 'published' && deleted.status === 'deleted') {
+      totalCount.value = Math.max(0, totalCount.value - 1)
+    }
   } catch (error) {
+    if (!isCurrentDocument(documentId, generation)) return
     if (isUserAuthenticationRequired(error)) requestLogin()
     else actionError.value = errorText(error)
   }
@@ -301,14 +329,20 @@ async function report(commentId: string) {
   if (reportedIds.value.includes(commentId) || reportingIds.value.includes(commentId)) return
   actionError.value = null
   reportingIds.value = [...reportingIds.value, commentId]
+  const documentId = props.documentId
+  const generation = documentGeneration
   try {
     await reportComment(commentId, { reason: 'spam' })
+    if (!isCurrentDocument(documentId, generation)) return
     reportedIds.value = [...reportedIds.value, commentId]
   } catch (error) {
+    if (!isCurrentDocument(documentId, generation)) return
     if (isUserAuthenticationRequired(error)) requestLogin()
     else actionError.value = errorText(error)
   } finally {
-    reportingIds.value = reportingIds.value.filter((id) => id !== commentId)
+    if (isCurrentDocument(documentId, generation)) {
+      reportingIds.value = reportingIds.value.filter((id) => id !== commentId)
+    }
   }
 }
 
@@ -325,6 +359,7 @@ watch(
   () => props.documentId,
   (documentId, previousDocumentId) => {
     if (previousDocumentId) saveDrafts(previousDocumentId)
+    documentGeneration += 1
     listGeneration += 1
     threadGeneration += 1
     roots.value = []
@@ -336,7 +371,11 @@ watch(
     totalCount.value = 0
     errorMessage.value = null
     actionError.value = null
+    publishing.value = false
     editingCommentId.value = null
+    editingDraft.value = ''
+    reportedIds.value = []
+    reportingIds.value = []
     restoreDrafts(documentId)
     void loadComments(true)
   },
@@ -375,6 +414,7 @@ watch(
 
 onBeforeUnmount(() => {
   saveDrafts(props.documentId)
+  documentGeneration += 1
   listGeneration += 1
   threadGeneration += 1
 })
@@ -449,13 +489,13 @@ onBeforeUnmount(() => {
             @save-edit="saveEdit"
             @cancel-edit="editingCommentId = null"
           />
-          <form v-if="replyTo === comment.id" class="comment-section__reply" @submit.prevent="publish(comment.id)">
-            <label :for="`reply-body-${comment.id}`">回复评论</label>
-            <textarea :id="`reply-body-${comment.id}`" v-model="replyDraft" :name="`reply-body-${comment.id}`" :maxlength="MAX_COMMENT_LENGTH" />
+          <form v-if="isReplyingTo(comment)" class="comment-section__reply" @submit.prevent="publish(replyTo)">
+            <label :for="`reply-body-${replyTo}`">回复评论</label>
+            <textarea :id="`reply-body-${replyTo}`" v-model="replyDraft" :name="`reply-body-${replyTo}`" :maxlength="MAX_COMMENT_LENGTH" />
             <div class="comment-section__composer-footer">
               <span>{{ replyDraft.length }} / 2,000</span>
-              <button :name="`publish-reply-${comment.id}`" type="submit" :disabled="!currentUser || !replyDraft.trim() || replyDraft.length > MAX_COMMENT_LENGTH || publishing">发布回复</button>
-              <button :name="`cancel-reply-${comment.id}`" type="button" @click="replyTo = null">取消</button>
+              <button :name="`publish-reply-${replyTo}`" type="submit" :disabled="!currentUser || !replyDraft.trim() || replyDraft.length > MAX_COMMENT_LENGTH || publishing">发布回复</button>
+              <button :name="`cancel-reply-${replyTo}`" type="button" @click="replyTo = null">取消</button>
             </div>
           </form>
         </li>

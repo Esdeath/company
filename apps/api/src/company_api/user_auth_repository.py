@@ -126,9 +126,12 @@ class SqlAlchemyUserAuthRepository:
                 )
                 await session.commit()
         except IntegrityError as error:
-            if await self.find_user_by_email(user.normalized_email) is not None:
+            constraint_name = _constraint_name(error)
+            if constraint_name == "uq_users_normalized_email":
                 return
-            raise UsernameUnavailable from error
+            if constraint_name == "uq_users_normalized_username":
+                raise UsernameUnavailable from error
+            raise
 
     async def create_user_token(
         self,
@@ -346,7 +349,9 @@ class SqlAlchemyUserAuthRepository:
                 await session.commit()
                 return result
         except IntegrityError as error:
-            raise UsernameUnavailable from error
+            if _constraint_name(error) == "uq_users_normalized_username":
+                raise UsernameUnavailable from error
+            raise
 
     async def update_password(
         self,
@@ -420,6 +425,17 @@ class SqlAlchemyUserAuthRepository:
         payload: dict[str, object],
         now: datetime,
     ) -> None:
+        superseded_token_ids = select(UserToken.id).where(
+            UserToken.user_id == user_id,
+            UserToken.purpose == purpose,
+            UserToken.consumed_at.is_(None),
+        )
+        await session.execute(
+            delete(EmailOutbox).where(
+                EmailOutbox.token_id.in_(superseded_token_ids),
+                EmailOutbox.sent_at.is_(None),
+            )
+        )
         await session.execute(
             update(UserToken)
             .where(
@@ -429,17 +445,17 @@ class SqlAlchemyUserAuthRepository:
             )
             .values(consumed_at=now)
         )
-        session.add(
-            UserToken(
-                id=token_id,
-                token_hash=token_hash,
-                purpose=purpose,
-                user_id=user_id,
-                created_at=now,
-                expires_at=expires_at,
-                consumed_at=None,
-            )
+        token = UserToken(
+            id=token_id,
+            token_hash=token_hash,
+            purpose=purpose,
+            user_id=user_id,
+            created_at=now,
+            expires_at=expires_at,
+            consumed_at=None,
         )
+        session.add(token)
+        await session.flush()
         session.add(
             EmailOutbox(
                 token_id=token_id,
@@ -501,6 +517,12 @@ def _new_user(record: UserRecord) -> User:
         updated_at=record.updated_at,
         username_changed_at=record.username_changed_at,
     )
+
+
+def _constraint_name(error: IntegrityError) -> str | None:
+    diagnostic = getattr(error.orig, "diag", None)
+    constraint_name = getattr(diagnostic, "constraint_name", None)
+    return constraint_name if isinstance(constraint_name, str) else None
 
 
 def _copy_pending_user(stored: User, record: UserRecord) -> None:

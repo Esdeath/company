@@ -16,6 +16,7 @@ from company_api.comment_service import (
     ParentCommentInvalid,
 )
 from company_api.config import Settings
+from company_api.user_auth import RateLimitExceeded
 from company_api.user_auth_routes import OptionalUserSession, UserCsrfDependency
 
 router = APIRouter(tags=["article comments"])
@@ -44,7 +45,9 @@ class CommentReportRequest(BaseModel):
 
 
 def _raise_comment_error(error: Exception) -> Never:
-    if isinstance(error, (DocumentNotFound, CommentNotFound)):
+    if isinstance(error, RateLimitExceeded):
+        status_code, detail = 429, "操作过于频繁，请稍后重试"
+    elif isinstance(error, (DocumentNotFound, CommentNotFound)):
         status_code, detail = 404, "评论或资料不存在"
     elif isinstance(error, ParentCommentInvalid):
         status_code, detail = 422, "无法回复该评论"
@@ -91,7 +94,7 @@ async def create_comment(
         raise HTTPException(status_code=401, detail="用户会话已失效，请重新登录")
     try:
         return await service.create_comment(document_id, actor, data.body, data.parent_id)
-    except (DocumentNotFound, ParentCommentInvalid, ValueError) as error:
+    except (DocumentNotFound, ParentCommentInvalid, RateLimitExceeded, ValueError) as error:
         _raise_comment_error(error)
 
 
@@ -132,7 +135,7 @@ async def update_comment(
         raise HTTPException(status_code=401, detail="用户会话已失效，请重新登录")
     try:
         return await service.update_comment(comment_id, actor, data.body)
-    except (CommentNotFound, ValueError) as error:
+    except (CommentNotFound, RateLimitExceeded, ValueError) as error:
         _raise_comment_error(error)
 
 
@@ -149,7 +152,7 @@ async def delete_comment(
         raise HTTPException(status_code=401, detail="用户会话已失效，请重新登录")
     try:
         return await service.delete_comment(comment_id, actor)
-    except CommentNotFound as error:
+    except (CommentNotFound, RateLimitExceeded) as error:
         _raise_comment_error(error)
 
 
@@ -167,6 +170,8 @@ async def report_comment(
         raise HTTPException(status_code=401, detail="用户会话已失效，请重新登录")
     try:
         await service.report_comment(comment_id, actor, data.reason, data.details)
+    except RateLimitExceeded as error:
+        _raise_comment_error(error)
     except DuplicateCommentReport as error:
         raise HTTPException(status_code=409, detail="你已经举报过这条评论") from error
     except CommentReportNotAllowed as error:

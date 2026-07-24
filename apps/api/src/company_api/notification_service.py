@@ -200,7 +200,10 @@ class SqlAlchemyNotificationRepository:
                 return False
             user = await session.scalar(
                 select(User)
-                .where(User.id == user_id, User.status == UserStatus.ACTIVE)
+                .where(
+                    User.id == user_id,
+                    User.status.in_((UserStatus.ACTIVE, UserStatus.SUSPENDED)),
+                )
                 .with_for_update()
             )
             if user is None:

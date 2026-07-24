@@ -35,9 +35,7 @@ const emit = defineEmits<{
 const confirmingDelete = ref(false)
 const bodySegments = computed(() => linkifyComment(props.comment.body ?? ''))
 const authorName = computed(() => (props.comment.author.id ? props.comment.author.username : '已注销用户'))
-const canReply = computed(
-  () => props.depth === 0 && props.comment.status === 'published' && props.comment.parent_id === null,
-)
+const canReply = computed(() => props.comment.status === 'published')
 const isEditing = computed(() => props.editingCommentId === props.comment.id)
 const isReported = computed(() => props.reportedIds.includes(props.comment.id))
 const isReporting = computed(() => props.reportingIds.includes(props.comment.id))
@@ -55,6 +53,7 @@ function confirmDelete() {
   confirmingDelete.value = false
   emit('delete', props.comment.id)
 }
+
 </script>
 
 <template>
@@ -126,6 +125,7 @@ function confirmDelete() {
           :editing-body="editingBody"
           :reported-ids="reportedIds"
           :reporting-ids="reportingIds"
+          @reply="emit('reply', $event)"
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
           @report="emit('report', $event)"

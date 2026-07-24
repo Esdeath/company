@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Coroutine
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -25,7 +25,7 @@ from company_api.comment_service import (
 from company_api.config import Settings
 from company_api.main import create_app
 from company_api.models import CommentStatus
-from company_api.user_auth import CurrentUser, UserSessionRecord
+from company_api.user_auth import CurrentUser, RateLimitExceeded, UserSessionRecord
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=UTC)
 DOCUMENT_ID = UUID("00000000-0000-0000-0000-000000000701")
@@ -84,6 +84,18 @@ class FakeComments:
         self.calls: list[tuple[object, ...]] = []
         self.error: Exception | None = None
 
+    async def create_comment(
+        self,
+        document_id: UUID,
+        actor: CurrentUser,
+        body: str,
+        parent_id: UUID | None,
+    ) -> CommentRead:
+        self.calls.append(("create", document_id, actor, body, parent_id))
+        if self.error is not None:
+            raise self.error
+        return comment()
+
     async def update_comment(self, comment_id: UUID, actor: CurrentUser, body: str) -> CommentRead:
         self.calls.append(("update", comment_id, actor, body))
         if self.error is not None:
@@ -126,7 +138,12 @@ class Dispatcher:
         await stop.wait()  # type: ignore[attr-defined]
 
 
-def make_client(comments: FakeComments, *, writes_enabled: bool = True) -> TestClient:
+def make_client(
+    comments: FakeComments,
+    *,
+    writes_enabled: bool = True,
+    raise_server_exceptions: bool = True,
+) -> TestClient:
     app = create_app(
         settings(writes_enabled=writes_enabled),
         Probe(),
@@ -136,7 +153,7 @@ def make_client(comments: FakeComments, *, writes_enabled: bool = True) -> TestC
         comment_service=comments,  # type: ignore[arg-type]
         email_dispatcher=Dispatcher(),  # type: ignore[arg-type]
     )
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
 def authenticated(client: TestClient) -> None:
@@ -186,6 +203,20 @@ class MemoryActions:
         if key in self.reports:
             raise DuplicateCommentReportError
         self.reports.add(key)
+
+
+class AllowingRateLimiter:
+    async def consume(
+        self,
+        action: str,
+        subject: str,
+        *,
+        limit: int,
+        window: timedelta,
+        now: datetime,
+    ) -> bool:
+        del action, subject, limit, window, now
+        return True
 
 
 def stored_comment(*, status: CommentStatus, author_id: UUID = USER_ID) -> CommentRecord:
@@ -258,6 +289,39 @@ def test_author_action_errors_hide_ownership_and_duplicate_reports_conflict() ->
     assert report.status_code == 409
 
 
+def test_comment_rate_limit_errors_have_a_fixed_safe_response() -> None:
+    comments = FakeComments()
+    comments.error = RateLimitExceeded("sensitive account subject")
+    headers = {"X-CSRF-Token": "user-csrf"}
+    with make_client(comments, raise_server_exceptions=False) as client:
+        authenticated(client)
+        responses = [
+            client.post(
+                f"/api/v1/documents/{DOCUMENT_ID}/comments",
+                headers=headers,
+                json={"body": "comment"},
+            ),
+            client.patch(
+                f"/api/v1/comments/{COMMENT_ID}",
+                headers=headers,
+                json={"body": "edited"},
+            ),
+            client.delete(f"/api/v1/comments/{COMMENT_ID}", headers=headers),
+            client.post(
+                f"/api/v1/comments/{COMMENT_ID}/reports",
+                headers=headers,
+                json={"reason": "spam"},
+            ),
+        ]
+
+    assert [response.status_code for response in responses] == [429, 429, 429, 429]
+    for response in responses:
+        assert response.json() == {"detail": "操作过于频繁，请稍后重试"}
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
+        assert "sensitive account subject" not in response.text
+
+
 def test_write_switch_blocks_edit_delete_and_report() -> None:
     comments = FakeComments()
     with make_client(comments, writes_enabled=False) as client:
@@ -286,7 +350,7 @@ def test_write_switch_blocks_edit_delete_and_report() -> None:
 def test_author_edits_preserve_pending_or_published_state_and_set_edited_at() -> None:
     for status in (CommentStatus.PENDING, CommentStatus.PUBLISHED):
         repository = MemoryActions(stored_comment(status=status))
-        service = CommentService(repository, clock=lambda: NOW)  # type: ignore[arg-type]
+        service = CommentService(repository, AllowingRateLimiter(), clock=lambda: NOW)  # type: ignore[arg-type]
 
         edited = run(service.update_comment(COMMENT_ID, CURRENT_USER, "changed"))
 
@@ -297,7 +361,7 @@ def test_author_edits_preserve_pending_or_published_state_and_set_edited_at() ->
 
 def test_author_only_delete_soft_deletes_and_scrubs_body() -> None:
     repository = MemoryActions(stored_comment(status=CommentStatus.PUBLISHED))
-    service = CommentService(repository, clock=lambda: NOW)  # type: ignore[arg-type]
+    service = CommentService(repository, AllowingRateLimiter(), clock=lambda: NOW)  # type: ignore[arg-type]
     other = CURRENT_USER.__class__(
         id=UUID(int=999),
         email="other@example.com",
@@ -321,6 +385,7 @@ def test_self_report_is_rejected_duplicate_conflicts_and_report_does_not_hide() 
     repository = MemoryActions(stored_comment(status=CommentStatus.PUBLISHED, author_id=author_id))
     service = CommentService(
         repository,
+        AllowingRateLimiter(),
         clock=lambda: NOW,
         uuid_factory=lambda: UUID(int=777),
     )  # type: ignore[arg-type]

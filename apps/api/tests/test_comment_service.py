@@ -16,7 +16,7 @@ from company_api.comment_service import (
     _decode_cursor,
 )
 from company_api.models import CommentStatus
-from company_api.user_auth import CurrentUser
+from company_api.user_auth import CurrentUser, RateLimitExceeded
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=UTC)
 DOCUMENT_ID = UUID("00000000-0000-0000-0000-000000000601")
@@ -149,6 +149,24 @@ class MemoryCommentRepository:
         return self.comments.get(comment_id)
 
 
+class MemoryRateLimiter:
+    def __init__(self, *, allowed: bool = True) -> None:
+        self.allowed = allowed
+        self.calls: list[tuple[str, str, int, timedelta, datetime]] = []
+
+    async def consume(
+        self,
+        action: str,
+        subject: str,
+        *,
+        limit: int,
+        window: timedelta,
+        now: datetime,
+    ) -> bool:
+        self.calls.append((action, subject, limit, window, now))
+        return self.allowed
+
+
 @pytest.fixture
 def repository() -> MemoryCommentRepository:
     return MemoryCommentRepository()
@@ -156,7 +174,56 @@ def repository() -> MemoryCommentRepository:
 
 @pytest.fixture
 def service(repository: MemoryCommentRepository) -> CommentService:
-    return CommentService(repository, clock=lambda: NOW, uuid_factory=lambda: NEW_ID)
+    return CommentService(
+        repository,
+        MemoryRateLimiter(),
+        clock=lambda: NOW,
+        uuid_factory=lambda: NEW_ID,
+    )
+
+
+def test_authenticated_mutations_use_account_scoped_rate_limits(
+    repository: MemoryCommentRepository,
+) -> None:
+    operations = [
+        (
+            "comment_write",
+            20,
+            lambda service: service.create_comment(DOCUMENT_ID, actor(), "comment", None),
+        ),
+        (
+            "comment_write",
+            20,
+            lambda service: service.update_comment(ROOT_ID, actor(), "edited"),
+        ),
+        (
+            "comment_write",
+            20,
+            lambda service: service.delete_comment(ROOT_ID, actor()),
+        ),
+        (
+            "comment_report",
+            5,
+            lambda service: service.report_comment(ROOT_ID, actor(), "spam", None),
+        ),
+    ]
+
+    for action, limit, invoke in operations:
+        limiter = MemoryRateLimiter(allowed=False)
+        service = CommentService(
+            repository,
+            limiter,
+            clock=lambda: NOW,
+            uuid_factory=lambda: NEW_ID,
+        )
+
+        with pytest.raises(RateLimitExceeded):
+            run(invoke(service))
+
+        assert limiter.calls == [
+            (action, str(USER_ID), limit, timedelta(minutes=1), NOW),
+        ]
+        assert repository.created == []
 
 
 def test_create_rejects_missing_documents(service: CommentService) -> None:

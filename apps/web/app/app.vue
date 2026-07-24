@@ -14,6 +14,22 @@ type UserControls = {
 }
 
 const initialSearch = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search)
+const initialFragment = typeof window === 'undefined'
+  ? new URLSearchParams()
+  : new URLSearchParams(window.location.hash.slice(1))
+const emailAction = ['verify-email', 'password-reset', 'unsubscribe']
+  .find((key) => initialFragment.has(key))
+const emailActionToken = emailAction ? initialFragment.get(emailAction)?.trim() || null : null
+const verificationToken = emailAction === 'verify-email' ? emailActionToken : null
+const resetToken = emailAction === 'password-reset' ? emailActionToken : null
+const unsubscribeToken = emailAction === 'unsubscribe' ? emailActionToken : null
+
+if (typeof window !== 'undefined' && emailAction) {
+  const url = new URL(window.location.href)
+  url.hash = ''
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+}
+
 let requestedCompanyId = initialSearch.get('company')
 let requestedDocumentId = initialSearch.get('document')
 const session = useUserSession()
@@ -222,7 +238,12 @@ onMounted(() => {
       </a>
       <div class="masthead__actions">
         <p>原始资料 · 独立阅读</p>
-        <SiteUserControls ref="userControls" />
+        <SiteUserControls
+          ref="userControls"
+          :verification-token="verificationToken"
+          :reset-token="resetToken"
+          :unsubscribe-token="unsubscribeToken"
+        />
       </div>
     </header>
 

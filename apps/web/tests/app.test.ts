@@ -5,8 +5,10 @@ import { computed, nextTick, ref } from 'vue'
 import App from '../app/app.vue'
 import * as community from '../app/api/community'
 import * as library from '../app/api/library'
+import AuthDialog from '../app/components/AuthDialog.vue'
 import CommentSection from '../app/components/CommentSection.vue'
-import type { Comment, UserAuthState } from '../app/types/community'
+import SiteUserControls from '../app/components/SiteUserControls.vue'
+import type { Comment, UserAuthState, VerifyEmailInput } from '../app/types/community'
 import type { Company, DocumentItem } from '../app/types/content'
 
 vi.mock('../app/api/library', () => ({
@@ -17,6 +19,15 @@ vi.mock('../app/api/library', () => ({
 const sessionState = ref<UserAuthState | null>(null)
 const restoreSession = vi.fn()
 const logoutSession = vi.fn()
+const replaceSessionState = vi.fn((next: UserAuthState) => {
+  sessionState.value = next
+  return next
+})
+const verifySessionEmail = vi.fn(async (input: VerifyEmailInput) => {
+  const next = await community.verifyEmail(input)
+  sessionState.value = next
+  return next
+})
 
 vi.mock('../app/composables/useUserSession', () => ({
   useUserSession: () => ({
@@ -26,6 +37,8 @@ vi.mock('../app/composables/useUserSession', () => ({
     loading: ref(false),
     restore: restoreSession,
     logout: logoutSession,
+    replaceState: replaceSessionState,
+    verifyEmail: verifySessionEmail,
   }),
 }))
 
@@ -36,6 +49,8 @@ vi.mock('../app/api/community', async (importOriginal) => {
     getCommentThread: vi.fn(),
     listDocumentComments: vi.fn(),
     listNotifications: vi.fn(),
+    unsubscribeEmail: vi.fn(),
+    verifyEmail: vi.fn(),
   }
 })
 
@@ -165,6 +180,23 @@ describe('公开资料阅读工作台', () => {
     })
     vi.mocked(community.getCommentThread).mockReset()
     vi.mocked(community.listNotifications).mockReset().mockResolvedValue({ items: [], unread_count: 0 })
+    vi.mocked(community.unsubscribeEmail).mockReset().mockResolvedValue({
+      message: '已停止接收评论回复邮件',
+    })
+    vi.mocked(community.verifyEmail).mockReset().mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: 'user-1',
+        email: 'reader@example.com',
+        username: '价值读者',
+        email_verified_at: '2026-07-24T08:00:00Z',
+        first_comment_approved_at: null,
+        reply_email_enabled: true,
+      },
+      csrf_token: 'verified-csrf',
+      expires_at: '2026-08-24T08:00:00Z',
+      registration_enabled: true,
+    })
     window.history.replaceState({}, '', '/')
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -198,6 +230,66 @@ describe('公开资料阅读工作台', () => {
     companyRequest.resolve(companies)
     await flushPromises()
     expect(wrapper.get('[data-company-id="company-1"]').exists()).toBe(true)
+  })
+
+  it('consumes an email-verification fragment before submitting the token', async () => {
+    window.history.replaceState({}, '', '/#verify-email=verification-token')
+    vi.mocked(community.verifyEmail).mockImplementationOnce(async (input) => {
+      expect(window.location.hash).toBe('')
+      expect(input).toEqual({ token: 'verification-token' })
+      return {
+        authenticated: true,
+        user: {
+          id: 'user-1', email: 'reader@example.com', username: '价值读者',
+          email_verified_at: '2026-07-24T08:00:00Z', first_comment_approved_at: null,
+          reply_email_enabled: true,
+        },
+        csrf_token: 'verified-csrf', expires_at: null, registration_enabled: true,
+      }
+    })
+
+    const wrapper = await mountWorkspace()
+
+    expect(community.verifyEmail).toHaveBeenCalledOnce()
+    expect(window.location.href).not.toContain('verification-token')
+    expect(wrapper.get('button[aria-label="账户：价值读者"]').exists()).toBe(true)
+  })
+
+  it('opens password reset from a fragment and clears it before user input', async () => {
+    window.history.replaceState({}, '', '/?company=company-1#password-reset=reset-token')
+
+    const wrapper = await mountWorkspace()
+
+    const controls = wrapper.getComponent(SiteUserControls)
+    expect(controls.props('resetToken')).toBe('reset-token')
+    expect(controls.getComponent(AuthDialog).props('resetToken')).toBe('reset-token')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('重设密码')
+    expect(window.location.pathname + window.location.search + window.location.hash).toBe('/?company=company-1')
+  })
+
+  it('unsubscribes from a fragment only after removing the token from the address', async () => {
+    window.history.replaceState({}, '', '/#unsubscribe=unsubscribe-token')
+    vi.mocked(community.unsubscribeEmail).mockImplementationOnce(async (token) => {
+      expect(window.location.hash).toBe('')
+      expect(token).toBe('unsubscribe-token')
+      return { message: '已停止接收评论回复邮件' }
+    })
+
+    const wrapper = await mountWorkspace()
+
+    expect(community.unsubscribeEmail).toHaveBeenCalledOnce()
+    expect(window.location.href).not.toContain('unsubscribe-token')
+    expect(wrapper.get('[role="status"]').text()).toContain('已停止接收评论回复邮件')
+  })
+
+  it('preserves unrelated page fragments', async () => {
+    window.history.replaceState({}, '', '/#research-notes')
+
+    await mountWorkspace()
+
+    expect(window.location.hash).toBe('#research-notes')
+    expect(community.unsubscribeEmail).not.toHaveBeenCalled()
+    expect(community.verifyEmail).not.toHaveBeenCalled()
   })
 
   it('restores a deep-linked document and scrolls an off-page target before cleaning the URL target', async () => {

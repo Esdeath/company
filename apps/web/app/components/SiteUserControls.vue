@@ -2,17 +2,32 @@
 import { LogIn, LogOut, Settings, UserRound } from 'lucide-vue-next'
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { unsubscribeEmail } from '../api/community'
 import { useUserSession } from '../composables/useUserSession'
 import type { UserAuthState } from '../types/community'
 import AccountDialog from './AccountDialog.vue'
 import AuthDialog from './AuthDialog.vue'
 import NotificationMenu from './NotificationMenu.vue'
 
+const props = withDefaults(
+  defineProps<{
+    verificationToken?: string | null
+    resetToken?: string | null
+    unsubscribeToken?: string | null
+  }>(),
+  {
+    verificationToken: null,
+    resetToken: null,
+    unsubscribeToken: null,
+  },
+)
+
 const session = useUserSession()
-const authOpen = ref(false)
+const authOpen = ref(Boolean(props.verificationToken || props.resetToken))
 const accountOpen = ref(false)
 const menuOpen = ref(false)
 const actionError = ref('')
+const actionStatus = ref('')
 const accountTrigger = ref<HTMLButtonElement | null>(null)
 const loginTrigger = ref<HTMLButtonElement | null>(null)
 const accountMenu = ref<HTMLElement | null>(null)
@@ -76,6 +91,17 @@ async function logout() {
   }
 }
 
+async function consumeUnsubscribeToken() {
+  if (!props.unsubscribeToken) return
+  actionError.value = ''
+  actionStatus.value = ''
+  try {
+    actionStatus.value = (await unsubscribeEmail(props.unsubscribeToken)).message
+  } catch {
+    actionError.value = '无法更新邮件偏好，请稍后重试'
+  }
+}
+
 function handleKeydown(event: KeyboardEvent) {
   if (menuOpen.value && event.key === 'Escape') {
     event.preventDefault()
@@ -98,6 +124,7 @@ function handlePointerDown(event: PointerEvent) {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('pointerdown', handlePointerDown)
+  void consumeUnsubscribeToken()
 })
 
 onBeforeUnmount(() => {
@@ -142,11 +169,14 @@ defineExpose({ openLogin })
       <LogIn :size="17" aria-hidden="true" />
       <span>登录</span>
     </button>
+    <p v-if="actionStatus" class="site-user-controls__message" role="status">{{ actionStatus }}</p>
     <p v-if="actionError" class="site-user-controls__error" role="alert">{{ actionError }}</p>
 
     <AuthDialog
       :open="authOpen"
       :registration-enabled="session.state.value?.registration_enabled"
+      :verification-token="props.verificationToken"
+      :reset-token="props.resetToken"
       @authenticated="finishAuthentication"
       @close="authOpen = false"
     />
@@ -233,6 +263,7 @@ defineExpose({ openLogin })
   border-bottom: 0;
 }
 
+.site-user-controls__message,
 .site-user-controls__error {
   position: absolute;
   inset: calc(100% + 0.5rem) 0 auto auto;
@@ -244,5 +275,15 @@ defineExpose({ openLogin })
   background: var(--paper);
   color: var(--red);
   font-size: 0.7rem;
+}
+
+.site-user-controls__message {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.site-user-controls__error {
+  border-color: var(--red);
+  color: var(--red);
 }
 </style>

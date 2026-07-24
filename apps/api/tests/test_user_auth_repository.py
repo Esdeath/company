@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 
 from company_api.models import (
     Comment,
@@ -37,8 +38,14 @@ class FakeResult:
 
 
 class FakeSession:
-    def __init__(self, scalar_results: list[object | None] | None = None) -> None:
+    def __init__(
+        self,
+        scalar_results: list[object | None] | None = None,
+        *,
+        commit_error: IntegrityError | None = None,
+    ) -> None:
         self.scalar_results = iter(scalar_results or [])
+        self.commit_error = commit_error
         self.statements: list[object] = []
         self.added: list[object] = []
         self.deleted: list[object] = []
@@ -69,7 +76,12 @@ class FakeSession:
     async def delete(self, value: object) -> None:
         self.deleted.append(value)
 
+    async def flush(self) -> None:
+        self.events.append(("flush", len(self.added)))
+
     async def commit(self) -> None:
+        if self.commit_error is not None:
+            raise self.commit_error
         self.events.append(("commit", len(self.added)))
 
 
@@ -147,6 +159,20 @@ def token_row(purpose: UserTokenPurpose) -> UserToken:
     )
 
 
+class DriverIntegrityError(Exception):
+    def __init__(self, constraint_name: str) -> None:
+        self.diag = type("Diagnostic", (), {"constraint_name": constraint_name})()
+        super().__init__(constraint_name)
+
+
+def integrity_error(constraint_name: str) -> IntegrityError:
+    return IntegrityError(
+        "INSERT",
+        {},
+        DriverIntegrityError(constraint_name),
+    )
+
+
 def test_registration_stages_user_token_and_safe_outbox_before_one_commit() -> None:
     fake = FakeSession([None])
     repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
@@ -163,7 +189,8 @@ def test_registration_stages_user_token_and_safe_outbox_before_one_commit() -> N
         )
     )
 
-    assert fake.events == [("commit", 3)]
+    assert fake.events == [("flush", 2), ("commit", 3)]
+    assert [type(value) for value in fake.added] == [User, UserToken, EmailOutbox]
     stored_user = next(value for value in fake.added if isinstance(value, User))
     stored_token = next(value for value in fake.added if isinstance(value, UserToken))
     outbox = next(value for value in fake.added if isinstance(value, EmailOutbox))
@@ -174,6 +201,47 @@ def test_registration_stages_user_token_and_safe_outbox_before_one_commit() -> N
     assert outbox.recipient == "reader@example.com"
     assert outbox.payload == {"username": "价值读者"}
     assert "token" not in outbox.payload
+
+
+def test_registration_preserves_unrelated_integrity_error() -> None:
+    error = integrity_error("fk_email_outbox_token_id_user_tokens")
+    fake = FakeSession([None], commit_error=error)
+    lookup = FakeSession([None])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake, lookup]))  # type: ignore[arg-type]
+
+    with pytest.raises(IntegrityError) as caught:
+        run(
+            repository.register_user(
+                record(),
+                token_id=TOKEN_ID,
+                token_hash="t" * 64,
+                token_expires_at=NOW + timedelta(hours=24),
+                email_template="verify_email",
+                email_payload={"username": "价值读者"},
+                now=NOW,
+            )
+        )
+
+    assert caught.value is error
+
+
+def test_username_update_preserves_unrelated_integrity_error() -> None:
+    error = integrity_error("ck_unrelated_constraint")
+    fake = FakeSession([user_row(status=UserStatus.ACTIVE)], commit_error=error)
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    with pytest.raises(IntegrityError) as caught:
+        run(
+            repository.update_username(
+                USER_ID,
+                "新名字",
+                "新名字",
+                now=NOW,
+                changed_after=NOW - timedelta(days=30),
+            )
+        )
+
+    assert caught.value is error
 
 
 def test_verification_locks_user_then_token_and_activates_with_session() -> None:
@@ -334,9 +402,47 @@ def test_token_replacement_locks_user_before_invalidating_previous_tokens() -> N
 
     assert "FROM users" in sql(fake.statements[0])
     assert "FOR UPDATE" in sql(fake.statements[0])
-    assert "UPDATE user_tokens" in sql(fake.statements[1])
+    assert "DELETE FROM email_outbox" in sql(fake.statements[1])
+    assert "UPDATE user_tokens" in sql(fake.statements[2])
     assert len(fake.added) == 2
-    assert fake.events == [("commit", 2)]
+    assert fake.events == [("flush", 1), ("commit", 2)]
+
+
+def test_token_replacement_deletes_pending_messages_for_superseded_tokens() -> None:
+    user = user_row(status=UserStatus.ACTIVE)
+    fake = FakeSession([user])
+    repository = SqlAlchemyUserAuthRepository(SessionFactory([fake]))  # type: ignore[arg-type]
+
+    run(
+        repository.create_user_token(
+            USER_ID,
+            UserTokenPurpose.RESET_PASSWORD,
+            token_id=TOKEN_ID,
+            token_hash="t" * 64,
+            expires_at=NOW + timedelta(minutes=30),
+            email_template="reset_password",
+            recipient="reader@example.com",
+            email_payload={"username": "价值读者"},
+            now=NOW,
+        )
+    )
+
+    delete_index = next(
+        index
+        for index, statement in enumerate(fake.statements)
+        if sql(statement).startswith("DELETE FROM email_outbox")
+    )
+    invalidate_index = next(
+        index
+        for index, statement in enumerate(fake.statements)
+        if sql(statement).startswith("UPDATE user_tokens")
+    )
+    delete_sql = sql(fake.statements[delete_index])
+    assert delete_index < invalidate_index
+    assert "email_outbox.sent_at IS NULL" in delete_sql
+    assert "user_tokens.user_id" in delete_sql
+    assert "user_tokens.purpose" in delete_sql
+    assert "user_tokens.consumed_at IS NULL" in delete_sql
 
 
 def test_deletion_locks_account_anonymizes_comments_and_deletes_private_owner() -> None:

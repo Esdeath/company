@@ -99,9 +99,7 @@ def test_sql_limiter_hashes_subject_and_uses_an_atomic_upsert() -> None:
     )
 
     upsert = session.statements[1].compile(dialect=postgresql.dialect())  # type: ignore[union-attr]
-    assert upsert.params["subject_hash"] == hashlib.sha256(
-        b"reader@example.com"
-    ).hexdigest()
+    assert upsert.params["subject_hash"] == hashlib.sha256(b"reader@example.com").hexdigest()
     assert "reader@example.com" not in upsert.params.values()
     assert "ON CONFLICT (action, subject_hash, window_started_at) DO UPDATE" in str(upsert)
     assert "rate_limit_buckets.count <" in str(upsert)

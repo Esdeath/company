@@ -13,6 +13,7 @@ from company_api.models import (
     Notification,
     NotificationType,
     User,
+    UserStatus,
     UserToken,
     UserTokenPurpose,
 )
@@ -46,7 +47,7 @@ async def add_reply_publication_side_effects(
             created_at=created_at,
         )
     )
-    if not recipient.reply_email_enabled:
+    if recipient.status != UserStatus.ACTIVE or not recipient.reply_email_enabled:
         return
     token_id, token_hash = unsubscribe_token_factory()
     session.add(
