@@ -104,7 +104,8 @@ test('product UI keeps one sandboxed reader and the mobile company drawer', () =
   for (const phrase of ['公司选择', '多文件上传', '逐文件结果', '立即可见', '资料列表', 'iframe', 'sandbox', '移动端公司抽屉']) {
     assert.match(productUi, new RegExp(phrase));
   }
-  assert.match(productUi, /<iframe sandbox><\/iframe>/);
+  assert.match(productUi, /<iframe sandbox="allow-same-origin"><\/iframe>/);
+  assert.match(productUi, /allow-same-origin[^。]+不允许[^。]+脚本[^。]+表单[^。]+下载[^。]+弹窗[^。]+导航/);
 });
 
 test('current docs report the completed slice without claiming deferred interactions', () => {
@@ -118,7 +119,7 @@ test('current docs report the completed slice without claiming deferred interact
     '选择既有公司或新建公司',
     '多文件选择器',
     '逐文件最终结果',
-    '空 `sandbox` iframe',
+    '仅允许同源测量的 `sandbox` iframe',
     '移动端公司抽屉',
   ]) {
     assert.ok(productUi.includes(phrase), `missing implemented UI behavior: ${phrase}`);

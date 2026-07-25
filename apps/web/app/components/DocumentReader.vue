@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import type { DocumentItem } from '../types/content'
+import { FRAME_FALLBACK_HEIGHT, readFrameContentHeight } from '../utils/frameHeight'
 
 const props = withDefaults(
   defineProps<{
@@ -23,12 +24,20 @@ defineEmits<{
 
 type ContentState = 'idle' | 'probing' | 'frame-loading' | 'ready' | 'error'
 
+const MAX_CONSECUTIVE_FRAME_GROWTH = 4
+
 const contentState = ref<ContentState>('idle')
 const contentError = ref<string | null>(null)
 const frameSrc = ref<string | null>(null)
 const frameGeneration = ref(0)
+const frameHeight = ref(FRAME_FALLBACK_HEIGHT)
 let requestGeneration = 0
 let probeController: AbortController | null = null
+let frameResizeObserver: ResizeObserver | null = null
+let frameMeasureRequest: number | null = null
+let frameMeasurementActive = false
+let lastAppliedFrameHeight: number | null = null
+let consecutiveFrameGrowth = 0
 
 const readerBusy = computed(
   () => props.loading || contentState.value === 'probing' || contentState.value === 'frame-loading',
@@ -39,9 +48,67 @@ function abortProbe() {
   probeController = null
 }
 
+function clearFrameMeasurement() {
+  frameMeasurementActive = false
+  frameResizeObserver?.disconnect()
+  frameResizeObserver = null
+  if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
+  frameMeasureRequest = null
+  lastAppliedFrameHeight = null
+  consecutiveFrameGrowth = 0
+  frameHeight.value = FRAME_FALLBACK_HEIGHT
+}
+
+function stopFrameMeasurement() {
+  frameMeasurementActive = false
+  frameResizeObserver?.disconnect()
+  frameResizeObserver = null
+  if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
+  frameMeasureRequest = null
+}
+
+function scheduleFrameMeasurement(frame: HTMLIFrameElement, generation: number) {
+  if (!frameMeasurementActive || generation !== requestGeneration || !frame.isConnected) return
+  if (frameMeasureRequest !== null) cancelAnimationFrame(frameMeasureRequest)
+  frameMeasureRequest = requestAnimationFrame(() => {
+    frameMeasureRequest = null
+    if (!frameMeasurementActive || generation !== requestGeneration || !frame.isConnected) return
+    const measuredHeight = readFrameContentHeight(frame)
+    if (measuredHeight === null) return
+
+    consecutiveFrameGrowth = lastAppliedFrameHeight !== null && measuredHeight > lastAppliedFrameHeight
+      ? consecutiveFrameGrowth + 1
+      : 0
+    lastAppliedFrameHeight = measuredHeight
+    frameHeight.value = `${measuredHeight}px`
+
+    if (consecutiveFrameGrowth >= MAX_CONSECUTIVE_FRAME_GROWTH) stopFrameMeasurement()
+  })
+}
+
+function observeFrameSize(frame: HTMLIFrameElement, generation: number) {
+  const frameDocument = frame.contentDocument
+  if (!frameDocument?.documentElement) return
+  const frameWindow = frame.contentWindow as (Window & {
+    ResizeObserver?: typeof ResizeObserver
+  }) | null
+  const Observer = frameWindow?.ResizeObserver ?? globalThis.ResizeObserver
+  frameMeasurementActive = true
+  if (!Observer) {
+    scheduleFrameMeasurement(frame, generation)
+    return
+  }
+  const observer = new Observer(() => scheduleFrameMeasurement(frame, generation))
+  frameResizeObserver = observer
+  observer.observe(frameDocument.documentElement)
+  if (frameDocument.body) observer.observe(frameDocument.body)
+  scheduleFrameMeasurement(frame, generation)
+}
+
 async function probeContent() {
   const generation = ++requestGeneration
   abortProbe()
+  clearFrameMeasurement()
   contentError.value = null
   frameSrc.value = null
   contentState.value = 'idle'
@@ -77,17 +144,23 @@ function iframeEventGeneration(event: Event): number {
   return Number((event.currentTarget as HTMLIFrameElement).dataset.readerGeneration)
 }
 
-function handleFrameLoad(event: Event) {
+async function handleFrameLoad(event: Event) {
+  const frame = event.currentTarget as HTMLIFrameElement
+  const generation = iframeEventGeneration(event)
   if (
-    iframeEventGeneration(event) === requestGeneration &&
-    contentState.value === 'frame-loading'
-  ) {
-    contentState.value = 'ready'
-  }
+    generation !== requestGeneration ||
+    contentState.value !== 'frame-loading'
+  ) return
+
+  contentState.value = 'ready'
+  await nextTick()
+  if (generation !== requestGeneration || !frame.isConnected) return
+  observeFrameSize(frame, generation)
 }
 
 function handleFrameError(event: Event) {
   if (iframeEventGeneration(event) !== requestGeneration) return
+  clearFrameMeasurement()
   frameSrc.value = null
   contentError.value = '资料页面加载失败，请重新载入。'
   contentState.value = 'error'
@@ -102,6 +175,7 @@ watch(
 onBeforeUnmount(() => {
   requestGeneration += 1
   abortProbe()
+  clearFrameMeasurement()
 })
 </script>
 
@@ -157,7 +231,8 @@ onBeforeUnmount(() => {
         v-if="frameSrc"
         class="document-frame"
         :src="frameSrc"
-        sandbox=""
+        sandbox="allow-same-origin"
+        :style="{ height: frameHeight }"
         :title="`阅读：${document.title}`"
         :data-reader-generation="frameGeneration"
         @load="handleFrameLoad"
