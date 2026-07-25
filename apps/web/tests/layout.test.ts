@@ -34,11 +34,15 @@ describe('公开资料阅读工作台布局', () => {
     expect(rule('.comment-band')).toContain('border: 0')
   })
 
-  it('bounds the sticky directory and prevents horizontal overflow at 320px', () => {
-    expect(rule('html,\nbody')).toContain('overflow-x: hidden')
+  it('keeps the desktop directory fixed while the article scrolls', () => {
+    expect(rule('html,\nbody')).toContain('overflow-x: clip')
     expect(rule('.library-workspace')).toContain('min-width: 0')
     expect(rule('.reading-column')).toContain('min-width: 0')
-    expect(rule('.library-directory')).toContain('max-height: calc(100svh - 3rem)')
+    expect(rule('.library-directory-shell')).toContain('position: sticky')
+    expect(rule('.library-directory-shell')).toContain('top: 1.5rem')
+    expect(rule('.library-directory-shell')).toContain('max-height: calc(100svh - 3rem)')
+    expect(rule('.library-directory')).not.toContain('position: sticky')
+    expect(rule('.library-directory')).toContain('overflow-y: auto')
     expect(css).not.toMatch(/font-size:\s*[^;]*(vw|svw)/)
     const letterSpacingValues = [...css.matchAll(/letter-spacing:\s*([^;}]+)/g)]
       .map((match) => match[1]?.trim())

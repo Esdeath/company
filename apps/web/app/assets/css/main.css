@@ -33,7 +33,7 @@ body {
 
 html,
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button {
@@ -502,7 +502,10 @@ h2 {
   }
 
   .library-directory-shell {
+    position: sticky;
+    top: 1.5rem;
     grid-column: 1;
+    max-height: calc(100svh - 3rem);
   }
 
   .reading-column {
@@ -515,9 +518,8 @@ h2 {
   }
 
   .library-directory {
-    position: sticky;
+    position: static;
     z-index: auto;
-    top: 1.5rem;
     inset: auto;
     display: block;
     width: auto;
