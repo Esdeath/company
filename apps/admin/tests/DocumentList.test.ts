@@ -25,88 +25,74 @@ const documents: DocumentItem[] = [
     uploaded_at: '2026-07-21T08:00:00Z',
     content_url: '/api/v1/documents/document-2/content',
   },
+  {
+    id: 'document-3',
+    company_id: 'company-1',
+    title: '第三份资料',
+    format: 'markdown',
+    original_filename: 'third.md',
+    sort_order: 2,
+    uploaded_at: '2026-07-22T08:00:00Z',
+    content_url: '/api/v1/documents/document-3/content',
+  },
 ]
 
-function mountList(busy = false) {
+function mountList(busy = false, items = documents) {
   return mount(DocumentList, {
-    props: { documents, busy, pendingIds: [] },
-  })
-}
-
-function stubRowRects(rows: ReturnType<ReturnType<typeof mountList>['findAll']>) {
-  rows.forEach((row, index) => {
-    row.element.getBoundingClientRect = () =>
-      ({
-        top: index * 80,
-        bottom: (index + 1) * 80,
-        height: 80,
-        left: 0,
-        right: 600,
-        width: 600,
-        x: 0,
-        y: index * 80,
-        toJSON: () => ({}),
-      }) as DOMRect
+    props: { documents: items, busy, pendingIds: [] },
   })
 }
 
 describe('DocumentList ordering', () => {
-  it('drags a whole row past another row and emits the complete order', async () => {
+  it('disables moves that would pass the first or last position', () => {
     const wrapper = mountList()
-    const rows = wrapper.findAll('.document-row')
-    stubRowRects(rows)
 
-    await rows[0]!.trigger('pointerdown', { button: 0, clientY: 20, pointerId: 7 })
-    await rows[0]!.trigger('pointermove', { clientY: 150, pointerId: 7 })
+    expect(wrapper.get('button[aria-label="上移 第一份资料"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-label="下移 第一份资料"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('button[aria-label="上移 第三份资料"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('button[aria-label="下移 第三份资料"]').attributes('disabled')).toBeDefined()
+  })
 
-    expect(wrapper.findAll('.document-title').map((node) => node.text())).toEqual([
-      '第二份资料',
-      '第一份资料',
-    ])
-    expect(wrapper.get('.document-row--dragging').attributes('data-document-id')).toBe(
-      'document-1',
-    )
+  it('moves a document down and emits the complete order', async () => {
+    const wrapper = mountList()
 
-    await rows[0]!.trigger('pointerup', { clientY: 150, pointerId: 7 })
+    await wrapper.get('button[aria-label="下移 第一份资料"]').trigger('click')
 
-    expect(wrapper.emitted('reorder')).toEqual([[['document-2', 'document-1']]])
+    expect(wrapper.emitted('reorder')).toEqual([[['document-2', 'document-1', 'document-3']]])
     expect(wrapper.get('[role="status"]').text()).toContain('已移到第 2 项')
   })
 
-  it('does not start row dragging from rename or delete controls', async () => {
+  it('moves a document up and emits the complete order', async () => {
     const wrapper = mountList()
-    const input = wrapper.get('input')
-    const deleteButton = wrapper.get('button[aria-label="删除 第一份资料"]')
 
-    await input.trigger('pointerdown', { button: 0, clientY: 20, pointerId: 8 })
-    await input.trigger('pointermove', { clientY: 150, pointerId: 8 })
-    await input.trigger('pointerup', { clientY: 150, pointerId: 8 })
-    await deleteButton.trigger('pointerdown', { button: 0, clientY: 20, pointerId: 9 })
-    await deleteButton.trigger('pointermove', { clientY: 150, pointerId: 9 })
-    await deleteButton.trigger('pointerup', { clientY: 150, pointerId: 9 })
+    await wrapper.get('button[aria-label="上移 第三份资料"]').trigger('click')
 
+    expect(wrapper.emitted('reorder')).toEqual([[['document-1', 'document-3', 'document-2']]])
+    expect(wrapper.get('[role="status"]').text()).toContain('已移到第 2 项')
+  })
+
+  it('disables both order buttons for a single document', () => {
+    const wrapper = mountList(false, [documents[0]!])
+
+    expect(wrapper.get('button[aria-label="上移 第一份资料"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-label="下移 第一份资料"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('disables all order buttons while the document list is busy', async () => {
+    const wrapper = mountList(true)
+    const orderButtons = wrapper.findAll('.document-order-button')
+
+    expect(orderButtons).toHaveLength(6)
+    expect(orderButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    await orderButtons[1]!.trigger('click')
     expect(wrapper.emitted('reorder')).toBeUndefined()
   })
 
-  it('moves the focused row with Alt and arrow keys', async () => {
+  it('does not reorder when rename or delete controls are used', async () => {
     const wrapper = mountList()
-    const rows = wrapper.findAll('.document-row')
 
-    await rows[0]!.trigger('keydown', { altKey: true, key: 'ArrowDown' })
-
-    expect(wrapper.emitted('reorder')).toEqual([[['document-2', 'document-1']]])
-    expect(wrapper.get('[role="status"]').text()).toContain('已移到第 2 项')
-  })
-
-  it('ignores unavailable keyboard moves and all input while busy', async () => {
-    const wrapper = mountList(true)
-    const rows = wrapper.findAll('.document-row')
-
-    await rows[0]!.trigger('keydown', { altKey: true, key: 'ArrowUp' })
-    await rows[0]!.trigger('keydown', { altKey: true, key: 'ArrowDown' })
-    await rows[0]!.trigger('pointerdown', { button: 0, clientY: 20, pointerId: 10 })
-    await rows[0]!.trigger('pointermove', { clientY: 150, pointerId: 10 })
-    await rows[0]!.trigger('pointerup', { clientY: 150, pointerId: 10 })
+    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
+    await wrapper.get('button[aria-label="删除 第一份资料"]').trigger('click')
 
     expect(wrapper.emitted('reorder')).toBeUndefined()
   })
