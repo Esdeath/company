@@ -13,6 +13,7 @@ from company_api.content_store import ContentStore
 from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
+    CompanyOrderMismatch,
     DocumentNotFound,
     DocumentOrderMismatch,
     LibraryService,
@@ -22,6 +23,7 @@ from company_api.models import DocumentFormat
 from company_api.repository import (
     CompanyRecord,
     DocumentRecord,
+    InvalidCompanyOrder,
     InvalidDocumentOrder,
     NewDocumentRecord,
 )
@@ -57,6 +59,7 @@ class FakeRepository:
             name=data.name,
             ticker=data.ticker,
             market=data.market,
+            sort_order=max((company.sort_order for company in self.companies), default=-1) + 1,
             created_at=NOW,
         )
         self.companies.append(record)
@@ -64,6 +67,19 @@ class FakeRepository:
 
     async def list_companies(self) -> list[CompanyRecord]:
         return list(self.companies)
+
+    async def reorder_companies(self, company_ids: list[uuid.UUID]) -> list[CompanyRecord]:
+        if len(company_ids) != len(set(company_ids)) or set(company_ids) != {
+            company.id for company in self.companies
+        }:
+            raise InvalidCompanyOrder
+        by_id = {company.id: company for company in self.companies}
+        ordered = [
+            replace(by_id[company_id], sort_order=sort_order)
+            for sort_order, company_id in enumerate(company_ids)
+        ]
+        self.companies = ordered
+        return ordered
 
     async def company_exists(self, company_id: uuid.UUID) -> bool:
         return any(company.id == company_id for company in self.companies)
@@ -165,12 +181,13 @@ class CancelledInsertRepository(FakeRepository):
         raise asyncio.CancelledError
 
 
-def company(company_id: uuid.UUID, name: str) -> CompanyRecord:
+def company(company_id: uuid.UUID, name: str, sort_order: int = 0) -> CompanyRecord:
     return CompanyRecord(
         id=company_id,
         name=name,
         ticker=None,
         market=None,
+        sort_order=sort_order,
         created_at=NOW,
     )
 
@@ -213,19 +230,45 @@ def test_create_company_and_allow_duplicate_name(tmp_path: Path) -> None:
     assert first.id != second.id
 
 
-def test_company_list_sorts_normalized_name_then_uuid(tmp_path: Path) -> None:
+def test_company_list_preserves_repository_sort_order(tmp_path: Path) -> None:
     repository = FakeRepository(
         companies=[
-            company(COMPANY_ID, "  zebra"),
-            company(OTHER_COMPANY_ID, "Alpha"),
-            company(DOCUMENT_ID, "alpha "),
+            company(COMPANY_ID, "Zulu", 0),
+            company(OTHER_COMPANY_ID, "Alpha", 1),
         ]
     )
     service = LibraryService(repository, ContentStore(tmp_path))
 
     result = run(service.list_companies())
 
-    assert [item.id for item in result] == [DOCUMENT_ID, OTHER_COMPANY_ID, COMPANY_ID]
+    assert [item.id for item in result] == [COMPANY_ID, OTHER_COMPANY_ID]
+
+
+def test_reorder_companies_replaces_complete_order(tmp_path: Path) -> None:
+    repository = FakeRepository(
+        companies=[
+            company(COMPANY_ID, "One", 0),
+            company(OTHER_COMPANY_ID, "Two", 1),
+        ]
+    )
+    service = LibraryService(repository, ContentStore(tmp_path))
+
+    result = run(service.reorder_companies([OTHER_COMPANY_ID, COMPANY_ID]))
+
+    assert [(item.id, item.sort_order) for item in result] == [
+        (OTHER_COMPANY_ID, 0),
+        (COMPANY_ID, 1),
+    ]
+
+
+def test_reorder_companies_rejects_mismatched_company_set(tmp_path: Path) -> None:
+    service = LibraryService(
+        FakeRepository(companies=[company(COMPANY_ID, "One", 0)]),
+        ContentStore(tmp_path),
+    )
+
+    with pytest.raises(CompanyOrderMismatch):
+        run(service.reorder_companies([OTHER_COMPANY_ID]))
 
 
 def test_document_list_preserves_repository_sort_order(tmp_path: Path) -> None:

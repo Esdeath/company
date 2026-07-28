@@ -17,6 +17,7 @@ from company_api.models import DocumentFormat
 from company_api.repository import (
     CompanyRecord,
     DocumentRecord,
+    InvalidCompanyOrder,
     InvalidDocumentOrder,
     LibraryRepository,
     NewDocumentRecord,
@@ -52,6 +53,10 @@ class DocumentOrderMismatch(Exception):
     pass
 
 
+class CompanyOrderMismatch(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class UploadInput:
     filename: str
@@ -62,6 +67,8 @@ class LibraryOperations(Protocol):
     async def create_company(self, data: CompanyCreate) -> CompanyRead: ...
 
     async def list_companies(self) -> list[CompanyRead]: ...
+
+    async def reorder_companies(self, company_ids: list[UUID]) -> list[CompanyRead]: ...
 
     async def delete_company(self, company_id: UUID) -> None: ...
 
@@ -94,7 +101,13 @@ class LibraryService:
 
     async def list_companies(self) -> list[CompanyRead]:
         records = await self._repository.list_companies()
-        records.sort(key=lambda record: (record.name.strip().casefold(), str(record.id)))
+        return [_company_read(record) for record in records]
+
+    async def reorder_companies(self, company_ids: list[UUID]) -> list[CompanyRead]:
+        try:
+            records = await self._repository.reorder_companies(company_ids)
+        except InvalidCompanyOrder as error:
+            raise CompanyOrderMismatch from error
         return [_company_read(record) for record in records]
 
     async def delete_company(self, company_id: UUID) -> None:
@@ -279,6 +292,7 @@ def _company_read(record: CompanyRecord) -> CompanyRead:
         name=record.name,
         ticker=record.ticker,
         market=record.market,
+        sort_order=record.sort_order,
         created_at=record.created_at,
     )
 
