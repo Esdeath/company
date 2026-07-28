@@ -60,6 +60,7 @@ const companies: Company[] = [
     name: '山河研究',
     ticker: '600001',
     market: '上交所',
+    sort_order: 0,
     created_at: '2026-07-19T08:00:00Z',
   },
   {
@@ -67,6 +68,7 @@ const companies: Company[] = [
     name: '远望科技',
     ticker: null,
     market: null,
+    sort_order: 1,
     created_at: '2026-07-20T08:00:00Z',
   },
 ]

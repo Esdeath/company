@@ -3,6 +3,7 @@ export type Company = {
   name: string
   ticker: string | null
   market: string | null
+  sort_order: number
 }
 
 export type CompanyInput = {

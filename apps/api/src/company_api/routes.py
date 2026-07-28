@@ -10,6 +10,7 @@ from company_api.auth_routes import AdminCsrfDependency
 from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
+    CompanyOrderMismatch,
     DocumentNotFound,
     DocumentOrderMismatch,
     LibraryOperations,
@@ -17,6 +18,7 @@ from company_api.library_service import (
 )
 from company_api.schemas import (
     CompanyCreate,
+    CompanyOrder,
     CompanyRead,
     DocumentOrder,
     DocumentRead,
@@ -46,6 +48,18 @@ async def create_company(
     _admin: AdminCsrfDependency,
 ) -> CompanyRead:
     return await service.create_company(data)
+
+
+@router.put("/companies/order", response_model=list[CompanyRead])
+async def reorder_companies(
+    data: CompanyOrder,
+    service: LibraryServiceDependency,
+    _admin: AdminCsrfDependency,
+) -> list[CompanyRead]:
+    try:
+        return await service.reorder_companies(data.company_ids)
+    except CompanyOrderMismatch as error:
+        raise HTTPException(status_code=422, detail="公司顺序与当前目录不一致") from error
 
 
 @router.delete("/companies/{company_id}", status_code=204)
