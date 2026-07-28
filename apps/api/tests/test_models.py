@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from company_api.models import Base
+from company_api.models import Base, Company
 
 
 def test_company_and_document_tables_are_registered() -> None:
@@ -40,6 +40,7 @@ def test_company_and_document_tables_are_registered() -> None:
         "created_at",
         "expires_at",
     }
+    assert Company.__table__.c.sort_order.nullable is False
 
 
 def test_document_sort_order_migration_preserves_current_display_order() -> None:

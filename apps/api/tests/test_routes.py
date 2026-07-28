@@ -2,7 +2,9 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from company_api.auth import NewSession, SessionRecord, token_hash
 from company_api.config import Settings
@@ -17,6 +19,7 @@ from company_api.main import create_app
 from company_api.models import DocumentFormat
 from company_api.schemas import (
     CompanyCreate,
+    CompanyOrder,
     CompanyRead,
     DocumentRead,
     UploadBatchResponse,
@@ -179,8 +182,15 @@ def company_read(
         name=name,
         ticker=ticker,
         market=market,
+        sort_order=0,
         created_at=NOW,
     )
+
+
+def test_company_order_rejects_duplicate_ids() -> None:
+    duplicate = uuid.uuid4()
+    with pytest.raises(ValidationError, match="公司顺序不能包含重复项"):
+        CompanyOrder(company_ids=[duplicate, duplicate])
 
 
 def document_read(

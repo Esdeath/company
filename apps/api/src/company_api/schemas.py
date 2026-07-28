@@ -19,6 +19,7 @@ class CompanyRead(BaseModel):
     name: str
     ticker: str | None
     market: str | None
+    sort_order: int
     created_at: datetime
 
 
@@ -52,6 +53,17 @@ class DocumentOrder(BaseModel):
     def unique_ids(cls, value: list[UUID]) -> list[UUID]:
         if len(value) != len(set(value)):
             raise ValueError("资料顺序不能包含重复项")
+        return value
+
+
+class CompanyOrder(BaseModel):
+    company_ids: list[UUID]
+
+    @field_validator("company_ids")
+    @classmethod
+    def unique_ids(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("公司顺序不能包含重复项")
         return value
 
 
