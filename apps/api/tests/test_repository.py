@@ -20,6 +20,7 @@ from company_api.schemas import CompanyCreate, UploadError
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
+OTHER_COMPANY_ID = uuid.UUID("a0252f1b-fc6e-4d31-8d8e-eb2e65cbe444")
 NOW = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
 
 
@@ -215,12 +216,27 @@ def test_reorder_companies_locks_before_replacing_complete_order() -> None:
     assert session.events == ["lock_company_order", "load_companies", "flush", "commit"]
 
 
-def test_reorder_companies_rejects_unknown_company_id_after_locking() -> None:
-    session = FakeSession(companies=[saved_company(COMPANY_ID, "One", 0)])
+@pytest.mark.parametrize(
+    "company_ids",
+    [
+        pytest.param([COMPANY_ID], id="missing-existing-company"),
+        pytest.param([COMPANY_ID, DOCUMENT_ID, OTHER_COMPANY_ID], id="unknown-extra-company"),
+        pytest.param([COMPANY_ID, DOCUMENT_ID, COMPANY_ID], id="duplicate-company"),
+    ],
+)
+def test_reorder_companies_rejects_invalid_complete_order_after_locking(
+    company_ids: list[uuid.UUID],
+) -> None:
+    session = FakeSession(
+        companies=[
+            saved_company(COMPANY_ID, "One", 0),
+            saved_company(DOCUMENT_ID, "Two", 1),
+        ]
+    )
     repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
 
     with pytest.raises(InvalidCompanyOrder):
-        run(repository.reorder_companies([DOCUMENT_ID]))
+        run(repository.reorder_companies(company_ids))
 
     assert session.events == ["lock_company_order", "load_companies"]
     assert session.committed is False
