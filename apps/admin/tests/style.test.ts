@@ -23,14 +23,11 @@ describe('responsive workspace styles', () => {
     )
   })
 
-  it('shows stable row dragging, insertion, and keyboard focus states', () => {
-    expect(stylesheet).toMatch(/\.document-row:not\(\.document-row--busy\)[\s\S]*?cursor:\s*grab/)
-    expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?cursor:\s*grabbing/)
-    expect(stylesheet).toMatch(/\.document-row--dragging[\s\S]*?box-shadow:/)
-    expect(stylesheet).toMatch(/\.document-row:focus-visible[\s\S]*?outline:/)
-    expect(stylesheet).toMatch(
-      /\.document-row:not\(\.document-row--busy\)\s*\{[^}]*touch-action:\s*none/,
-    )
+  it('keeps document order controls compact and stable', () => {
+    expect(stylesheet).toMatch(/\.document-order-actions\s*\{[^}]*display:\s*inline-flex/)
+    expect(stylesheet).toMatch(/\.document-order-actions\s*\{[^}]*flex:\s*none/)
+    expect(stylesheet).toMatch(/\.document-order-button\s*\{[^}]*inline-size:\s*2\.25rem/)
+    expect(stylesheet).toMatch(/\.document-order-button\s*\{[^}]*block-size:\s*2\.25rem/)
   })
 
   it('keeps Task 12 typography at zero letter spacing', () => {
