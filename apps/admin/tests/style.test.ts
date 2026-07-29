@@ -30,6 +30,13 @@ describe('responsive workspace styles', () => {
     expect(stylesheet).toMatch(/\.document-order-button\s*\{[^}]*block-size:\s*2\.25rem/)
   })
 
+  it('keeps company order controls compact and stable', () => {
+    expect(stylesheet).toMatch(/\.company-order-actions\s*\{[^}]*display:\s*inline-flex/)
+    expect(stylesheet).toMatch(/\.company-order-actions\s*\{[^}]*flex:\s*none/)
+    expect(stylesheet).toMatch(/\.company-order-button\s*\{[^}]*inline-size:\s*2\.25rem/)
+    expect(stylesheet).toMatch(/\.company-order-button\s*\{[^}]*block-size:\s*2\.25rem/)
+  })
+
   it('keeps Task 12 typography at zero letter spacing', () => {
     expect(stylesheet).toMatch(
       /\.moderation-workspace \.section-label > div > p,[\s\S]*?letter-spacing:\s*0;/,
