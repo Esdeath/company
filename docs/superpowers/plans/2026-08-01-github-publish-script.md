@@ -59,7 +59,7 @@ def test_fails_on_detached_head():
 
 - [ ] **Step 2: Run tests and verify RED**
 
-Run: `python3 -m unittest -v tests/test_publish_github.py`
+Run: `python3 tests/test_publish_github.py -v`
 
 Expected: FAIL because `scripts/publish-github.py` does not exist in the test fixture source.
 
@@ -85,7 +85,7 @@ Catch `subprocess.CalledProcessError` only at the CLI boundary and return its no
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
-Run: `python3 -m unittest -v tests/test_publish_github.py`
+Run: `python3 tests/test_publish_github.py -v`
 
 Expected: all workflow tests PASS without network access.
 
@@ -119,7 +119,7 @@ def test_deploy_launcher_works_outside_repository_directory():
 
 - [ ] **Step 2: Run the launcher test and verify RED**
 
-Run: `python3 -m unittest -v tests.test_publish_github.PublishGithubTests.test_deploy_launcher_works_outside_repository_directory`
+Run: `python3 tests/test_publish_github.py PublishGithubTests.test_deploy_launcher_works_outside_repository_directory -v`
 
 Expected: FAIL because `deploy.sh` does not exist.
 
@@ -139,7 +139,7 @@ Set its executable bit with `chmod +x deploy.sh`.
 
 - [ ] **Step 4: Run focused and repository contract tests**
 
-Run: `python3 -m unittest -v tests/test_publish_github.py`
+Run: `python3 tests/test_publish_github.py -v`
 
 Expected: all publish tests PASS.
 
@@ -173,7 +173,7 @@ Expected: exit status `0` with no diagnostics.
 
 - [ ] **Step 2: Run the complete isolated test suite**
 
-Run: `python3 -m unittest -v tests/test_publish_github.py`
+Run: `python3 tests/test_publish_github.py -v`
 
 Expected: all tests PASS and every push targets a temporary local bare repository.
 

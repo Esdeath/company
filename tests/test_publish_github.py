@@ -10,6 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PUBLISHER_SOURCE = PROJECT_ROOT / "scripts" / "publish-github.py"
+DEPLOY_SOURCE = PROJECT_ROOT / "deploy.sh"
 COMMIT_MESSAGE = "chore: publish project updates"
 
 
@@ -140,6 +141,27 @@ class PublishGithubTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("detached HEAD", result.stderr)
+
+    def test_deploy_launcher_works_outside_repository_directory(self) -> None:
+        if not DEPLOY_SOURCE.is_file():
+            self.fail(f"missing launcher: {DEPLOY_SOURCE}")
+        launcher = self.repository / "deploy.sh"
+        shutil.copy2(DEPLOY_SOURCE, launcher)
+        (self.repository / "launcher-change.txt").write_text(
+            "published through deploy.sh\n",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [launcher],
+            cwd=self.outside_directory,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        local_head = self.git(self.repository, "rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(self.remote_head(), local_head)
 
 
 if __name__ == "__main__":
