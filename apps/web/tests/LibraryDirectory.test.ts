@@ -8,8 +8,8 @@ import LibraryDirectory from '../app/components/LibraryDirectory.vue'
 import type { Company, DocumentItem } from '../app/types/content'
 
 const companies: Company[] = [
-  { id: 'company-1', name: '泡泡玛特', ticker: '09992', market: 'HK', created_at: '2026-07-19T08:00:00Z' },
-  { id: 'company-2', name: '贵州茅台', ticker: '600519', market: 'A股', created_at: '2026-07-20T08:00:00Z' },
+  { id: 'company-1', name: '泡泡玛特', ticker: '09992', market: 'HK', sort_order: 0, created_at: '2026-07-19T08:00:00Z' },
+  { id: 'company-2', name: '贵州茅台', ticker: '600519', market: 'A股', sort_order: 1, created_at: '2026-07-20T08:00:00Z' },
 ]
 
 const documents: DocumentItem[] = [

@@ -10,12 +10,17 @@ import pytest
 import company_api.repository as repository_module
 from company_api.content_store import ContentStore
 from company_api.library_service import LibraryService, UploadInput
-from company_api.models import Document, DocumentFormat
-from company_api.repository import NewDocumentRecord, SqlAlchemyLibraryRepository
-from company_api.schemas import UploadError
+from company_api.models import Company, Document, DocumentFormat
+from company_api.repository import (
+    InvalidCompanyOrder,
+    NewDocumentRecord,
+    SqlAlchemyLibraryRepository,
+)
+from company_api.schemas import CompanyCreate, UploadError
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
+OTHER_COMPANY_ID = uuid.UUID("a0252f1b-fc6e-4d31-8d8e-eb2e65cbe444")
 NOW = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
 
 
@@ -24,10 +29,20 @@ def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
 
 
 class FakeSession:
-    def __init__(self, *, fail_refresh: bool = False, max_sort_order: int | None = 3) -> None:
+    def __init__(
+        self,
+        *,
+        companies: list[Company] | None = None,
+        fail_refresh: bool = False,
+        max_sort_order: int | None = 3,
+        max_company_sort_order: int | None = 3,
+    ) -> None:
         self.events: list[str] = []
+        self.companies = list(companies or [])
         self.fail_refresh = fail_refresh
         self.max_sort_order = max_sort_order
+        self.max_company_sort_order = max_company_sort_order
+        self.added: Company | Document | None = None
         self.committed = False
 
     async def __aenter__(self) -> "FakeSession":
@@ -41,8 +56,16 @@ class FakeSession:
     ) -> None:
         del exc_type, exc_value, traceback
 
-    def add(self, document: Document) -> None:
+    def add(self, document: Company | Document) -> None:
         self.events.append("add")
+        self.added = document
+
+    async def execute(self, statement: object) -> None:
+        sql = str(statement)
+        if sql == "LOCK TABLE companies IN SHARE ROW EXCLUSIVE MODE":
+            self.events.append("lock_company_order")
+            return None
+        raise AssertionError(f"Unexpected execute statement: {sql}")
 
     async def scalar(self, statement: object) -> object:
         sql = str(statement)
@@ -52,16 +75,32 @@ class FakeSession:
         if "max(documents.sort_order)" in sql:
             self.events.append("read_max_sort_order")
             return self.max_sort_order
+        if "max(companies.sort_order)" in sql:
+            self.events.append("read_max_company_sort_order")
+            return self.max_company_sort_order
         raise AssertionError(f"Unexpected scalar statement: {sql}")
+
+    async def scalars(self, statement: object) -> "FakeScalars":
+        sql = str(statement)
+        if "FROM companies" not in sql:
+            raise AssertionError(f"Unexpected scalars statement: {sql}")
+        if "ORDER BY companies.sort_order ASC, companies.id ASC" in sql:
+            self.events.append("list_companies")
+        else:
+            self.events.append("load_companies")
+        return FakeScalars(self.companies)
 
     async def flush(self) -> None:
         self.events.append("flush")
 
-    async def refresh(self, document: Document) -> None:
+    async def refresh(self, document: Company | Document) -> None:
         self.events.append("refresh")
         if self.fail_refresh:
             raise RuntimeError("refresh failed")
-        document.uploaded_at = NOW
+        if isinstance(document, Company):
+            document.created_at = NOW
+        else:
+            document.uploaded_at = NOW
 
     async def commit(self) -> None:
         self.events.append("commit")
@@ -74,6 +113,14 @@ class FakeSessionFactory:
 
     def __call__(self) -> FakeSession:
         return self.session
+
+
+class FakeScalars:
+    def __init__(self, values: list[Company]) -> None:
+        self._values = values
+
+    def all(self) -> list[Company]:
+        return self._values
 
 
 class ExistingCompanyRepository:
@@ -98,6 +145,101 @@ def new_document() -> NewDocumentRecord:
         rendered_path=f"{directory}/rendered.html",
         original_filename="talk.md",
     )
+
+
+def saved_company(company_id: uuid.UUID, name: str, sort_order: int) -> Company:
+    return Company(
+        id=company_id,
+        name=name,
+        ticker=None,
+        market=None,
+        sort_order=sort_order,
+        created_at=NOW,
+    )
+
+
+def test_create_company_serializes_order_and_appends_after_current_max() -> None:
+    session = FakeSession(max_company_sort_order=3)
+    repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    saved = run(repository.create_company(CompanyCreate(name="Acme")))
+
+    assert saved.sort_order == 4
+    assert isinstance(session.added, Company)
+    assert session.added.sort_order == 4
+    assert session.events == [
+        "lock_company_order",
+        "read_max_company_sort_order",
+        "add",
+        "flush",
+        "refresh",
+        "commit",
+    ]
+
+
+def test_create_company_starts_empty_collection_at_zero() -> None:
+    session = FakeSession(max_company_sort_order=None)
+    repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    saved = run(repository.create_company(CompanyCreate(name="Acme")))
+
+    assert saved.sort_order == 0
+
+
+def test_list_companies_orders_by_sort_order_then_id() -> None:
+    session = FakeSession(
+        companies=[
+            saved_company(COMPANY_ID, "Zulu", 1),
+            saved_company(DOCUMENT_ID, "Alpha", 0),
+        ]
+    )
+    repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    records = run(repository.list_companies())
+
+    assert [record.id for record in records] == [COMPANY_ID, DOCUMENT_ID]
+    assert session.events == ["list_companies"]
+
+
+def test_reorder_companies_locks_before_replacing_complete_order() -> None:
+    first = saved_company(COMPANY_ID, "One", 0)
+    second = saved_company(DOCUMENT_ID, "Two", 1)
+    session = FakeSession(companies=[first, second])
+    repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    records = run(repository.reorder_companies([second.id, first.id]))
+
+    assert [(record.id, record.sort_order) for record in records] == [
+        (DOCUMENT_ID, 0),
+        (COMPANY_ID, 1),
+    ]
+    assert session.events == ["lock_company_order", "load_companies", "flush", "commit"]
+
+
+@pytest.mark.parametrize(
+    "company_ids",
+    [
+        pytest.param([COMPANY_ID], id="missing-existing-company"),
+        pytest.param([COMPANY_ID, DOCUMENT_ID, OTHER_COMPANY_ID], id="unknown-extra-company"),
+        pytest.param([COMPANY_ID, DOCUMENT_ID, COMPANY_ID], id="duplicate-company"),
+    ],
+)
+def test_reorder_companies_rejects_invalid_complete_order_after_locking(
+    company_ids: list[uuid.UUID],
+) -> None:
+    session = FakeSession(
+        companies=[
+            saved_company(COMPANY_ID, "One", 0),
+            saved_company(DOCUMENT_ID, "Two", 1),
+        ]
+    )
+    repository = SqlAlchemyLibraryRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    with pytest.raises(InvalidCompanyOrder):
+        run(repository.reorder_companies(company_ids))
+
+    assert session.events == ["lock_company_order", "load_companies"]
+    assert session.committed is False
 
 
 def test_insert_materializes_before_commit_and_has_no_post_commit_round_trip(

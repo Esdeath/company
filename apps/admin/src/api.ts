@@ -106,6 +106,21 @@ export function createCompany(input: CompanyInput, fetcher: Fetcher = fetch): Pr
   )
 }
 
+export function reorderCompanies(
+  companyIds: string[],
+  fetcher: Fetcher = fetch,
+): Promise<Company[]> {
+  return request(
+    '/api/v1/companies/order',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_ids: companyIds }),
+    },
+    fetcher,
+  )
+}
+
 export function listDocuments(companyId: string, fetcher: Fetcher = fetch): Promise<DocumentItem[]> {
   return request(`/api/v1/companies/${companyId}/documents`, { method: 'GET' }, fetcher)
 }

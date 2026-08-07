@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy import delete, exists, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from company_api.models import Company, Document, DocumentFormat
@@ -16,12 +16,17 @@ class InvalidDocumentOrder(Exception):
     pass
 
 
+class InvalidCompanyOrder(Exception):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class CompanyRecord:
     id: UUID
     name: str
     ticker: str | None
     market: str | None
+    sort_order: int
     created_at: datetime
 
 
@@ -46,6 +51,8 @@ class LibraryRepository(Protocol):
     async def create_company(self, data: CompanyCreate) -> CompanyRecord: ...
 
     async def list_companies(self) -> list[CompanyRecord]: ...
+
+    async def reorder_companies(self, company_ids: list[UUID]) -> list[CompanyRecord]: ...
 
     async def company_exists(self, company_id: UUID) -> bool: ...
 
@@ -76,20 +83,48 @@ class SqlAlchemyLibraryRepository:
 
     async def create_company(self, data: CompanyCreate) -> CompanyRecord:
         async with self._session_factory() as session:
-            company = Company(name=data.name, ticker=data.ticker, market=data.market)
+            await session.execute(text("LOCK TABLE companies IN SHARE ROW EXCLUSIVE MODE"))
+            current_max = await session.scalar(select(func.max(Company.sort_order)))
+            company = Company(
+                name=data.name,
+                ticker=data.ticker,
+                market=data.market,
+                sort_order=(current_max if current_max is not None else -1) + 1,
+            )
             session.add(company)
-            await session.commit()
+            await session.flush()
             await session.refresh(company)
-            return _company_record(company)
+            saved = _company_record(company)
+            await session.commit()
+            return saved
 
     async def list_companies(self) -> list[CompanyRecord]:
         async with self._session_factory() as session:
             statement = select(Company).order_by(
-                func.lower(func.trim(Company.name)).asc(),
+                Company.sort_order.asc(),
                 Company.id.asc(),
             )
             companies = (await session.scalars(statement)).all()
             return [_company_record(company) for company in companies]
+
+    async def reorder_companies(self, company_ids: list[UUID]) -> list[CompanyRecord]:
+        async with self._session_factory() as session:
+            await session.execute(text("LOCK TABLE companies IN SHARE ROW EXCLUSIVE MODE"))
+            companies = (await session.scalars(select(Company))).all()
+            by_id = {company.id: company for company in companies}
+            if len(company_ids) != len(set(company_ids)) or set(company_ids) != set(by_id):
+                raise InvalidCompanyOrder
+
+            ordered: list[Company] = []
+            for sort_order, company_id in enumerate(company_ids):
+                company = by_id[company_id]
+                company.sort_order = sort_order
+                ordered.append(company)
+
+            await session.flush()
+            records = [_company_record(company) for company in ordered]
+            await session.commit()
+            return records
 
     async def company_exists(self, company_id: UUID) -> bool:
         async with self._session_factory() as session:
@@ -205,6 +240,7 @@ def _company_record(company: Company) -> CompanyRecord:
         name=company.name,
         ticker=company.ticker,
         market=company.market,
+        sort_order=company.sort_order,
         created_at=company.created_at,
     )
 

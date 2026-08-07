@@ -891,14 +891,22 @@ input[type="file"]::file-selector-button {
     border-bottom: 1px solid var(--line);
   }
 
+  .folio-tab-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    border-top: 1px solid var(--line);
+  }
+
   .folio-tab {
     position: relative;
     display: grid;
+    min-width: 0;
+    flex: 1 1 auto;
     gap: 0.35rem;
-    width: 100%;
     padding: 0.95rem 1rem 0.95rem 0;
     border: 0;
-    border-top: 1px solid var(--line);
     color: var(--ink);
     background: transparent;
     text-align: left;
@@ -931,6 +939,33 @@ input[type="file"]::file-selector-button {
     color: var(--muted);
     font-family: var(--font-utility);
     font-size: 0.6rem;
+  }
+
+  .company-order-actions {
+    display: inline-flex;
+    flex: none;
+    gap: 0.25rem;
+  }
+
+  .company-order-button {
+    display: inline-grid;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    padding: 0;
+    border: 1px solid #9eb0a6;
+    border-radius: 0.15rem;
+    place-items: center;
+    color: var(--green);
+    background: var(--paper);
+    font-family: var(--font-utility);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .company-order-button:not(:disabled):hover {
+    border-color: var(--green);
+    background: var(--green-soft);
   }
 
   .company-form {

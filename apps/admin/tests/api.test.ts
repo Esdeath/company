@@ -17,6 +17,7 @@ import {
   rejectComment,
   renameDocument,
   reorderDocuments,
+  reorderCompanies,
   resolveCommentReport,
   restoreUser,
   suspendUser,
@@ -159,6 +160,24 @@ describe('management API client', () => {
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({ document_ids: ['document-2', 'document-1'] }),
+      }),
+    )
+  })
+
+  it('replaces the complete company order', async () => {
+    const reordered = [
+      { id: 'company-2', sort_order: 0 },
+      { id: 'company-1', sort_order: 1 },
+    ]
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(reordered)))
+
+    await expect(reorderCompanies(['company-2', 'company-1'], fetchMock)).resolves.toEqual(reordered)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/companies/order',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ company_ids: ['company-2', 'company-1'] }),
       }),
     )
   })

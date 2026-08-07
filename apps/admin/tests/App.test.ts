@@ -46,8 +46,8 @@ const anonymousSession = {
 }
 
 const companies: Company[] = [
-  { id: 'company-1', name: '山河研究', ticker: '600001', market: '上交所' },
-  { id: 'company-2', name: '远望科技', ticker: null, market: null },
+  { id: 'company-1', name: '山河研究', ticker: '600001', market: '上交所', sort_order: 0 },
+  { id: 'company-2', name: '远望科技', ticker: null, market: null, sort_order: 1 },
 ]
 
 const documents: DocumentItem[] = [
@@ -218,7 +218,7 @@ describe('资料管理工作台', () => {
   })
 
   it('submits blank optional company fields as null', async () => {
-    const newCompany = { id: 'company-3', name: '新岸资本', ticker: null, market: null }
+    const newCompany = { id: 'company-3', name: '新岸资本', ticker: null, market: null, sort_order: 2 }
     vi.mocked(api.createCompany).mockResolvedValue(newCompany)
     vi.mocked(api.listCompanies).mockResolvedValue([...companies, newCompany])
     const wrapper = await mountWorkspace()
@@ -259,7 +259,7 @@ describe('资料管理工作台', () => {
   })
 
   it('keeps a successful company create when the following company refresh fails', async () => {
-    const newCompany = { id: 'company-3', name: '新岸资本', ticker: null, market: null }
+    const newCompany = { id: 'company-3', name: '新岸资本', ticker: null, market: null, sort_order: 2 }
     vi.mocked(api.createCompany).mockResolvedValue(newCompany)
     const wrapper = await mountWorkspace()
     vi.mocked(api.listCompanies).mockRejectedValueOnce(new Error('公司列表暂不可用'))

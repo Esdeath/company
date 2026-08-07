@@ -69,6 +69,7 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(200), index=True)
     ticker: Mapped[str | None] = mapped_column(String(50))
     market: Mapped[str | None] = mapped_column(String(50))
+    sort_order: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

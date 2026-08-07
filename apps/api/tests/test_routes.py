@@ -2,13 +2,16 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from company_api.auth import NewSession, SessionRecord, token_hash
 from company_api.config import Settings
 from company_api.library_service import (
     CompanyNotEmpty,
     CompanyNotFound,
+    CompanyOrderMismatch,
     DocumentNotFound,
     DocumentOrderMismatch,
     UploadInput,
@@ -17,6 +20,7 @@ from company_api.main import create_app
 from company_api.models import DocumentFormat
 from company_api.schemas import (
     CompanyCreate,
+    CompanyOrder,
     CompanyRead,
     DocumentRead,
     UploadBatchResponse,
@@ -24,6 +28,7 @@ from company_api.schemas import (
 )
 
 COMPANY_ID = uuid.UUID("fef2857a-8794-42b6-98c2-d5697d877632")
+OTHER_COMPANY_ID = uuid.UUID("7c3b08b0-1389-49a9-a721-553fbf2a2625")
 DOCUMENT_ID = uuid.UUID("5cc11f7f-23bd-4a5c-9dc7-a28058ac5ae2")
 SECOND_DOCUMENT_ID = uuid.UUID("a0252f1b-fc6e-4d31-8d8e-eb2e65cbe444")
 NOW = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
@@ -79,10 +84,18 @@ class FakeService:
         self.uploads: list[UploadInput] = []
         self.deleted_company: uuid.UUID | None = None
         self.deleted_document: uuid.UUID | None = None
+        self.company_order: list[uuid.UUID] | None = None
         self.document_order: list[uuid.UUID] | None = None
 
     async def list_companies(self) -> list[CompanyRead]:
         return [company_read()]
+
+    async def reorder_companies(self, company_ids: list[uuid.UUID]) -> list[CompanyRead]:
+        self.company_order = company_ids
+        return [
+            company_read(company_id=company_id, sort_order=sort_order)
+            for sort_order, company_id in enumerate(company_ids)
+        ]
 
     async def create_company(self, data: CompanyCreate) -> CompanyRead:
         return company_read(name=data.name, ticker=data.ticker, market=data.market)
@@ -168,19 +181,34 @@ class MismatchedOrderService(FakeService):
         raise DocumentOrderMismatch
 
 
+class MismatchedCompanyOrderService(FakeService):
+    async def reorder_companies(self, company_ids: list[uuid.UUID]) -> list[CompanyRead]:
+        del company_ids
+        raise CompanyOrderMismatch
+
+
 def company_read(
     *,
+    company_id: uuid.UUID = COMPANY_ID,
     name: str = "Acme",
     ticker: str | None = "ACME",
     market: str | None = "NYSE",
+    sort_order: int = 0,
 ) -> CompanyRead:
     return CompanyRead(
-        id=COMPANY_ID,
+        id=company_id,
         name=name,
         ticker=ticker,
         market=market,
+        sort_order=sort_order,
         created_at=NOW,
     )
+
+
+def test_company_order_rejects_duplicate_ids() -> None:
+    duplicate = uuid.uuid4()
+    with pytest.raises(ValidationError, match="公司顺序不能包含重复项"):
+        CompanyOrder(company_ids=[duplicate, duplicate])
 
 
 def document_read(
@@ -260,6 +288,34 @@ def test_non_empty_company_delete_returns_conflict(tmp_path: Path) -> None:
 
     assert response.status_code == 409
     assert response.json() == {"detail": "公司仍有资料，无法删除"}
+
+
+def test_company_order_route_replaces_complete_order(tmp_path: Path) -> None:
+    service = FakeService(tmp_path / "content.html")
+    requested = [OTHER_COMPANY_ID, COMPANY_ID]
+    with client_for(service, tmp_path) as client:
+        response = client.put(
+            "/api/v1/companies/order",
+            json={"company_ids": [str(company_id) for company_id in requested]},
+            headers=csrf_headers(),
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(company_id) for company_id in requested]
+    assert [item["sort_order"] for item in response.json()] == [0, 1]
+    assert service.company_order == requested
+
+
+def test_company_order_route_maps_set_mismatch_to_validation_error(tmp_path: Path) -> None:
+    with client_for(MismatchedCompanyOrderService(tmp_path), tmp_path) as client:
+        response = client.put(
+            "/api/v1/companies/order",
+            json={"company_ids": [str(COMPANY_ID)]},
+            headers=csrf_headers(),
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "公司顺序与当前目录不一致"}
 
 
 def test_document_list_and_upload_routes(tmp_path: Path) -> None:
@@ -410,13 +466,25 @@ def test_missing_content_returns_not_found(tmp_path: Path) -> None:
     assert response.json() == {"detail": "资料不存在"}
 
 
-def test_mutations_require_a_session_and_csrf(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("method", "path", "json"),
+    [
+        ("post", "/api/v1/companies", {"name": "Blocked"}),
+        ("put", "/api/v1/companies/order", {"company_ids": [str(COMPANY_ID)]}),
+    ],
+)
+def test_mutations_require_a_session_and_csrf(
+    tmp_path: Path,
+    method: str,
+    path: str,
+    json: dict[str, object],
+) -> None:
     service = FakeService(tmp_path / "content.html")
     with client_for(service, tmp_path) as client:
         client.cookies.clear()
-        unauthenticated = client.post("/api/v1/companies", json={"name": "Blocked"})
+        unauthenticated = client.request(method, path, json=json)
         client.cookies.set("company-admin-session", "valid-session")
-        missing_csrf = client.post("/api/v1/companies", json={"name": "Blocked"})
+        missing_csrf = client.request(method, path, json=json)
 
     assert unauthenticated.status_code == 401
     assert missing_csrf.status_code == 403
