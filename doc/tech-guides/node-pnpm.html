@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Node.js 与 pnpm · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🖥️ 前端</span></div>
+<div class="page"><div class="card">
+  <h1>Node.js 与 pnpm — 前端世界的地基和仓库管理员</h1>
+  <div class="subtitle">本项目版本:Node 24.18.0(.nvmrc 锁定)· pnpm 10.34.5(经 corepack)</div>
+  <h2>它们是什么</h2>
+  <p><b>Node.js</b> 让 JavaScript 离开浏览器也能运行 —— 在你的电脑上、在服务器上。前端的一切工具(Vite、Nuxt、测试、检查)都是跑在 Node 上的 JS 程序;本项目上线后的 web 服务本身也是一个 Node 进程。</p>
+  <p><b>pnpm</b> 是「包管理器」:前端项目会依赖成百上千个别人写好的代码包,pnpm 负责按清单下载、安装、管理它们。它比老牌的 npm 更快、更省磁盘(相同的包全机只存一份,用硬链接复用)。</p>
+  <div class="analogy"><b>比喻:</b>Node 是「发电站」—— 没有它,所有前端电器(工具链)都没法通电运转。pnpm 是「中央仓库管理员」—— 项目需要的每个零件(依赖包)都登记在清单(package.json)上,管理员按清单精确进货;而且全城只建一个仓库,各项目要用就拉根专线过去,不重复囤货。</div>
+  <h2>它们解决什么问题</h2>
+  <ul>
+    <li><b>「在我电脑上能跑」综合征</b>:每个人 Node 版本不同、装的包版本不同,程序行为就可能不同。本项目用 <code>.nvmrc</code> 锁 Node 版本、用 lockfile 锁每个包的精确版本,人人环境一致。</li>
+    <li><b>依赖地狱</b>:上千个包的版本关系靠人管必乱。lockfile(<code>pnpm-lock.yaml</code>)像一张精确到小数点的进货清单,任何机器照单安装,结果完全一样。</li>
+    <li><b>多项目共存</b>:本仓库有 web、admin 两个前端,pnpm 的 workspace(工作区)让它们住在同一仓库里、共享一次安装。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>package.json</h3><p>项目的「身份证 + 依赖清单」:名字、脚本命令、依赖哪些包及版本范围。</p></div>
+    <div class="concept"><h3>lockfile(pnpm-lock.yaml)</h3><p>把「版本范围」钉死成「精确版本」的快照。装包时加 <code>--frozen-lockfile</code> 表示:严格照快照装,对不上就报错,绝不自作主张。</p></div>
+    <div class="concept"><h3>workspace 工作区</h3><p><code>pnpm-workspace.yaml</code> 声明仓库里有哪些子项目(本项目:<code>apps/web</code>、<code>apps/admin</code>),可用 <code>--filter</code> 只对某个子项目执行命令。</p></div>
+    <div class="concept"><h3>corepack</h3><p>Node 自带的「包管理器的管理器」:读取 package.json 里的 <code>packageManager: pnpm@10.34.5</code>,自动用这个精确版本的 pnpm,版本也不会漂。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>.nvmrc</code></td><td>锁定 Node 24.18.0,<code>make setup</code> 会先校验版本。</td></tr>
+    <tr><td>根 <code>package.json</code></td><td><code>packageManager: pnpm@10.34.5</code> + <code>engines.node: &gt;=24.18.0 &lt;25</code>,双保险锁版本。</td></tr>
+    <tr><td><code>pnpm-workspace.yaml</code></td><td>显式列出 <code>apps/web</code> 与 <code>apps/admin</code>(scaffold 测试禁止用通配符,必须点名)。</td></tr>
+    <tr><td>日常命令</td><td>一律 <code>corepack pnpm ...</code>,例如 <code>corepack pnpm --filter @company/web check</code> 只检查 web 端。</td></tr>
+    <tr><td>纪律</td><td>lockfile 与声明不一致时,<b>不要</b>用非 frozen 安装绕过 —— 应重新生成 lockfile 并连同声明文件一起提交。这是 CLAUDE.md 写明的项目铁律。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="vite.html">Vite — 跑在 Node 上的构建工具</a>
+    <a href="nuxt.html">Nuxt — 生产环境就是一个 Node 服务</a>
+    <a href="python-uv.html">Python/uv — 后端世界的对应角色</a>
+    <a href="toolchain.html">工程约定 — make setup 统一装依赖</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://nodejs.org/zh-cn/learn" target="_blank">Node.js 官方中文学习入口</a></li>
+    <li><a href="https://pnpm.io/zh/motivation" target="_blank">pnpm 官方中文文档:为什么选 pnpm</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

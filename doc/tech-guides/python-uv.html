@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 与 uv · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">⚙️ 后端</span></div>
+<div class="page"><div class="card">
+  <h1>Python 与 uv — 后端的语言和它的高速管家</h1>
+  <div class="subtitle">本项目版本:Python 3.13(.python-version 锁定)· uv 0.11.29</div>
+  <h2>它们是什么</h2>
+  <p><b>Python</b> 是本项目后端使用的编程语言,以「像读英语一样好懂」著称,是数据、AI、Web 后端领域的主流语言之一。本项目的 API 服务(接收请求、渲染 Markdown、读写数据库)全部用 Python 编写。</p>
+  <p><b>uv</b> 是新一代 Python 包管理与项目工具(用 Rust 编写,速度飞快),对 Python 的作用相当于 pnpm 对 Node:装依赖、锁版本、管理虚拟环境、运行命令,一个工具全包。</p>
+  <div class="analogy"><b>比喻:</b>如果说前端(JavaScript/Node)是「店面装修队」,Python 就是「后厨团队」的工作语言 —— 顾客看不到,但每道菜(每个接口响应)都出自它手。uv 则是后厨的采购主管:菜谱(pyproject.toml)上写着要哪些原料,它按锁定的供货单(uv.lock)精确进货,每个项目还有独立的储藏间(虚拟环境),互不串味。</div>
+  <h2>它们解决什么问题</h2>
+  <ul>
+    <li><b>为什么后端用 Python?</b> 生态成熟(Web 框架、数据库驱动、Markdown 渲染都有现成高质量库)、代码可读性强、开发效率高。</li>
+    <li><b>Python 环境之乱</b>:一台电脑上多个 Python 版本、包装到系统里互相冲突,是老大难。uv 用「每个项目一个虚拟环境 + lockfile 锁版本」根治,替代了过去 pip/venv/poetry 等一堆工具的组合。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>pyproject.toml</h3><p>Python 项目的「身份证 + 依赖清单」,对应前端的 package.json。本项目在 <code>apps/api/pyproject.toml</code>。</p></div>
+    <div class="concept"><h3>虚拟环境(venv)</h3><p>项目专属的隔离 Python 环境,依赖装在项目自己的 <code>.venv</code> 里,不污染系统。uv 自动创建管理。</p></div>
+    <div class="concept"><h3>uv sync --frozen</h3><p>按 <code>uv.lock</code> 精确安装依赖,锁文件对不上就报错 —— 和前端 frozen lockfile 同一纪律。</p></div>
+    <div class="concept"><h3>uv run</h3><p>「在项目虚拟环境里执行命令」:<code>uv run pytest</code>、<code>uv run alembic upgrade head</code>,不用手动激活环境。</p></div>
+  </div>
+  <pre><code># 感受一下 Python(本项目风格:带类型标注)
+def render_markdown(source: str) -> str:
+    """把 Markdown 文本渲染成 HTML。"""
+    return markdown_renderer.render(source)</code></pre>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/api/</code></td><td>整个后端是一个 uv 管理的 Python 3.13 项目,包名 <code>company_api</code>,源码在 <code>src/company_api/</code>。</td></tr>
+    <tr><td><code>.python-version</code></td><td>锁定 Python 3.13,pyproject 里声明 <code>&gt;=3.13,&lt;3.14</code>。</td></tr>
+    <tr><td>依赖清单</td><td>FastAPI、SQLAlchemy、Alembic、markdown-it-py、pwdlib[argon2] 等全部精确锁版本(后续各篇分别介绍)。</td></tr>
+    <tr><td>日常命令</td><td>项目铁律:Python 一律经 <code>uv run</code> 执行 —— <code>uv run pytest</code>、<code>uv run ruff check .</code>、<code>uv run mypy src</code>。</td></tr>
+    <tr><td>容器构建</td><td>API 的 Dockerfile 基于 <code>python:3.13-slim</code> + uv,构建时同样 frozen 安装,保证线上线下一致。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="fastapi.html">FastAPI — 用 Python 写的 Web 框架</a>
+    <a href="sqlalchemy-alembic.html">SQLAlchemy — 用 Python 对象读写数据库</a>
+    <a href="node-pnpm.html">Node/pnpm — 前端世界的对应角色</a>
+    <a href="testing-quality.html">测试质量 — pytest/ruff/mypy 都经 uv run</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://docs.python.org/zh-cn/3/tutorial/" target="_blank">Python 官方中文教程</a></li>
+    <li><a href="https://docs.astral.sh/uv/" target="_blank">uv 官方文档(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

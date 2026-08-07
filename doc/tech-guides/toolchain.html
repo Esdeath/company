@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Make 与工程约定 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🧰 工程化</span></div>
+<div class="page"><div class="card">
+  <h1>Make 与工程约定 — 项目的「总开关面板」</h1>
+  <div class="subtitle">入口:根目录 Makefile · 一条命令干一件事</div>
+  <h2>它是什么</h2>
+  <p><b>Make</b> 是一个诞生于 1976 年、至今坚挺的老牌构建工具。本项目用它做「命令门面」:把各种啰嗦的多步操作(装依赖、起服务、跑检查、部署)封装成一个个简短的 <code>make xxx</code> 命令,写在根目录的 <code>Makefile</code> 里。</p>
+  <div class="analogy"><b>比喻:</b>Makefile 像家里的<b>智能开关面板</b>:「观影模式」一个按钮背后是关窗帘、调灯光、开音响一串动作。你不需要记住每个设备的遥控器怎么用(pnpm 的参数、uv 的参数、docker compose 的参数),按面板上的按钮就行。新人进项目,看一眼面板就知道这个家怎么运转。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>命令太长记不住</b>:<code>docker compose --env-file .env up -d postgres</code> vs <code>make dev-infra</code>,高下立判。</li>
+    <li><b>步骤有先后依赖</b>:比如启动 API 前必须先跑数据库迁移,Make 的依赖机制自动保证顺序。</li>
+    <li><b>人人做法一致</b>:所有人都走同一组命令,不会出现「我是这样启动的」的流派之争。</li>
+  </ul>
+  <h2>本项目的开关面板</h2>
+  <table>
+    <tr><th>命令</th><th>作用</th></tr>
+    <tr><td><code>make setup</code></td><td>校验 node/pnpm/uv/docker 版本,然后 frozen 安装前后端全部依赖。新人第一步。</td></tr>
+    <tr><td><code>make dev-infra</code></td><td>只启动 PostgreSQL 容器(混合开发的地基)。</td></tr>
+    <tr><td><code>make dev</code></td><td>并行起 web/admin/api 三个开发服务器(改代码即时生效)。</td></tr>
+    <tr><td><code>make db-upgrade</code></td><td>数据库迁移到最新结构(alembic upgrade head)。</td></tr>
+    <tr><td><code>make check</code></td><td>全量质量检查:契约测试 + 两个前端 lint/typecheck/test/build + 后端 ruff/mypy/pytest。提交前必跑。</td></tr>
+    <tr><td><code>make compose-up / compose-smoke / compose-down</code></td><td>整套 Docker 启动 / 端到端冒烟 / 停止。</td></tr>
+    <tr><td><code>make deploy-aliyun</code></td><td>部署到阿里云 ECS,日常更新一条命令。</td></tr>
+  </table>
+  <h2>两种开发模式</h2>
+  <ul>
+    <li><b>混合开发(日常)</b>:数据库在容器里(<code>make dev-infra</code>),三个应用直接跑在本机(<code>make dev</code>)—— 热更新快、调试方便。注意先把 <code>.env</code> 里 <code>DATABASE_URL</code> 的主机从 <code>postgres</code> 改成 <code>127.0.0.1</code>。开发地址:Web <code>:3000</code>、Admin <code>:5173/admin/</code>、API <code>:8000</code>。</li>
+    <li><b>完整 Compose(仿真产线)</b>:五个服务全进容器,入口 <code>127.0.0.1:8080</code> —— 和生产环境同构,用于最终验证。</li>
+  </ul>
+  <h2>硬性纪律(CLAUDE.md 钦定)</h2>
+  <ul>
+    <li>依赖全部走 <b>frozen lockfile</b>:锁文件对不上,不许用非 frozen 安装绕过,要重新生成并连声明文件一起提交。</li>
+    <li>Python 一律 <code>uv run</code>,pnpm 一律 <code>corepack pnpm</code> —— 保证用的永远是锁定版本的工具。</li>
+    <li>版本三件套:<code>.nvmrc</code>(Node 24.18.0)、<code>.python-version</code>(3.13)、<code>packageManager</code>(pnpm 10.34.5),并被 scaffold 测试守护。</li>
+  </ul>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="node-pnpm.html">pnpm — make 背后的前端包管理</a>
+    <a href="python-uv.html">uv — make 背后的 Python 管理</a>
+    <a href="docker.html">Docker — compose 系列命令的实体</a>
+    <a href="testing-quality.html">测试质量 — make check 的全部内容</a>
+    <a href="deployment.html">部署 — make deploy-aliyun</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://makefiletutorial.com/" target="_blank">Makefile Tutorial(英文,由浅入深)</a></li>
+    <li><a href="https://www.ruanyifeng.com/blog/2015/02/make.html" target="_blank">阮一峰:Make 命令教程(中文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

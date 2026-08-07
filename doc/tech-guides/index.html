@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技术全景导读 · 企业研究资料库</title>
+<meta name="description" content="企业研究资料库项目 16 项技术的零基础导读目录">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.7}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:1000px;margin:32px auto 64px;padding:0 20px}
+h1{font-size:30px;color:#1a365d;margin:0 0 6px;text-align:center;font-family:Georgia,"PingFang SC",serif}
+.subtitle{color:#64748b;font-size:14px;text-align:center;margin-bottom:28px}
+.intro{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:20px 28px;box-shadow:0 2px 8px rgba(30,58,138,.06);font-size:14px}
+.intro b{color:#1e40af}
+h2{font-size:20px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:36px 0 14px}
+.path{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:16px 20px}
+.path a{display:inline-flex;align-items:center;gap:6px;background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:4px 12px;font-size:13px;text-decoration:none;font-weight:600}
+.path a:hover{background:#bfdbfe}
+.path .n{background:#1e40af;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.path .sep{color:#94a3b8;font-size:12px}
+.group{margin:14px 0}
+.group-title{font-size:15px;font-weight:bold;margin:22px 0 10px;padding:6px 12px;border-radius:6px;display:inline-block}
+.g-fe .group-title{background:#dbeafe;color:#1e40af;border:1px solid #3b82f6}
+.g-be .group-title{background:#e0e7ff;color:#3730a3;border:1px solid #6366f1}
+.g-data .group-title{background:#d1fae5;color:#065f46;border:1px solid #10b981}
+.g-infra .group-title{background:#ede9fe;color:#5b21b6;border:1px solid #7c3aed}
+.g-sec .group-title{background:#fee2e2;color:#991b1b;border:1px solid #ef4444}
+.g-eng .group-title{background:#fef3c7;color:#92400e;border:1px solid #d97706}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tcard{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:16px 18px;text-decoration:none;color:inherit;display:block;box-shadow:0 1px 4px rgba(30,58,138,.05);transition:transform .12s,box-shadow .12s}
+.tcard:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(30,58,138,.12);border-color:#2563eb}
+.tcard h3{margin:0 0 4px;font-size:16px;color:#1a365d}
+.tcard .ver{font-size:11px;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:1px 8px;margin-left:6px;font-weight:400;vertical-align:middle}
+.tcard p{margin:6px 0 0;font-size:13px;color:#475569}
+.arch-link{display:block;text-align:center;background:linear-gradient(135deg,#1a365d,#2563eb);color:#fff;border-radius:10px;padding:16px;margin-top:28px;text-decoration:none;font-size:15px;font-weight:600}
+.arch-link small{display:block;font-weight:400;font-size:12px;color:#bfdbfe;margin-top:4px}
+footer{text-align:center;color:#94a3b8;font-size:12px;margin-top:36px}
+@media(max-width:760px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="nav"><span>📚 技术全景导读</span><span class="tag">企业研究资料库 · 零基础友好</span></div>
+<div class="page">
+  <h1>这个项目用到的技术,一篇篇讲给你听</h1>
+  <div class="subtitle">16 篇零基础科普 · 每篇都会告诉你:它是什么、解决什么问题、在本项目里用在哪</div>
+  <div class="intro">
+    <b>这个项目在做什么?</b> 它是一个「企业研究资料库」:管理员在后台创建公司、上传研究资料(HTML 或 Markdown 文件),普通访问者在公开网站上按公司浏览和阅读这些资料。
+    麻雀虽小五脏俱全 —— 它有两个前端网站、一个后端服务、一个数据库,还有把它们串起来的反向代理和容器编排,正好覆盖了现代 Web 开发的完整链路。
+    下面的每项技术都有一篇独立文档,可以按推荐顺序读,也可以按分类跳着读。
+  </div>
+  <h2>🧭 推荐阅读顺序(零基础从左到右)</h2>
+  <div class="path">
+    <a href="toolchain.html"><span class="n">1</span>工程约定</a><span class="sep">▸</span>
+    <a href="vue.html"><span class="n">2</span>Vue</a><span class="sep">▸</span>
+    <a href="typescript.html"><span class="n">3</span>TypeScript</a><span class="sep">▸</span>
+    <a href="vite.html"><span class="n">4</span>Vite</a><span class="sep">▸</span>
+    <a href="nuxt.html"><span class="n">5</span>Nuxt</a><span class="sep">▸</span>
+    <a href="node-pnpm.html"><span class="n">6</span>Node/pnpm</a><span class="sep">▸</span>
+    <a href="python-uv.html"><span class="n">7</span>Python/uv</a><span class="sep">▸</span>
+    <a href="fastapi.html"><span class="n">8</span>FastAPI</a><span class="sep">▸</span>
+    <a href="sqlalchemy-alembic.html"><span class="n">9</span>ORM/迁移</a><span class="sep">▸</span>
+    <a href="postgresql.html"><span class="n">10</span>PostgreSQL</a><span class="sep">▸</span>
+    <a href="markdown.html"><span class="n">11</span>Markdown</a><span class="sep">▸</span>
+    <a href="nginx.html"><span class="n">12</span>Nginx</a><span class="sep">▸</span>
+    <a href="docker.html"><span class="n">13</span>Docker</a><span class="sep">▸</span>
+    <a href="web-security.html"><span class="n">14</span>安全认证</a><span class="sep">▸</span>
+    <a href="deployment.html"><span class="n">15</span>部署上线</a><span class="sep">▸</span>
+    <a href="testing-quality.html"><span class="n">16</span>测试质量</a>
+  </div>
+  <div class="group g-fe">
+    <div class="group-title">🖥️ 前端 — 用户在浏览器里看到的一切</div>
+    <div class="cards">
+      <a class="tcard" href="vue.html"><h3>Vue 3<span class="ver">3.5</span></h3><p>用「组件」搭网页界面的框架,数据一变页面自动更新</p></a>
+      <a class="tcard" href="nuxt.html"><h3>Nuxt 4<span class="ver">4.4</span></h3><p>基于 Vue 的全能框架,让公开站点在服务器端先渲染好再发给浏览器</p></a>
+      <a class="tcard" href="vite.html"><h3>Vite<span class="ver">8.1</span></h3><p>前端的「开发服务器 + 打包机」,改代码秒级刷新</p></a>
+      <a class="tcard" href="typescript.html"><h3>TypeScript<span class="ver">5.9</span></h3><p>给 JavaScript 加上类型检查,很多错误写代码时就能发现</p></a>
+      <a class="tcard" href="node-pnpm.html"><h3>Node.js + pnpm<span class="ver">24 / 10</span></h3><p>让 JavaScript 跑在服务器上的运行时,和管理依赖包的工具</p></a>
+    </div>
+  </div>
+  <div class="group g-be">
+    <div class="group-title">⚙️ 后端 — 看不见但真正干活的部分</div>
+    <div class="cards">
+      <a class="tcard" href="python-uv.html"><h3>Python + uv<span class="ver">3.13</span></h3><p>后端使用的编程语言,uv 是它的高速包管理器</p></a>
+      <a class="tcard" href="fastapi.html"><h3>FastAPI<span class="ver">0.139</span></h3><p>Python Web 框架,接收前端请求、执行业务逻辑、返回数据</p></a>
+      <a class="tcard" href="sqlalchemy-alembic.html"><h3>SQLAlchemy + Alembic<span class="ver">2.0 / 1.18</span></h3><p>用 Python 对象读写数据库(ORM),以及数据库结构的「版本管理」</p></a>
+      <a class="tcard" href="markdown.html"><h3>Markdown 渲染<span class="ver">markdown-it-py</span></h3><p>把纯文本标记语言转成漂亮网页 —— 本项目内容管线的核心</p></a>
+    </div>
+  </div>
+  <div class="group g-data">
+    <div class="group-title">🗄️ 数据 — 一切内容的最终归宿</div>
+    <div class="cards">
+      <a class="tcard" href="postgresql.html"><h3>PostgreSQL<span class="ver">18.4</span></h3><p>关系型数据库,存放公司与资料的「目录索引」;正文则存文件系统</p></a>
+    </div>
+  </div>
+  <div class="group g-infra">
+    <div class="group-title">🐳 基础设施 — 让各个服务跑起来、连起来</div>
+    <div class="cards">
+      <a class="tcard" href="docker.html"><h3>Docker + Compose<span class="ver">五服务</span></h3><p>把每个服务装进标准「集装箱」,一条命令整套启动</p></a>
+      <a class="tcard" href="nginx.html"><h3>Nginx<span class="ver">1.30</span></h3><p>大门口的「前台接待」:按网址前缀把请求转发给对应服务</p></a>
+      <a class="tcard" href="deployment.html"><h3>部署与 HTTPS<span class="ver">阿里云 ECS</span></h3><p>项目怎么搬到公网服务器上,以及小锁头 🔒 是怎么来的</p></a>
+    </div>
+  </div>
+  <div class="group g-sec">
+    <div class="group-title">🔐 安全 — 只让该进来的人进来</div>
+    <div class="cards">
+      <a class="tcard" href="web-security.html"><h3>Web 认证与安全<span class="ver">Argon2 / CSRF</span></h3><p>密码怎么存才安全、登录状态怎么记住、如何防跨站攻击</p></a>
+    </div>
+  </div>
+  <div class="group g-eng">
+    <div class="group-title">🧰 工程化 — 团队协作的纪律与保障</div>
+    <div class="cards">
+      <a class="tcard" href="toolchain.html"><h3>Make 与工程约定<span class="ver">make dev/check</span></h3><p>一条命令干一件事:安装、启动、检查、部署的统一入口</p></a>
+      <a class="tcard" href="testing-quality.html"><h3>测试与代码质量<span class="ver">pytest / vitest</span></h3><p>自动化测试和代码检查,让改错代码时立刻被发现</p></a>
+    </div>
+  </div>
+  <a class="arch-link" href="../ARCHITECTURE.html">🗺️ 查看系统架构图<small>一张图看懂 16 项技术如何协同工作</small></a>
+  <footer>企业研究资料库 · 技术导读 · 供零基础学习参考</footer>
+</div>
+</body>
+</html>

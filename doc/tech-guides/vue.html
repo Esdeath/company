@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vue 3 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🖥️ 前端</span></div>
+<div class="page"><div class="card">
+  <h1>Vue 3 — 搭积木一样构建网页界面</h1>
+  <div class="subtitle">本项目版本:3.5.40 · 两个前端(公开站点与管理后台)都用它</div>
+  <h2>它是什么</h2>
+  <p>Vue 是一个 <b>JavaScript 界面框架</b>:你用它把网页拆成一个个可复用的「组件」(按钮、弹窗、评论区……),并声明「数据长什么样,界面就长什么样」。数据一变,Vue 自动帮你更新页面对应的部分。</p>
+  <div class="analogy"><b>比喻:</b>传统写网页像手工作坊 —— 每次数据变了,你要亲自找到页面上每一处受影响的地方逐个改。Vue 像一位管家:你只管把「账本」(数据)改了,管家自动把家里所有挂着这笔账的「展示牌」(页面元素)换成新数字,一处不漏。</div>
+  <h2>它解决什么问题</h2>
+  <p>没有框架时,前端代码要手动操作页面元素(DOM):找到元素 → 改内容 → 处理事件 → 小心别改漏。界面稍微复杂一点,这种代码就会变成难以维护的「面条」。Vue 用两件事解决它:</p>
+  <ul>
+    <li><b>声明式渲染</b>:你写「界面应该是什么样」,而不是「怎么一步步改成那样」。</li>
+    <li><b>组件化</b>:界面拆成独立零件,每个零件自带自己的模板、逻辑、样式,可以反复使用、单独测试。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>单文件组件(.vue 文件)</h3><p>一个文件三段式:<code>&lt;template&gt;</code> 写界面结构、<code>&lt;script&gt;</code> 写逻辑、<code>&lt;style&gt;</code> 写样式。一个文件就是一个积木块。</p></div>
+    <div class="concept"><h3>响应式数据(ref / reactive)</h3><p>用 <code>ref()</code> 包住的数据是「被监视的」:值一变,所有用到它的界面自动重新渲染。</p></div>
+    <div class="concept"><h3>指令(v-if / v-for / v-on)</h3><p>模板里的特殊标记:<code>v-if</code> 控制显示隐藏,<code>v-for</code> 循环渲染列表,<code>@click</code> 绑定点击事件。</p></div>
+    <div class="concept"><h3>组合式 API(Composition API)</h3><p>Vue 3 的写法:把一块功能的逻辑收拢进一个函数(如 <code>useUserSession()</code>),多个组件可以共享复用。</p></div>
+  </div>
+  <p>感受一下一个最小的 Vue 组件:</p>
+  <pre><code>&lt;script setup&gt;
+import { ref } from 'vue'
+const count = ref(0)          // 被监视的数据
+&lt;/script&gt;
+&lt;template&gt;
+  &lt;button @click="count++"&gt;点了 {{ count }} 次&lt;/button&gt;
+&lt;/template&gt;</code></pre>
+  <p>注意你从没写过「把按钮文字改成新数字」—— 数据变了,界面自己跟上,这就是响应式。</p>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/web</code>(公开站点)</td><td>Vue 作为 Nuxt 框架的底座。<code>app/components/</code> 里是一个个单文件组件:<code>DocumentReader.vue</code>(资料阅读器)、<code>CommentSection.vue</code>(评论区)、<code>AuthDialog.vue</code>(登录弹窗)等。</td></tr>
+    <tr><td><code>apps/admin</code>(管理后台)</td><td>纯 Vue 3 单页应用(SPA),用 Vite 直接驱动,没有引入路由库和状态库 —— 界面简单,手写 <code>src/api.ts</code> 调后端接口就够了。</td></tr>
+    <tr><td><code>apps/web/app/composables/useUserSession.ts</code></td><td>组合式 API 的实战例子:把「当前用户登录状态」的逻辑收拢成一个可复用函数,任何组件调用它都能拿到同一份状态。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="nuxt.html">Nuxt — 基于 Vue 的全能框架(公开站点)</a>
+    <a href="vite.html">Vite — 开发与打包 Vue 项目的工具</a>
+    <a href="typescript.html">TypeScript — 组件逻辑都用它写</a>
+    <a href="testing-quality.html">测试 — 用 Vitest + Vue Test Utils 测组件</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://cn.vuejs.org/guide/introduction.html" target="_blank">Vue 官方中文教程(强烈推荐,写得非常好懂)</a></li>
+    <li><a href="https://cn.vuejs.org/tutorial/" target="_blank">Vue 官方互动练习场</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

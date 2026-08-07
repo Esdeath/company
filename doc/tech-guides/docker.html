@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docker 与 Compose · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🐳 基础设施</span></div>
+<div class="page"><div class="card">
+  <h1>Docker 与 Compose — 标准集装箱和码头调度表</h1>
+  <div class="subtitle">本项目:compose.yaml 编排五个服务(edge / web / admin / api / postgres)</div>
+  <h2>它们是什么</h2>
+  <p><b>Docker</b> 把一个程序连同它需要的一切(语言运行时、依赖库、配置)打包成一个<b>镜像</b>,在任何装了 Docker 的机器上都能以完全相同的方式运行,运行中的实例叫<b>容器</b>。</p>
+  <p><b>Docker Compose</b> 则是「多容器编排器」:用一个 YAML 文件描述整套系统 —— 有哪些服务、谁先启动、谁和谁连网、数据存哪 —— 然后 <code>docker compose up</code> 一条命令拉起全部。</p>
+  <div class="analogy"><b>比喻:</b>集装箱发明前,货物形状各异,每换一种船就要重新装卸。Docker 就是软件界的<b>标准集装箱</b>:不管里面装的是 Python 服务还是数据库,外形统一,任何「码头」(装了 Docker 的机器)都能吊装。Compose 是<b>码头调度表</b>:五个箱子按什么顺序落位、哪些箱子之间拉专用通道、哪个箱子配保税仓(数据卷),一张表说清。</div>
+  <h2>它们解决什么问题</h2>
+  <ul>
+    <li><b>「在我电脑上能跑」的终极方案</b>:镜像里环境完全固化,开发、测试、生产运行同一个箱子。</li>
+    <li><b>多服务协同</b>:本项目五个服务有启动顺序(api 要等数据库就绪)、网络隔离需求,手工管理必乱,Compose 声明式搞定。</li>
+    <li><b>快速重建</b>:环境坏了?容器删掉重来,一分钟恢复,数据在卷里安然无恙。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>镜像与 Dockerfile</h3><p>Dockerfile 是造箱说明书(基于什么系统、装什么、怎么启动),build 出镜像,run 成容器。</p></div>
+    <div class="concept"><h3>多阶段构建</h3><p>先在「车间箱」里编译构建,再把成品拷进一个干净的「运输箱」—— 最终镜像里只有运行所需,又小又安全。</p></div>
+    <div class="concept"><h3>卷(Volume)</h3><p>容器是随用随扔的,数据卷是独立的持久仓库 —— 容器重建,数据还在。</p></div>
+    <div class="concept"><h3>网络与健康检查</h3><p>Compose 里同一网络的服务能互相用服务名当域名访问;healthcheck 定期探活,依赖方可以「等它健康了再启动」。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <p><code>compose.yaml</code> 定义五个服务,精心设计了网络与端口边界:</p>
+  <table>
+    <tr><th>服务</th><th>镜像来源</th><th>要点</th></tr>
+    <tr><td>postgres</td><td>postgres:18.4-alpine</td><td>数据在 <code>postgres_data</code> 卷;只在 backend 网;宿主机只能从 127.0.0.1:5432 连。</td></tr>
+    <tr><td>api</td><td>构建 <code>apps/api</code>(python:3.13-slim + uv)</td><td>同时在 edge 与 backend 两个网 —— 它是唯一能碰数据库的服务;启动脚本先跑 Alembic 迁移;资料正文存 <code>content_data</code> 卷。</td></tr>
+    <tr><td>web</td><td>构建 <code>apps/web</code>(node:24.18-alpine 多阶段)</td><td>Nuxt SSR 服务,监听 3000,只在 edge 网。</td></tr>
+    <tr><td>admin</td><td>构建后塞进 nginx-unprivileged</td><td>Vite 打包出的纯静态文件,由小 Nginx 托管,只在 edge 网。</td></tr>
+    <tr><td>edge</td><td>nginxinc/nginx-unprivileged:1.30.4</td><td>唯一对宿主开门的入口(127.0.0.1:8080);用 <code>depends_on: service_healthy</code> 等三个上游全部健康才启动。</td></tr>
+  </table>
+  <p>常用命令:<code>make compose-up</code> 整套启动、<code>make compose-smoke</code> 端到端冒烟测试、<code>make compose-down</code> 停止(保留数据卷);日常混合开发则只用 <code>make dev-infra</code> 起数据库容器,web/admin/api 直接在本机跑,改代码更快。</p>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="nginx.html">Nginx — edge 服务就是它</a>
+    <a href="postgresql.html">PostgreSQL — 网络隔离的受益者</a>
+    <a href="deployment.html">部署 — 镜像打包上传到 ECS 运行</a>
+    <a href="toolchain.html">工程约定 — make 命令封装 compose 操作</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://docs.docker.com/get-started/" target="_blank">Docker 官方入门(英文)</a></li>
+    <li><a href="https://yeasy.gitbook.io/docker_practice" target="_blank">《Docker 从入门到实践》(中文开源书)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

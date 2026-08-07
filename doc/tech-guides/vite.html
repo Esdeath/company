@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vite · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🖥️ 前端</span></div>
+<div class="page"><div class="card">
+  <h1>Vite — 前端的开发服务器与打包机</h1>
+  <div class="subtitle">本项目版本:8.1.5 · 驱动管理后台(admin),也是 Nuxt 的底层引擎</div>
+  <h2>它是什么</h2>
+  <p>Vite(法语「快」,读作 /vit/)是一个 <b>前端构建工具</b>,干两件事:开发时提供一个「改代码立刻见效果」的本地服务器;上线前把几十上百个源码文件<b>打包压缩</b>成浏览器高效加载的少量静态文件。</p>
+  <div class="analogy"><b>比喻:</b>写前端像做菜。开发阶段,Vite 是「明档厨房」—— 你改一勺调料,试吃窗口立刻端出新口味(热更新),不用整桌菜重做;上线阶段,Vite 是「中央厨房打包线」—— 把所有半成品统一处理、去掉厨余(没用到的代码)、封装成标准料理包(压缩后的 JS/CSS 文件),送到哪里都能直接加热上桌。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>开发慢</b>:老一代工具(如 Webpack)每次启动都要把整个项目打包一遍,大项目启动要几十秒。Vite 利用浏览器原生模块能力,启动几乎瞬时,改动只热替换那一个模块。</li>
+    <li><b>浏览器不认识源码</b>:<code>.vue</code> 文件、TypeScript 浏览器都无法直接运行,Vite 负责即时把它们翻译成浏览器能懂的 JS。</li>
+    <li><b>上线体积</b>:生产构建时做打包、压缩、按需拆分,让用户下载得又少又快。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>开发服务器(dev server)</h3><p><code>vite dev</code> 起一个本地网站,源码按需即时编译,配合 HMR(热模块替换)保存即刷新。</p></div>
+    <div class="concept"><h3>生产构建(build)</h3><p><code>vite build</code> 输出 <code>dist/</code> 目录:一堆压缩好的 HTML/JS/CSS 静态文件,交给任意 Web 服务器托管。</p></div>
+    <div class="concept"><h3>插件</h3><p>Vite 本身很小,靠插件支持各种文件类型 —— 本项目用 <code>@vitejs/plugin-vue</code> 让它认识 <code>.vue</code> 单文件组件。</p></div>
+    <div class="concept"><h3>base 路径</h3><p>告诉打包产物「你将来会被挂在网站哪个子路径下」,资源引用才能生成正确的地址。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/admin/vite.config.ts</code></td><td>管理后台直接由 Vite 驱动,配置了 <code>base: '/admin/'</code> —— 因为上线后整个后台挂在 <code>/admin/</code> 子路径下(由 Nginx 转发),打包产物里的资源地址必须带这个前缀。这一条还被根目录 scaffold 测试锁定,防止误改。</td></tr>
+    <tr><td>admin 的 Dockerfile</td><td>构建阶段跑 <code>vite build</code>,把产出的静态文件塞进一个 Nginx 小镜像 —— 上线的 admin 容器里只有静态文件,没有 Node。</td></tr>
+    <tr><td><code>apps/web</code>(间接)</td><td>Nuxt 底层同样用 Vite 做开发服务器与构建,所以 web 端也享受同样的秒级热更新。</td></tr>
+    <tr><td>测试</td><td>Vitest(名字就来自 Vite)复用同一套编译管线跑单元测试,配置零重复。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="vue.html">Vue — Vite 负责编译 .vue 文件</a>
+    <a href="nuxt.html">Nuxt — 底层构建引擎就是 Vite</a>
+    <a href="nginx.html">Nginx — /admin/ 前缀转发与 base 配置呼应</a>
+    <a href="docker.html">Docker — build 产物被装进 Nginx 镜像</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://cn.vitejs.dev/guide/" target="_blank">Vite 官方中文指南</a></li>
+    <li><a href="https://cn.vitejs.dev/guide/why.html" target="_blank">「为什么选 Vite」— 官方对构建工具演化的科普</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

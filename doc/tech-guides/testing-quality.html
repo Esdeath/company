@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试与代码质量 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🧰 工程化</span></div>
+<div class="page"><div class="card">
+  <h1>测试与代码质量 — 全天候值班的质检团队</h1>
+  <div class="subtitle">pytest 9 · Vitest 4 · Node 内置 test runner · ruff · mypy(strict) · ESLint</div>
+  <h2>它们是什么</h2>
+  <p><b>自动化测试</b>是一批「检查代码的代码」:预先写好「输入什么、应该得到什么」,一条命令全部跑一遍,改坏了立刻报警。<b>静态检查</b>则不运行代码,直接扫描源码找问题:风格混乱、可疑写法、类型对不上。两者合起来构成项目的质量防线,总开关是 <code>make check</code>。</p>
+  <div class="analogy"><b>比喻:</b>没有测试的项目像没有质检的工厂 —— 每次改流水线,只能靠老师傅肉眼把关,漏一个次品就流向客户。自动化测试是<b>安检门 + 全套质检流水线</b>:每件出厂品(每次改动)自动过一遍全部检测仪;静态检查则像投产前的图纸审查 —— 尺寸标错了,根本不用等开机就打回。</div>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>单元测试</h3><p>针对一个函数/组件的小测试:「给渲染函数一段 Markdown,应输出这样的 HTML」。快、多、密。</p></div>
+    <div class="concept"><h3>断言(assert)</h3><p>测试的核心动作:「断言结果等于预期」。不等 = 测试失败 = 有人改坏了东西。</p></div>
+    <div class="concept"><h3>Lint(风格与坏味道检查)</h3><p>扫出未使用的变量、危险写法、不统一的格式。ruff(Python)和 ESLint(JS/TS)各管一边。</p></div>
+    <div class="concept"><h3>类型检查</h3><p>mypy(Python)与 vue-tsc(TS)核对所有类型标注 —— 本项目 mypy 开 strict 最严模式。</p></div>
+    <div class="concept"><h3>冒烟测试(smoke test)</h3><p>整套系统起起来,走一遍最关键的主流程(能访问、能上传、能阅读),确认「没冒烟没起火」。</p></div>
+    <div class="concept"><h3>契约测试</h3><p>本项目特色:根目录测试锁定工程约定本身 —— 文件必须存在、配置必须一致、文档不许出现废弃说法。脚手架被误改,测试先叫。</p></div>
+  </div>
+  <h2>在本项目中 — make check 的完整清单</h2>
+  <table>
+    <tr><th>防线</th><th>工具与位置</th></tr>
+    <tr><td>工程契约</td><td>Node 内置 test runner(零依赖)跑 <code>tests/docs.test.mjs</code>、<code>tests/prototype.test.mjs</code>、<code>tests/scaffold.test.mjs</code> —— 守护文档措辞、原型清单、脚手架一致性。</td></tr>
+    <tr><td>前端 × 2</td><td><code>corepack pnpm --filter @company/web check</code>(admin 同理)= ESLint + typecheck + Vitest(配 @vue/test-utils + happy-dom 模拟浏览器)+ 生产构建。</td></tr>
+    <tr><td>后端风格</td><td><code>uv run ruff check .</code> + <code>uv run ruff format --check .</code>(规则集 E/F/I/UP/B/SIM)。</td></tr>
+    <tr><td>后端类型</td><td><code>uv run mypy src</code>,strict 模式。</td></tr>
+    <tr><td>后端行为</td><td><code>uv run pytest</code>,配 httpx 直接对 FastAPI 应用发起测试请求,不用真起服务器。</td></tr>
+    <tr><td>端到端</td><td><code>make compose-smoke</code>:整套容器起好后,脚本模拟真实用户走完「登录 → 上传 → 浏览」主流程。</td></tr>
+  </table>
+  <p>单独跑某一项也容易,比如 <code>uv run pytest tests/test_routes.py::test_某用例</code> 只跑一个用例 —— 修 bug 时反馈秒回。</p>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="toolchain.html">工程约定 — make check 是总开关</a>
+    <a href="typescript.html">TypeScript — 类型检查的前端侧</a>
+    <a href="fastapi.html">FastAPI — pytest + httpx 直测应用</a>
+    <a href="docker.html">Docker — 冒烟测试的舞台</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://docs.pytest.org/en/stable/getting-started.html" target="_blank">pytest 官方入门(英文)</a></li>
+    <li><a href="https://cn.vitest.dev/guide/" target="_blank">Vitest 官方中文指南</a></li>
+    <li><a href="https://docs.astral.sh/ruff/" target="_blank">ruff 官方文档(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

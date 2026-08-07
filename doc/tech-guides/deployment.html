@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>部署与 HTTPS · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🐳 基础设施</span></div>
+<div class="page"><div class="card">
+  <h1>部署与 HTTPS — 把项目搬上公网</h1>
+  <div class="subtitle">目标环境:阿里云 ECS 云服务器 · 一条命令:make deploy-aliyun</div>
+  <h2>它是什么</h2>
+  <p><b>部署</b>就是把本机开发好的系统,安装到一台 24 小时开机、有公网 IP 的服务器上,让全世界都能访问。<b>HTTPS</b> 是加密版的 HTTP:浏览器地址栏的小锁 🔒,保证你和网站之间的通信不被窃听、不被篡改 —— 靠的是一张由权威机构签发的「数字证书」。</p>
+  <div class="analogy"><b>比喻:</b>开发像在自家厨房试菜,部署像正式开餐厅:租店面(云服务器)、把整套设备原样搬过去(Docker 镜像)、挂招牌(域名)、办卫生许可证(HTTPS 证书 —— 有第三方担保「这家店是正主,不是山寨」)。证书还有有效期,到期要年检续期(自动续签)。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>让别人访问得到</b>:你的电脑会关机、没有固定公网地址;云服务器两者都有。</li>
+    <li><b>传输安全</b>:没有 HTTPS,登录密码、Cookie 在网络上就是明文裸奔;并且现代浏览器会将 HTTP 网站标记为「不安全」。</li>
+    <li><b>可重复、可回滚</b>:部署写成脚本,每次上线动作一致,不靠人肉记步骤。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>云服务器(ECS)</h3><p>租来的一台虚拟机,有公网 IP,装好 Docker 就能跑本项目的五个容器。</p></div>
+    <div class="concept"><h3>TLS 证书与 Let's Encrypt</h3><p>HTTPS 的「身份证」。Let's Encrypt 免费签发,90 天有效,配自动续签脚本长期无忧。</p></div>
+    <div class="concept"><h3>两层 Nginx</h3><p>宿主机 Nginx(管 HTTPS、公网入口、限流)→ 容器 edge Nginx(管内部路由分发)。各司其职。</p></div>
+    <div class="concept"><h3>systemd 服务与定时器</h3><p>Linux 的「后台服务管家」:保证 Nginx 常驻,备份任务按时刻表自动执行。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>方面</th><th>说明</th></tr>
+    <tr><td>一条命令部署</td><td><code>make deploy-aliyun</code> 调 <code>scripts/deploy-aliyun-ecs.sh</code>:本地构建镜像 → 打包上传(<code>build-ecs-image-bundle.sh</code>)→ 服务器上加载并重启(<code>load-ecs-image-bundle.sh</code>)。日常更新就这一条。</td></tr>
+    <tr><td>生产边界</td><td><b>宿主机 Nginx 是唯一公网入口</b>(443 端口,HTTPS);容器全部只绑 127.0.0.1,公网直接摸不到。配置在 <code>infra/aliyun-ecs/nginx.conf</code>,还带按 IP 的写接口限流(防恶意刷)。</td></tr>
+    <tr><td>HTTPS 证书</td><td>Let's Encrypt 签发,<code>infra/aliyun-ecs/</code> 里有续期钩子,到期自动换新。</td></tr>
+    <tr><td>安全开关</td><td>生产必须 <code>SESSION_COOKIE_SECURE=true</code>:会话 Cookie 只在 HTTPS 下发送(详见安全篇)。</td></tr>
+    <tr><td>数据备份</td><td>systemd 定时器 <code>company-backup.timer</code> 定时执行 <code>scripts/company-backup.sh</code>,备份数据库与资料文件。</td></tr>
+    <tr><td>踩坑记录</td><td>第一次部署的完整复盘在 <code>doc/ALIYUN_ECS_DEPLOYMENT_RETROSPECTIVE.md</code>,细节以 <code>doc/DEPLOYMENT.md</code> 为准。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="docker.html">Docker — 部署的就是这五个容器</a>
+    <a href="nginx.html">Nginx — 两层代理的分工</a>
+    <a href="web-security.html">安全 — SESSION_COOKIE_SECURE 与 HTTPS 配套</a>
+    <a href="toolchain.html">工程约定 — make deploy-aliyun 入口</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://letsencrypt.org/zh-cn/how-it-works/" target="_blank">Let's Encrypt 工作原理(官方中文)</a></li>
+    <li><a href="https://developer.mozilla.org/zh-CN/docs/Glossary/HTTPS" target="_blank">MDN:什么是 HTTPS(中文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

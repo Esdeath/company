@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FastAPI · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">⚙️ 后端</span></div>
+<div class="page"><div class="card">
+  <h1>FastAPI — 后端的「点餐窗口」</h1>
+  <div class="subtitle">本项目版本:0.139.2 · 搭配 Pydantic 2 校验数据、uvicorn 0.51 作为服务器</div>
+  <h2>它是什么</h2>
+  <p>FastAPI 是一个 <b>Python Web 框架</b>,用来编写「API 接口」:前端发来一个 HTTP 请求(比如「给我某公司的资料列表」),FastAPI 负责接住请求、调用业务逻辑、把结果打包成 JSON 返回。它有两位固定搭档:<b>Pydantic</b> 负责校验进出的数据格式,<b>uvicorn</b> 是实际监听端口、承接网络连接的服务器程序。</p>
+  <div class="analogy"><b>比喻:</b>后端像一家只做外卖的餐厅。<b>uvicorn</b> 是店门口的取餐窗口(网络监听),<b>FastAPI</b> 是前台点单员 —— 看单号(URL 路径)决定转给哪个档口(路由函数),<b>Pydantic</b> 是那位较真的收单员 —— 订单格式不对(缺字段、类型错)当场退回,不让厨房浪费工夫做错菜。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>裸写 HTTP 处理太苦</b>:解析请求、校验参数、序列化响应、生成文档,框架全部代劳,你只写业务逻辑。</li>
+    <li><b>接口文档过期</b>:FastAPI 根据代码<b>自动生成 OpenAPI 文档</b>(访问 <code>/docs</code> 有可交互界面)。本项目把这份 OpenAPI 当作前后端的「合同」—— 前端照它写类型,永不脱节。</li>
+    <li><b>高并发等待</b>:基于 Python 的 async(异步)能力,等数据库、等磁盘的时间可以去处理别的请求,不傻等。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>路由(Route)</h3><p>「URL + HTTP 方法 → 处理函数」的对应表:<code>GET /api/companies</code> 由某个函数处理,<code>POST</code> 由另一个。</p></div>
+    <div class="concept"><h3>Pydantic 模型</h3><p>用类声明数据形状,进来的请求自动校验、出去的响应自动序列化 —— 相当于后端版的 TypeScript 接口。</p></div>
+    <div class="concept"><h3>依赖注入(Depends)</h3><p>处理函数声明「我需要数据库会话 / 当前登录用户」,框架自动准备好递进来,方便替换和测试。</p></div>
+    <div class="concept"><h3>应用工厂(create_app)</h3><p>用一个函数组装出整个应用(注册路由、连数据库),测试时可以随时「再造一个隔离的应用实例」。</p></div>
+  </div>
+  <pre><code>@router.get("/companies/{company_id}/documents")
+async def list_documents(company_id: UUID) -> list[DocumentOut]:
+    """URL 里的 company_id 自动解析成 UUID,格式错直接 422。
+    返回值按 DocumentOut 模型自动转成 JSON。"""
+    return await service.list_documents(company_id)</code></pre>
+  <h2>在本项目中</h2>
+  <p>后端代码在 <code>apps/api/src/company_api/</code>,采用清晰的三层分工(「点单 → 配菜 → 库房」):</p>
+  <table>
+    <tr><th>文件</th><th>角色</th></tr>
+    <tr><td><code>main.py</code></td><td><code>create_app</code> 工厂:组装依赖、注册路由。uvicorn 用 <code>--factory</code> 模式启动它。</td></tr>
+    <tr><td><code>routes.py</code></td><td>资料主线的所有接口定义(点单层):公司增删改查、资料上传/浏览。</td></tr>
+    <tr><td><code>library_service.py</code></td><td>业务编排(配菜层):上传时按扩展名分流、调渲染、写索引写文件;单个文件失败只回滚该文件,不拖累同批次。</td></tr>
+    <tr><td><code>repository.py</code> / <code>content_store.py</code></td><td>存取层(库房):前者读写 PostgreSQL 索引,后者读写文件系统正文。</td></tr>
+    <tr><td><code>auth_routes.py</code> → <code>auth.py</code> → <code>auth_repository.py</code></td><td>认证一条线:登录、会话、CSRF 校验(详见安全篇)。</td></tr>
+    <tr><td><code>schemas.py</code> / <code>config.py</code></td><td>Pydantic 模型定义;pydantic-settings 从环境变量读配置(如 <code>CONTENT_ROOT</code>、<code>DATABASE_URL</code>)。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="python-uv.html">Python — FastAPI 的编写语言</a>
+    <a href="sqlalchemy-alembic.html">SQLAlchemy — repository 层用它访问数据库</a>
+    <a href="markdown.html">Markdown 渲染 — 上传管线的核心一环</a>
+    <a href="web-security.html">安全认证 — auth 三件套详解</a>
+    <a href="nginx.html">Nginx — /api/ 前缀的流量都转给它</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://fastapi.tiangolo.com/zh/tutorial/" target="_blank">FastAPI 官方中文教程(公认写得极好)</a></li>
+    <li><a href="https://docs.pydantic.dev/latest/" target="_blank">Pydantic 官方文档(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

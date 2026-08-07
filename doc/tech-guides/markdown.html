@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown 与渲染管线 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">⚙️ 后端 · 内容管线</span></div>
+<div class="page"><div class="card">
+  <h1>Markdown 与渲染管线 — 本项目的「印刷车间」</h1>
+  <div class="subtitle">渲染库:markdown-it-py 4.2 + mdit-py-plugins · 位于 rendering.py</div>
+  <h2>它是什么</h2>
+  <p><b>Markdown</b> 是一种极简的纯文本写作格式:用 <code>#</code> 表示标题、<code>**粗体**</code>、<code>-</code> 列表 —— 人眼直接可读,程序又能把它<b>渲染</b>成排版好的 HTML 网页。本项目的研究资料就支持以 Markdown 上传,后端用 <b>markdown-it-py</b> 这个库负责「翻译成网页」。</p>
+  <div class="analogy"><b>比喻:</b>Markdown 像作者的手稿 —— 只管内容,不管排版;渲染器像印刷车间 —— 拿到手稿,套上版式模板,印出精美的成品书页(HTML)。本项目的车间还有个规矩:手稿(source.md)和成品(rendered.html)都存档,以后想换新版式,拿手稿重印就行。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>写作门槛</b>:让内容创作者专注写内容,不碰 HTML/CSS。</li>
+    <li><b>展示一致性</b>:所有 Markdown 资料经同一套模板渲染,站点风格统一。</li>
+    <li><b>格式共存</b>:本项目同时接受 HTML 和 Markdown 上传 —— HTML 保持原文直接展示,Markdown 渲染后展示,两者最终都进同一个阅读器。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>Markdown 语法</h3><p><code># 标题</code>、<code>**粗体**</code>、<code>[链接](url)</code>、<code>| 表格 |</code> —— 十分钟能学完的标记语言。</p></div>
+    <div class="concept"><h3>渲染(render)</h3><p>解析 Markdown 文本 → 生成对应 HTML。markdown-it-py 遵循 CommonMark 标准,本项目还启用了表格、脚注、任务列表插件。</p></div>
+    <div class="concept"><h3>展示模板</h3><p>渲染出的正文会套进一层页面模板(标题、样式),模板文件在 <code>apps/api/src/company_api/templates/</code>。</p></div>
+    <div class="concept"><h3>源文件与产物分离</h3><p>上传的原文永远保留:<code>source.md</code>(或 <code>source.html</code>)+ 渲染产物 <code>rendered.html</code>,存在文件系统 <code>CONTENT_ROOT</code> 下。</p></div>
+  </div>
+  <pre><code># 输入(Markdown)
+## 财务摘要
+- 营收 **120 亿**,同比 +18%
+
+&lt;!-- 输出(HTML) --&gt;
+&lt;h2&gt;财务摘要&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;营收 &lt;strong&gt;120 亿&lt;/strong&gt;,同比 +18%&lt;/li&gt;&lt;/ul&gt;</code></pre>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>环节</th><th>说明</th></tr>
+    <tr><td>上传分流</td><td><code>library_service.py</code> 按扩展名分流:<code>.md</code> 走渲染管线,<code>.html</code> 保持原文。Skill 生成的文件被视为可信管理员输入,系统不检查正文内容。</td></tr>
+    <tr><td>渲染</td><td><code>rendering.py</code> 调 markdown-it-py 渲染,套 <code>templates/</code> 里的展示模板,样式对应 <code>doc/templates/markdown/template.css</code> 的设计。</td></tr>
+    <tr><td>落盘</td><td><code>content_store.py</code> 把 <code>source.md</code> 与 <code>rendered.html</code> 写进 <code>CONTENT_ROOT</code>;数据库只记「这份资料存在、放在哪」的索引。</td></tr>
+    <tr><td>阅读</td><td>公开站点用一个<b>空 <code>sandbox</code> 属性的 iframe</b> 展示 HTML —— 资料里就算带脚本也无法运行、无法碰主站(详见安全篇)。</td></tr>
+    <tr><td>内容来源</td><td>站外运行的 Skill(<code>skills/hk-value-snapshot/</code>)批量生成研究资料,产物按行业存放在 <code>stocks/</code>,再经管理端上传。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="fastapi.html">FastAPI — 渲染发生在上传接口的处理流程里</a>
+    <a href="postgresql.html">PostgreSQL — 只存索引,正文在文件系统</a>
+    <a href="web-security.html">安全 — sandbox iframe 隔离资料正文</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://markdown.com.cn/basic-syntax/" target="_blank">Markdown 中文教程(基础语法)</a></li>
+    <li><a href="https://commonmark.org/" target="_blank">CommonMark 标准(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

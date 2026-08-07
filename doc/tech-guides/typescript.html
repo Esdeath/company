@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TypeScript · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🖥️ 前端</span></div>
+<div class="page"><div class="card">
+  <h1>TypeScript — 给 JavaScript 加一层「安检」</h1>
+  <div class="subtitle">本项目版本:5.9.3 · 两个前端全部代码都用它编写,并开启最严格模式</div>
+  <h2>它是什么</h2>
+  <p>TypeScript(简称 TS)是 <b>JavaScript 的超集</b>:在 JS 的基础上增加了「类型标注」。你可以声明一个变量是数字、一个函数必须返回字符串、一个对象必须有哪些字段 —— 写错了,编辑器立刻画红线,根本等不到运行。浏览器不认识 TS,所以它最终会被编译成普通 JS 再运行。</p>
+  <div class="analogy"><b>比喻:</b>JavaScript 像不核对取件码的快递柜 —— 什么包裹都能塞进去,拿错了也要等拆开才发现。TypeScript 像加了核对的快递柜:存件时登记「这一格只放文件袋」,有人想塞进一箱苹果,当场拒收,而不是等收件人拆开才傻眼。</div>
+  <h2>它解决什么问题</h2>
+  <p>JavaScript 太宽容了:变量可以随时变类型、访问不存在的字段也不报错、拼错名字只有运行到那一行才炸。小脚本无所谓,但项目一大,这类低级错误会源源不断。TS 把这些错误的发现时机从「用户用的时候」提前到「你写代码的时候」,同时让编辑器拥有精准的自动补全 —— 因为它知道每个对象上有什么。</p>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>类型标注</h3><p><code>let n: number = 1</code> —— 冒号后面写类型。给 <code>n</code> 赋字符串会立刻报错。</p></div>
+    <div class="concept"><h3>接口 / 类型别名</h3><p><code>interface Company { id: string; name: string }</code> —— 描述一个对象的「形状」,少字段、错字段都逃不过检查。</p></div>
+    <div class="concept"><h3>类型推断</h3><p>不是处处都要手写类型:<code>const x = 42</code>,TS 自动推断 x 是数字。标注只写在关键边界(函数参数、接口数据)。</p></div>
+    <div class="concept"><h3>strict 严格模式</h3><p>一组最严格的检查开关,比如「可能为空的值必须先判空才能用」。本项目两个前端都开着它。</p></div>
+  </div>
+  <pre><code>interface Document {
+  id: string
+  title: string
+  publishedAt: string | null   // 明确告诉所有人:可能没有发布时间
+}
+function show(doc: Document) {
+  doc.publishedAt.slice(0, 10)  // ❌ 编译不过:它可能是 null!
+  if (doc.publishedAt) {
+    doc.publishedAt.slice(0, 10) // ✅ 判空之后才允许用
+  }
+}</code></pre>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/web/nuxt.config.ts</code></td><td>配置 <code>typescript: { strict: true, typeCheck: true }</code>,开发时就实时做类型检查。</td></tr>
+    <tr><td><code>apps/admin</code></td><td>全部 <code>.ts</code> / <code>.vue</code> 代码用 TS 编写,<code>vue-tsc</code>(3.3.7)负责检查 <code>.vue</code> 文件里的类型。</td></tr>
+    <tr><td><code>make check</code> 的前端部分</td><td>两个前端的 <code>check</code> 都包含 typecheck 步骤:类型不过关,整个质量检查就不过关。</td></tr>
+    <tr><td>前后端契约</td><td>后端 FastAPI 自动生成 OpenAPI 接口文档,前端据此定义 TS 类型 —— 接口改了、前端没跟上,类型检查会先叫起来。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="vue.html">Vue — 组件逻辑用 TS 编写</a>
+    <a href="node-pnpm.html">Node.js — TS 编译与检查工具跑在 Node 上</a>
+    <a href="fastapi.html">FastAPI — OpenAPI 契约是前端类型的来源</a>
+    <a href="testing-quality.html">测试质量 — typecheck 是 make check 的一环</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://www.typescriptlang.org/zh/docs/handbook/typescript-from-scratch.html" target="_blank">TypeScript 官方新手教程</a></li>
+    <li><a href="https://ts.xcatliu.com/" target="_blank">《TypeScript 入门教程》(中文开源书)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

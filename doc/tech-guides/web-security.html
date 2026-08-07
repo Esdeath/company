@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 认证与安全 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🔐 安全</span></div>
+<div class="page"><div class="card">
+  <h1>Web 认证与安全 — 只让该进来的人进来</h1>
+  <div class="subtitle">关键词:Argon2 密码哈希 · HttpOnly 会话 Cookie · CSRF 双重校验 · sandbox iframe</div>
+  <h2>要解决的三个问题</h2>
+  <p>凡是有登录功能的网站,都绕不开三件事:<b>密码怎么存</b>才不怕数据库泄露?<b>登录状态怎么记住</b>才不用每次都输密码?<b>怎么防止别人冒用</b>你的登录状态干坏事?本项目的管理端(以及站点用户功能)给出了一套标准答案。</p>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>密码哈希(Argon2)</h3><p>数据库里<b>永远不存密码原文</b>,只存一段不可逆的「指纹」。登录时把输入算一遍指纹比对。Argon2 是密码哈希竞赛的冠军算法,故意算得又慢又吃内存,让暴力破解成本极高。</p></div>
+    <div class="concept"><h3>会话(Session)与 Cookie</h3><p>登录成功后服务器发一张「手环」(随机会话令牌),存在浏览器 Cookie 里,之后每个请求自动带上,服务器凭手环认人。本项目的会话记录存在 PostgreSQL,服务器随时可以注销某个会话。</p></div>
+    <div class="concept"><h3>HttpOnly / Secure 标记</h3><p>Cookie 上的两个保险栓:<code>HttpOnly</code> = 页面里的 JS 读不到它(就算被注入恶意脚本也偷不走);<code>Secure</code> = 只肯经 HTTPS 发送(生产必须开,即 <code>SESSION_COOKIE_SECURE=true</code>)。</p></div>
+    <div class="concept"><h3>CSRF(跨站请求伪造)</h3><p>坏网站偷偷让你的浏览器向本站发请求 —— 浏览器会「自作多情」地带上 Cookie,请求就像你亲自发的。防御:写操作必须额外带一个 <code>X-CSRF-Token</code> 请求头,坏网站发得出请求、却拿不到令牌。</p></div>
+  </div>
+  <div class="analogy"><b>比喻:</b>把网站想成一家会员制会所。<b>Argon2</b>:前台不留会员密码底单,只留一种「碎纸机碎出的独特纸屑图案」—— 能比对,拼不回去。<b>会话 Cookie</b>:入场后发防伪手环,凭手环通行,不用反复报密码。<b>HttpOnly</b>:手环焊死在手腕上,场内的小偷(恶意脚本)摘不下来。<b>CSRF Token</b>:办正事(写操作)除了手环还要当面对暗号 —— 隔壁店铺(恶意网站)能怂恿你走进来,却不知道暗号。</div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>机制</th><th>落点</th></tr>
+    <tr><td>密码哈希</td><td><code>pwdlib[argon2]</code> 库;管理员密码哈希用 <code>make admin-password-hash</code>(调 <code>scripts/hash-admin-password.sh</code>)生成后配进环境变量。</td></tr>
+    <tr><td>认证代码</td><td><code>auth_routes.py</code>(登录/登出接口)→ <code>auth.py</code>(校验逻辑)→ <code>auth_repository.py</code>(会话存取,存 PostgreSQL)。</td></tr>
+    <tr><td>写操作双重校验</td><td>所有写接口<b>同时要求</b>会话 Cookie + <code>X-CSRF-Token</code> 头,缺一不可。</td></tr>
+    <tr><td>资料正文隔离</td><td>公开站点用<b>空 <code>sandbox</code> 属性的 iframe</b> 展示上传的 HTML:sandbox 一开,里面的脚本不能执行、不能弹窗、不能触碰主站 Cookie —— 即使资料文件里藏了恶意代码也翻不出这个笼子。</td></tr>
+    <tr><td>网络纵深</td><td>安全不止应用层:数据库只有 api 碰得到、容器只绑回环地址、公网只开 HTTPS 一扇门、写接口按 IP 限流 —— 层层设防。</td></tr>
+    <tr><td>其他细节</td><td>会话令牌用 <code>secrets</code> 生成、邮件令牌用 <code>hmac</code> 签名;设计文档见 <code>doc/AUTHENTICATION.md</code>。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="fastapi.html">FastAPI — 认证逻辑所在</a>
+    <a href="postgresql.html">PostgreSQL — 会话的存放地</a>
+    <a href="deployment.html">部署 — HTTPS 与 Secure Cookie 配套</a>
+    <a href="markdown.html">内容管线 — sandbox iframe 的由来</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Cookies" target="_blank">MDN:HTTP Cookie(中文)</a></li>
+    <li><a href="https://owasp.org/www-community/attacks/csrf" target="_blank">OWASP:CSRF 攻击详解(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

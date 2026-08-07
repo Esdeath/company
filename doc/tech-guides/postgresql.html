@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostgreSQL · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🗄️ 数据</span></div>
+<div class="page"><div class="card">
+  <h1>PostgreSQL — 项目的「档案总馆」</h1>
+  <div class="subtitle">本项目版本:18.4(容器镜像 postgres:18.4-alpine)</div>
+  <h2>它是什么</h2>
+  <p>PostgreSQL(常叫 Postgres)是世界上最受欢迎的开源<b>关系型数据库</b>:数据按「表」存放,表有固定的列,行与行之间可以建立关联;它保证数据的一致性和持久性 —— 断电、崩溃都不丢已确认的数据。</p>
+  <div class="analogy"><b>比喻:</b>数据库像图书馆的档案总馆。每类档案一个柜子(表),每份档案格式统一(列),柜子之间有交叉引用(外键:某份资料档案上写着「属于 3 号公司」)。馆里还有一位一丝不苟的管理员(事务机制):要么一整套手续办完,要么全部作废重来,绝不出现「借书证注销了一半」的状态。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>数据不能靠文件乱放</b>:多个请求同时读写、按条件查询、保证唯一性(公司代号不能重复)—— 这些文件系统做不了,数据库天生擅长。</li>
+    <li><b>崩溃安全</b>:写入先记日志再落盘,机器宕机也能恢复到一致状态。</li>
+    <li><b>约束即防线</b>:唯一约束、检查约束写在表结构里,脏数据在门口就被拦下,不依赖应用代码自觉。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>表 / 行 / 列</h3><p>表 = 一类东西(companies);行 = 一条记录(某家公司);列 = 一项属性(名称、代号)。</p></div>
+    <div class="concept"><h3>SQL</h3><p>操作数据库的通用语言:<code>SELECT ... FROM ... WHERE ...</code>。本项目由 SQLAlchemy 代写,人基本不手写。</p></div>
+    <div class="concept"><h3>事务(Transaction)</h3><p>一组操作要么全部成功要么全部撤销 —— 「转账扣了钱但没到账」这种半截状态不可能出现。</p></div>
+    <div class="concept"><h3>索引与约束</h3><p>索引让按条件查找飞快;唯一/外键/检查约束让非法数据根本进不来。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>方面</th><th>说明</th></tr>
+    <tr><td>存什么</td><td>公司表、资料索引表、管理员会话表、用户与评论表。<b>特意不存资料正文</b> —— 正文是几十上百 KB 的 HTML,放文件系统(<code>CONTENT_ROOT</code>)更合适,数据库只记「哪家公司有哪份资料、文件放哪」。这叫「索引入库、正文落盘」。</td></tr>
+    <tr><td>怎么跑</td><td>Compose 里的 <code>postgres</code> 服务,数据存在 <code>postgres_data</code> 卷里,容器重建数据不丢。</td></tr>
+    <tr><td>网络隔离</td><td>只绑定 <code>127.0.0.1:5432</code>(外网连不上),且只挂在 backend 内部网络 —— 五个服务里<b>只有 api 能碰到数据库</b>,web/admin 想连都没有路。</td></tr>
+    <tr><td>结构演进</td><td>表结构由 Alembic 迁移脚本管理,见 <code>apps/api/migrations/versions/</code>。</td></tr>
+    <tr><td>备份</td><td>生产环境有 systemd 定时器(<code>company-backup.timer</code>)定期备份数据库与内容目录。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="sqlalchemy-alembic.html">SQLAlchemy/Alembic — 访问它、演进它的工具</a>
+    <a href="fastapi.html">FastAPI — 唯一的数据库访问者</a>
+    <a href="docker.html">Docker — postgres 容器与数据卷</a>
+    <a href="deployment.html">部署 — 备份定时器</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://www.postgresql.org/docs/current/tutorial.html" target="_blank">PostgreSQL 官方教程(英文)</a></li>
+    <li><a href="https://www.sqlteaching.com/" target="_blank">SQL Teaching — 边玩边学 SQL(英文互动)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQLAlchemy 与 Alembic · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">⚙️ 后端</span></div>
+<div class="page"><div class="card">
+  <h1>SQLAlchemy 与 Alembic — 数据库的翻译官和装修施工队</h1>
+  <div class="subtitle">本项目版本:SQLAlchemy 2.0.51(异步)· Alembic 1.18.5 · 驱动 psycopg 3</div>
+  <h2>它们是什么</h2>
+  <p><b>SQLAlchemy</b> 是 Python 最主流的 <b>ORM(对象关系映射)</b>库:让你用 Python 类和对象来读写数据库,而不用手写 SQL 语句。你定义一个 <code>Company</code> 类,它对应数据库里的 <code>companies</code> 表;操作对象,SQLAlchemy 帮你翻译成 SQL。</p>
+  <p><b>Alembic</b> 是 SQLAlchemy 的官方搭档,负责 <b>数据库迁移(migration)</b>:数据库的表结构会随需求演进(加表、加列、加约束),Alembic 把每次变更写成一个带编号的脚本,让任何环境的数据库都能按顺序「升级」到最新结构。</p>
+  <div class="analogy"><b>比喻:</b>数据库只说 SQL 这门「外语」。<b>SQLAlchemy</b> 是随身翻译官 —— 你说「把这家公司存起来」,它翻译成 <code>INSERT INTO companies ...</code>。<b>Alembic</b> 是装修施工队的工程日志 —— 房子(数据库)每次改造(加房间、开窗)都留一张有编号的施工单,新房子按单子从头施工一遍,就能和老房子布局完全一致;施工单也能倒着执行,把改坏的恢复回去。</div>
+  <h2>它们解决什么问题</h2>
+  <ul>
+    <li><b>手写 SQL 易错难维护</b>:字符串拼 SQL 拼错要运行才知道,还容易引入注入漏洞。ORM 把表结构变成类型化的 Python 代码,写错字段名 mypy 就报错。</li>
+    <li><b>表结构失控</b>:没有迁移工具时,「谁在哪个环境手动改过表」全靠记忆。Alembic 把结构变更纳入代码版本管理,和业务代码一起提交、评审、部署。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>模型(Model)</h3><p>继承 <code>DeclarativeBase</code> 的 Python 类,用 <code>Mapped[str]</code> / <code>mapped_column()</code> 声明列 —— 类是表的蓝图。</p></div>
+    <div class="concept"><h3>会话(Session)</h3><p>一次数据库对话的上下文:查询、修改先记在会话里,<code>commit</code> 一起生效,出错则整体回滚 —— 这就是事务。</p></div>
+    <div class="concept"><h3>查询表达式</h3><p><code>select(Company).where(Company.slug == "x")</code> —— 用 Python 语法组装查询,SQLAlchemy 生成 SQL。</p></div>
+    <div class="concept"><h3>迁移版本链</h3><p>每个迁移脚本记着「我的上一版是谁」,连成一条链;<code>alembic upgrade head</code> = 从当前版本一路升到最新。</p></div>
+  </div>
+  <pre><code># models.py 里的写法(节选意译)
+class Company(Base):
+    __tablename__ = "companies"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    slug: Mapped[str] = mapped_column(unique=True)
+
+# repository.py 里这样查
+result = await session.execute(
+    select(Company).order_by(Company.name)
+)</code></pre>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/api/src/company_api/models.py</code></td><td>全部表模型:Company、Document、用户与评论相关表,以及唯一约束、检查约束 —— 数据规则写进蓝图。</td></tr>
+    <tr><td><code>repository.py</code> 等仓储层</td><td>用异步会话(<code>create_async_engine</code> + <code>async_sessionmaker</code>)执行查询;连接串 <code>postgresql+psycopg://</code> 表示经 psycopg 3 驱动连 PostgreSQL。</td></tr>
+    <tr><td><code>apps/api/migrations/versions/</code></td><td>4 个迁移脚本记录了数据库的成长史:建公司与资料表 → 加管理员会话表 → 加资料排序 → 加用户评论。</td></tr>
+    <tr><td>启动顺序</td><td>API 容器的入口脚本<b>先跑 <code>alembic upgrade head</code> 再启动服务</b> —— 保证代码面对的永远是最新表结构。开发时对应 <code>make db-upgrade</code>。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="postgresql.html">PostgreSQL — 被翻译的那门「外语」的主人</a>
+    <a href="fastapi.html">FastAPI — repository 层被 service 层调用</a>
+    <a href="python-uv.html">Python — 一切用 uv run alembic 执行</a>
+    <a href="docker.html">Docker — 容器启动时自动迁移</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://docs.sqlalchemy.org/en/20/orm/quickstart.html" target="_blank">SQLAlchemy 2.0 官方快速入门(英文)</a></li>
+    <li><a href="https://alembic.sqlalchemy.org/en/latest/tutorial.html" target="_blank">Alembic 官方教程(英文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>

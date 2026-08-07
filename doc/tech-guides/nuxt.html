@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuxt 4 · 技术导读</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0f4f8;font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;color:#1e293b;line-height:1.8}
+.nav{position:sticky;top:0;background:#1a365d;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;z-index:10}
+.nav a{color:#bfdbfe;text-decoration:none;font-size:14px}
+.nav a:hover{color:#fff}
+.nav .tag{margin-left:auto;font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:12px}
+.page{max-width:860px;margin:32px auto 64px;padding:0 20px}
+.card{background:#fff;border:1px solid #c8d6e5;border-radius:10px;padding:32px 40px;box-shadow:0 2px 8px rgba(30,58,138,.06)}
+h1{font-size:26px;color:#1a365d;margin:0 0 4px}
+.subtitle{color:#64748b;font-size:14px;margin-bottom:8px}
+h2{font-size:19px;color:#1e40af;border-left:4px solid #2563eb;padding-left:10px;margin:34px 0 12px}
+code{background:#eef2f7;border:1px solid #d8e0ea;border-radius:4px;padding:1px 6px;font-size:.88em;color:#0f3e8a;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:none;color:inherit;padding:0}
+.analogy{background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #93c5fd;border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px}
+.analogy b{color:#1e40af}
+.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.concept{background:#f8fafc;border:1px solid #dbe3ec;border-radius:8px;padding:12px 16px}
+.concept h3{margin:0 0 6px;font-size:14px;color:#1a365d}
+.concept p{margin:0;font-size:13px;color:#475569}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid #d8e0ea;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;color:#1a365d;white-space:nowrap}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.related a{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;border-radius:16px;padding:5px 14px;font-size:13px;text-decoration:none}
+.related a:hover{background:#bfdbfe}
+ul,ol{padding-left:22px}
+li{margin:6px 0}
+a{color:#2563eb}
+p{margin:10px 0}
+@media(max-width:640px){.concepts{grid-template-columns:1fr}.card{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="nav"><a href="index.html">← 返回技术导读</a><span class="tag">🖥️ 前端</span></div>
+<div class="page"><div class="card">
+  <h1>Nuxt 4 — 让 Vue 网站「先做好菜再上桌」</h1>
+  <div class="subtitle">本项目版本:4.4.8 · 驱动公开站点 apps/web(服务端渲染 SSR)</div>
+  <h2>它是什么</h2>
+  <p>Nuxt 是<b>基于 Vue 的「全栈框架」</b>:Vue 只管画界面,Nuxt 在它外面补齐了做一个完整网站需要的其他一切 —— 路由(网址与页面的对应)、服务端渲染、数据获取、SEO 头信息、部署产物。它最重要的能力是 <b>SSR(服务端渲染)</b>:页面先在服务器上渲染成完整 HTML,再发给浏览器。</p>
+  <div class="analogy"><b>比喻:</b>普通 Vue 单页应用(SPA)像「生鲜到家」—— 送到你手上的是食材(空 HTML + 一大包 JS),浏览器要自己下厨(执行 JS)才能看到页面。Nuxt 的 SSR 像「热菜外卖」—— 服务器把菜做好了才送(完整 HTML),打开就能吃(看到内容),搜索引擎这位「美食评论家」也能直接品尝到内容,而不是对着一袋生食材干瞪眼。</div>
+  <h2>它解决什么问题</h2>
+  <ul>
+    <li><b>SEO(搜索引擎收录)</b>:公开的资料站点需要被搜索引擎抓取,SPA 的空壳 HTML 对爬虫不友好;SSR 输出完整内容,天生利于收录。本项目的公开站点要靠搜索带流量,这是选 Nuxt 的核心原因。</li>
+    <li><b>首屏速度</b>:用户第一眼看到的是现成 HTML,不用等 JS 下载执行完。</li>
+    <li><b>工程繁琐</b>:路由配置、代码分割这些体力活,Nuxt 用「约定优于配置」全包了 —— 文件放对目录就自动生效。</li>
+  </ul>
+  <h2>核心概念</h2>
+  <div class="concepts">
+    <div class="concept"><h3>约定式目录</h3><p><code>app/pages/</code> 里的文件自动变成路由,<code>app/components/</code> 里的组件自动可用,<code>app/composables/</code> 自动导入 —— 不写配置。</p></div>
+    <div class="concept"><h3>SSR + 水合(Hydration)</h3><p>服务器渲染出 HTML → 浏览器显示 → Vue 在浏览器里「接管」这份 HTML,让它变成可交互的应用。这个接管过程叫水合。</p></div>
+    <div class="concept"><h3>Nitro 服务引擎</h3><p>Nuxt 的服务器端底座:<code>nuxt build</code> 产出一个独立 Node 服务(node-server 输出),还能在 <code>server/routes/</code> 里写小型后端接口。</p></div>
+    <div class="concept"><h3>routeRules 路由规则</h3><p>按路径配置行为:缓存、重定向、代理转发等,一行搞定。</p></div>
+  </div>
+  <h2>在本项目中</h2>
+  <table>
+    <tr><th>位置</th><th>角色</th></tr>
+    <tr><td><code>apps/web/</code></td><td>公开站点整体:公司列表、公司详情、资料阅读页。资料正文用一个空 <code>sandbox</code> 的 iframe 展示(详见安全篇)。</td></tr>
+    <tr><td><code>apps/web/app/components/</code></td><td><code>DocumentReader.vue</code>、<code>CommentSection.vue</code>、<code>AuthDialog.vue</code>、<code>NotificationMenu.vue</code> 等页面积木。</td></tr>
+    <tr><td><code>nuxt.config.ts</code> 的 routeRules</td><td>开发时把 <code>/api/**</code> 代理到本机 8000 端口的 FastAPI —— 前端开发不需要自己搭 Nginx 就能调后端。</td></tr>
+    <tr><td><code>apps/web/server/routes/healthz.get.ts</code></td><td>Nitro 小接口:容器健康检查探针,Docker 用它判断 web 服务是否活着。</td></tr>
+    <tr><td>生产部署</td><td><code>nuxt build</code> 产出 Node 服务,装进 <code>node:24.18-alpine</code> 容器,监听 3000 端口,由 edge Nginx 把 <code>/</code> 的流量转给它。</td></tr>
+  </table>
+  <h2>与其他技术的关系</h2>
+  <div class="related">
+    <a href="vue.html">Vue — Nuxt 的界面层就是 Vue</a>
+    <a href="vite.html">Vite — Nuxt 的构建引擎</a>
+    <a href="fastapi.html">FastAPI — 页面数据全部来自它的接口</a>
+    <a href="nginx.html">Nginx — 生产环境把 / 转发给 Nuxt 服务</a>
+    <a href="docker.html">Docker — 多阶段构建 web 镜像</a>
+  </div>
+  <h2>延伸阅读</h2>
+  <ul>
+    <li><a href="https://nuxt.com/docs/getting-started/introduction" target="_blank">Nuxt 官方入门(英文)</a></li>
+    <li><a href="https://cn.vuejs.org/guide/scaling-up/ssr.html" target="_blank">Vue 官方:服务端渲染(SSR)是什么(中文)</a></li>
+  </ul>
+</div></div>
+</body>
+</html>
