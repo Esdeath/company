@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HK_腾讯音乐(01698)财报</title>
+<style>
+:root{
+  --ink:#111; --muted:#6b7280; --border:#e5e0d8; --bg:#f7f5f1; --card:#fff;
+  --eye:#b7791f; --eyebg:#fff8e8; --eyeline:#f0c869;
+  --skip:#c53030; --pass:#2f855a; --watch:#b7791f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+
+.head{background:#111;color:#fff;border-radius:10px;padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px}
+.head h1{font-size:1.35rem;letter-spacing:-0.5px}
+.head h1 small{font-weight:400;font-size:0.8rem;opacity:.65;margin-left:8px}
+.head .kv{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.head .kv div{text-align:center}
+.head .kv .l{font-size:0.66rem;opacity:.6}
+.head .kv .v{font-size:1.25rem;font-weight:700}
+.head .kv .s{font-size:0.62rem;opacity:.55}
+
+.verdict-bar{margin-top:14px;background:var(--eyebg);border:2px solid var(--eyeline);border-radius:10px;padding:14px 18px}
+.verdict-bar .vhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.verdict-bar .vhead h2{font-size:1rem;color:var(--eye)}
+.verdict-bar .stamp{margin-left:auto;border:3px solid var(--pass);color:var(--pass);font-weight:800;font-size:1rem;padding:2px 14px;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.verdict-bar p{font-size:0.86rem}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps a{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--eyeline);border-radius:16px;padding:4px 12px;font-size:0.76rem}
+.steps a b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.7rem}
+.steps a .r{font-weight:700}
+.r.pass{color:var(--pass)} .r.fail{color:var(--skip)} .r.watch{color:var(--watch)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px}
+.card-title{display:flex;align-items:baseline;gap:10px;font-size:1rem;font-weight:700;padding-bottom:8px;margin-bottom:6px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.card-title .q{font-size:0.78rem;font-weight:400;color:var(--muted)}
+.snapshot-card{border:3px solid var(--eye);box-shadow:0 4px 16px rgba(183,121,31,.12)}
+.snapshot-card>.card-title{border-bottom-color:var(--eye);color:var(--eye)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:0.74rem;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:3px 5px;text-align:center}
+th{background:#f3efe8;font-size:0.68rem;color:var(--muted)}
+td:first-child,th:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:#fff;z-index:1}
+th:first-child{background:#f3efe8}
+tr.hl td{background:var(--eyebg);font-weight:700}
+tr.hl td:first-child{border-left:4px solid var(--eye);background:var(--eyebg)}
+td.neg{color:var(--skip)}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:var(--eye);color:#fff;font-size:0.66rem;font-style:normal;margin-right:5px;vertical-align:1px}
+.note{margin-top:10px;background:var(--eyebg);border:1px dashed var(--eyeline);border-radius:8px;padding:10px 14px;font-size:0.82rem}
+.note b{color:var(--eye)}
+.note .badge{vertical-align:-3px}
+.tag{font-weight:800}
+.tag.pass{color:var(--pass)} .tag.fail{color:var(--skip)} .tag.watch{color:var(--watch)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.duo .card{margin-top:0}
+@media(max-width:820px){.duo{grid-template-columns:1fr}.head .kv{margin-left:0}}
+
+.capital p{font-size:0.82rem;margin:3px 0}
+.biz{font-size:0.85rem}
+
+table.qa{white-space:normal;table-layout:auto}
+table.qa th{text-align:center}
+table.qa td{white-space:normal;text-align:left;line-height:1.55;padding:6px 8px}
+table.qa th:first-child,table.qa td:first-child{width:28px;text-align:center;position:static}
+table.qa td:nth-child(2){min-width:130px;font-weight:600}
+table.qa td:nth-child(3){white-space:nowrap;text-align:center}
+
+.foot{margin-top:18px;font-size:0.7rem;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1>HK_腾讯音乐(01698)财报<small>Tencent Music · 2026-08-07</small></h1>
+    <div class="kv">
+      <div><div class="l">近期股价</div><div class="v">HK$37.20</div><div class="s">52周区间 31.16 – 103.06</div></div>
+      <div><div class="l">市盈率 (TTM)</div><div class="v">9.7</div><div class="s">一年前曾 24.6</div></div>
+      <div><div class="l">市净率</div><div class="v">1.34</div><div class="s">一年前曾 2.41</div></div>
+      <div><div class="l">股息率</div><div class="v">2.53%</div><div class="s">FY2025派息每股HK$0.94</div></div>
+      <div><div class="l">总市值</div><div class="v">HK$1,171亿</div><div class="s">≈1,074亿人民币</div></div>
+    </div>
+  </div>
+
+  <div class="verdict-bar">
+    <div class="vhead">
+      <h2>30 秒结论（先看这里，再往下核对证据）</h2>
+      <span class="stamp">进入第二轮</span>
+    </div>
+    <p><b>进入渔场：</b>距52周低仅19%（HK$37.20 vs HK$31.16），距52周高跌去64%；PE从一年前24.6倍压缩至9.7倍，PB从2.41倍压缩至1.34倍——价、PE、PB三重压缩，均处上市以来最低区间。</p>
+    <p style="margin-top:6px"><b>30 秒结论：</b>中国最大在线音乐平台，正经历从"直播打赏"到"音乐订阅"的商业模型切换。毛利率从30%→44%的结构性改善是核心叙事，ROIC从6.8%→16.1%验证了这不止是成本收缩、是利润池转移。当前PE 9.7倍处历史底部，但分母（FY2025利润110亿）也是历史最高——66%的利润增速不可持续。本页能回答"这生意变好了没有"（变好了）；回答不了的是"44%的毛利率和35%的净利率有多少是'新常态'"——这决定了9.7倍PE是便宜还是陷阱。</p>
+    <div class="steps">
+      <a href="#m-snapshot"><b>1</b>长期记录 <span class="r watch">△ V型复苏</span></a>
+      <a href="#m-operating"><b>2</b>ROE与杠杆 <span class="r pass">✓ 真回报</span></a>
+      <a href="#m-snapshot"><b>3</b>股本变化 <span class="r pass">✓ 缩减回购</span></a>
+      <a href="#m-operating"><b>4</b>利润率 <span class="r pass">✓ 结构上行</span></a>
+      <a href="#m-snapshot"><b>5</b>估值锚 <span class="r watch">△ 顶利润</span></a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">公司业务与商业模式<span class="q">先建立商业认知，快照才能在脑中呈现"商业特性"</span></div>
+    <p class="biz">腾讯音乐娱乐集团（Tencent Music，NYSE: TME / HKEX: 01698），2016年由QQ音乐与中国音乐集团合并成立，2018年12月美股上市，2022年9月以介绍方式在港交所二次上市（同股不同权，-SW）。旗下三大在线音乐平台——QQ音乐、酷狗音乐、酷我音乐——合计月活超5亿，覆盖中国在线音乐市场的绝对份额；社交娱乐板块以全民K歌（WeSing）和直播为主。收入结构：<b>在线音乐服务</b>（订阅+广告+数字专辑，FY2025约占2/3收入）与<b>社交娱乐服务</b>（直播打赏+虚拟礼物，约占1/3）。2021年遭遇监管重击（独家版权禁令、直播行业整顿），社交娱乐收入持续下滑，但音乐订阅逆势崛起——付费用户从2021年约7,600万增至2025年的1.2亿以上，月ARPPU同步提升。当前战略核心：提高付费率（仍远低于Spotify的45%+），用音乐订阅的增长填补并超越直播的萎缩。</p>
+    <div class="note"><b>读快照前先在脑中放一句话：</b>这是一门"平台型订阅切换"的生意——上限由中国消费者音乐付费意愿决定，下限由免费用户广告变现和已锁定的版权成本优势托底。带着"订阅增长能否持续覆盖社交娱乐的萎缩"这个问题看下面每一行。</div>
+  </div>
+
+  <!-- ★ 快照上半部：每股数据（上市后年份） -->
+  <div class="card snapshot-card" id="m-snapshot">
+    <div class="card-title">★ 企业快照 · 上半部（每股数据，人民币元；股息为港元）<span class="q">2019–2025，美股上市后全口径；港股2022年介绍上市，无新股稀释</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>指标</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+      <tbody>
+        <tr class="hl"><td><span class="badge">1</span>每股营收</td><td>7.36</td><td>7.89</td><td>8.27</td><td>8.26</td><td>8.09</td><td>9.17</td><td>10.45</td></tr>
+        <tr class="hl"><td><span class="badge">1</span>每股收益（基本）</td><td>1.22</td><td>1.25</td><td class="neg">0.91</td><td>1.15</td><td>1.58</td><td>2.15</td><td>3.60</td></tr>
+        <tr><td>每股经营现金流</td><td>1.79</td><td>1.32</td><td>1.39</td><td>2.18</td><td>2.14</td><td>3.32</td><td>3.25</td></tr>
+        <tr><td>每股股息（港元）</td><td>–</td><td>–</td><td>–</td><td>–</td><td>0.535</td><td>0.699</td><td>0.940</td></tr>
+        <tr><td>每股净资产</td><td>13.85</td><td>16.60</td><td>15.98</td><td>15.28</td><td>17.76</td><td>21.56</td><td>25.51</td></tr>
+        <tr class="hl"><td><span class="badge">3</span>加权平均股本（亿股）</td><td>32.64</td><td>33.24</td><td>33.29</td><td>31.97</td><td>31.14</td><td>30.90</td><td>30.71</td></tr>
+        <tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）</td><td>9.1%</td><td>8.7%</td><td class="neg">5.9%</td><td>7.5%</td><td>9.5%</td><td>10.7%</td><td>14.9%</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b><span class="badge">1</span>长期记录 ——</b> 七年EPS序列：1.22→1.25→<b>0.91</b>→1.15→1.58→2.15→3.60，呈深V型。2021年是分水岭：反垄断取消独家版权+直播行业整顿，净利润暴跌27%（41.6亿→30.3亿），ROE跌至5.9%。此后四年，EPS从0.91升至3.60，CAGR 41%——但这部分是因为起点极低。记录不够长（有效数据仅7年），不够平滑（中间一个断层），但方向明确：商业模式正在从低毛利直播切换为高毛利订阅。真正的考验是"下一个七年EPS序列是否更像一根稳定上升的直线"。<span class="tag watch">△ V型复苏</span></div>
+    <div class="note"><b><span class="badge">3</span>股本变化 ——</b> 加权股本于2021年见顶（33.29亿股），此后四年持续缩减至30.71亿（-7.8%），回购是常态而非融资工具。FY2023首次启动派息，每股股息从0.535港元增至0.940港元（两年+76%），但分红率仅24%，大部分利润留在体内——这对成长阶段的平台公司是合理的，但意味着股东回报目前仍以回购为主。缩股本+派息+利润增长三重叠加，是每股指标跑赢公司口径的驱动力（EPS CAGR 19.8% vs NP CAGR 18.6%）。<span class="tag pass">✓ 缩减回购</span></div>
+    <div class="note"><b><span class="badge">5</span>估值锚 ——</b> PE 9.7倍、PB 1.34倍，均处上市以来最低区间（一年前PE 24.6倍、PB 2.41倍）。但估值"便宜"的前提是分母（FY2025利润110亿元、ROE 14.9%）代表可持续的盈利水平。当前利润处于历史最高点——2025年净利润同比+66%，毛利率44.2%、净利率34.5%均为历史峰值。若利润回到FY2024（66亿），PE=16倍；回到2023（49亿），PE=22倍。PE的"便宜"与利润的"顶"是同一条信息的两面。PB 1.34倍不上不下——既不够低到拆资产包找下行保护（轻资产平台生意，资产包里主要是现金+版权+商誉），也不够高到可以忽略资产质量。核心问题是"顶利润"的保质期。<span class="tag watch">△ 顶利润</span></div>
+  </div>
+
+  <!-- ★ 快照下半部：经营数据（全部年份） -->
+  <div class="card snapshot-card" id="m-operating">
+    <div class="card-title">★ 企业快照 · 下半部（年度经营数据，人民币）<span class="q">全部7年历史（2019–2025），美股上市后数据，无上市前失真</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>指标</th><th>2019</th><th>2020</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+      <tbody>
+        <tr><td>营业收入（亿元）</td><td>254.3</td><td>291.5</td><td>312.4</td><td>283.4</td><td>277.5</td><td>284.0</td><td>329.0</td></tr>
+        <tr><td>营收同比</td><td>–</td><td>14.6%</td><td>7.2%</td><td class="neg">-9.3%</td><td class="neg">-2.1%</td><td>2.3%</td><td>15.8%</td></tr>
+        <tr><td>归母净利润（亿元）</td><td>39.8</td><td>41.6</td><td class="neg">30.3</td><td>36.8</td><td>49.2</td><td>66.4</td><td>110.6</td></tr>
+        <tr><td>净利润同比</td><td>–</td><td>4.3%</td><td class="neg">-27.1%</td><td>21.4%</td><td>33.8%</td><td>35.0%</td><td>66.4%</td></tr>
+        <tr class="hl"><td><span class="badge">4</span>毛利率</td><td>34.1%</td><td>31.9%</td><td>30.1%</td><td>31.0%</td><td>35.3%</td><td>42.3%</td><td>44.2%</td></tr>
+        <tr class="hl"><td><span class="badge">4</span>净利率</td><td>15.6%</td><td>14.3%</td><td>10.3%</td><td>13.6%</td><td>18.8%</td><td>25.0%</td><td>34.5%</td></tr>
+        <tr class="hl"><td><span class="badge">2</span>净资产收益率（平均）</td><td>9.1%</td><td>8.7%</td><td class="neg">5.9%</td><td>7.5%</td><td>9.5%</td><td>10.7%</td><td>14.9%</td></tr>
+        <tr class="hl"><td><span class="badge">2</span>投入资本回报率</td><td>13.2%</td><td>11.5%</td><td class="neg">6.8%</td><td>8.0%</td><td>10.3%</td><td>11.8%</td><td>16.1%</td></tr>
+        <tr><td>资产负债率</td><td>17.1%</td><td>22.8%</td><td>24.1%</td><td>26.7%</td><td>24.3%</td><td>22.9%</td><td>19.0%</td></tr>
+        <tr><td>经营现金流（亿元）</td><td>62.0</td><td>48.9</td><td>52.4</td><td>74.8</td><td>73.4</td><td>102.8</td><td>102.3</td></tr>
+        <tr><td>应收周转天数</td><td>11.6</td><td>11.7</td><td>9.7</td><td>9.0</td><td>9.9</td><td>8.8</td><td>8.9</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b><span class="badge">2</span>ROE 与杠杆 ——</b> ROE从2021年谷底5.9%一路爬升至14.9%，ROIC紧随其后（6.8%→16.1%），说明回报提升靠的是盈利能力的真实改善而非加杠杆——事实上负债率反而从26.7%降至19.0%，几乎无有息负债，ROIC持续高于ROE说明富余现金在拖累分母而非创造价值。<b>净现比</b>（经营现金流÷归母净利润）7年均值1.49倍，长期利润是真金白银；但FY2025骤降至0.93，是七年来首次跌破1。这个信号需要去FY2025年报附注里查：是应收账款增加、版权预付款还是其他一次性因素？不影响长期判断，但削弱了"当前盈利质量无可挑剔"的叙事。<span class="tag pass">✓ 真回报</span></div>
+    <div class="note"><b><span class="badge">4</span>利润率 ——</b> 毛利率从30.1%（2021底）到44.2%（2025）是一条陡峭的上行线，不是周期摆动。驱动力来自三件事叠加：①独家版权禁令后内容成本下降（不再为排他性支付溢价）；②订阅收入占比提升（订阅毛利率远高于直播打赏，因为平台抽成比例固定而内容成本摊薄）；③经营杠杆——收入增长16%的同时，费用增长远低于此。净利率从10.3%到34.5%的跃升比毛利率更剧烈，说明还有一层"费用纪律"红利。但问题也在这里：当费用已经压到极致、毛利率改善的"最容易的部分"已经吃完，下一个10个点的利润率提升从哪里来？这个问题的答案在页面外——需要去拆分部数据看各业务的利润率天花板。<span class="tag pass">✓ 结构上行</span></div>
+  </div>
+
+  <!-- 5秒心算 -->
+  <div class="card">
+    <div class="card-title">5 秒心算<span class="q">禁用计算器，不用"每股"概念——每个数字都取自本页</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>步骤</th><th>心算</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td>市值（所有者视角）</td><td>HK$37.20 × 31.48亿股 ≈ 1,171亿港元</td><td>≈ 1,074亿元人民币</td></tr>
+        <tr><td>息税前利润</td><td>税前利润132.8亿（公司几乎无有息负债，直接以税前利润作EBIT代理）</td><td>≈ 132.8亿元</td></tr>
+        <tr><td>你付的价格</td><td>EV = 市值 − 现金 = 1,074 − 84.7 = 989.6亿，÷ EBIT</td><td>EV/EBIT ≈ 7.5×</td></tr>
+        <tr class="hl"><td>生意本身的回报</td><td>ROIC（API披露）</td><td>≈ 16.1%</td></tr>
+        <tr class="hl"><td>回报的历史区间</td><td>ROIC：2019年13.2% → 2021年底6.8% → 2025年16.1%</td><td>6.8%–16.1%</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note"><b>心算的结论：</b>EV/EBIT 7.5倍、ROIC 16.1%——按"出价7.5块买1块税前利润"的框架看不算贵。但算式有三处软肋：①<u>分子（EBIT）</u>用的是FY2025的132.8亿历史最高利润，若回到FY2024的87.1亿，EV/EBIT=11.4倍；②<u>分母（EV）</u>在52周高点时是现在的2.8倍（HK$103时EV≈2,900亿），价格方向的波动远超利润方向的确定性；③<u>"几乎无有息负债"</u>是快照层面的判断，需要在年报附注里确认。市场在FY2025利润到底是不是"正常水平"这件事上存在巨大分歧——EV/EBIT 7.5倍或11.4倍，答案取决于你站在分歧的哪一边。<span class="tag watch">分歧在利润可持续性</span></div>
+  </div>
+
+  <div class="duo">
+    <div class="card">
+      <div class="card-title">资本结构与流动性（人民币）<span class="q">②的杠杆证据</span></div>
+      <div class="capital">
+        <p><b>已发行股本：</b>31.48亿股（每手100股，同股不同权，腾讯持股约53%为B类股）。</p>
+        <p><b>负债结构：</b>总负债194.7亿，其中流动负债占74.9%，几乎全部为经营性负债（应付版权费、递延收入等）；无有息负债或极低。</p>
+        <p><b>股息：</b>FY2023起每年派息，逐年递增（0.535→0.699→0.940港元/股），分红率约24%。</p>
+        <p><b>市值：</b>约 1,171 亿港元。</p>
+      </div>
+      <div style="height:8px"></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>项目</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+        <tbody>
+          <tr><td>总资产（亿元）</td><td>755.4</td><td>904.4</td><td>1,025.2</td></tr>
+          <tr><td>总负债（亿元）</td><td>183.3</td><td>207.2</td><td>194.7</td></tr>
+          <tr class="hl"><td>资产负债率</td><td>24.3%</td><td>22.9%</td><td>19.0%</td></tr>
+          <tr><td>流动比率</td><td>2.49</td><td>2.09</td><td>2.22</td></tr>
+          <tr class="hl"><td>期末现金（亿元）</td><td>135.7</td><td>131.6</td><td>84.7</td></tr>
+          <tr><td>归母净资产（亿元）</td><td>559.1</td><td>678.6</td><td>802.9</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><b><span class="badge">2</span>怎么读：</b>三年间总资产从755亿膨胀至1,025亿（+36%），而负债反而从183亿降至195亿基本持平——增长靠的是利润留存而非借债，资产负债表在"自我造血"中变厚。现金从136亿降至85亿，减少的51亿大致对应回购+派息的现金支出（FY2024–2025融资现金流合计-85亿）。净现金头寸在收窄，但整体仍然安全（现金84.7亿 vs 几乎零有息负债）。流动性是安全带，不是护城河——这门生意的护城河在版权规模、用户习惯和双边网络效应上，资产负债表只是让你在市场恐慌时不会被强制平仓。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">年均变化率（上市后 2019→2025）<span class="q">①的量化版，由快照实际值直接计算</span></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>指标</th><th>6年复合</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td><span class="badge">1</span>营收</td><td>4.4%</td></tr>
+          <tr class="hl"><td><span class="badge">1</span>净利润</td><td>18.6%</td></tr>
+          <tr><td>每股营收</td><td>6.0%</td></tr>
+          <tr><td>每股净资产</td><td>10.7%</td></tr>
+          <tr><td>每股股息</td><td>32.5%（FY2023起，2年）</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><b><span class="badge">1</span>怎么读：</b>营收CAGR仅4.4%——这门生意不是增长奇迹，是利润结构改善的故事。净利润CAGR 18.6%远高于营收，恰好是毛利率从34%→44%和费用率压缩的数学结果。每股指标全面跑赢公司口径（每股营收+6.0% vs 营收+4.4%，每股净资产+10.7% vs 净资产累积速度）——回购的7.8%股本缩减贡献了约1.2个百分点的"免费"年化增速。但CAGR对起止点高度敏感：若以2021年低谷为起点，4年净利润CAGR高达38%，显然夸大了趋势；若以2020年为起点（5年净利润CAGR 21.6%），更接近真实斜率。最佳解读方式：别盯着CAGR的数字，盯着下半部那张表里"净利润同比"那一行的波动——然后问自己，未来10年的波动区间大概在什么范围。</div>
+    </div>
+  </div>
+
+  <!-- 五问 -->
+  <div class="card">
+    <div class="card-title">五问检查清单<span class="q">本页只能回答前两问；后三问从合上这页开始，自己去挣</span></div>
+    <table class="qa">
+      <thead><tr><th>#</th><th>问题</th><th>本页能答吗</th><th>腾讯音乐的答案 / 去处</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>价格是否便宜？</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td>以当前利润水平看，PE 9.7倍、EV/EBIT 7.5倍、PB 1.34倍，确实在历史最便宜的区间。但"便宜"完全绑在FY2025利润的可持续性假设上——这一年净利润同比增长66%，毛利率44.2%、净利率34.5%均是历史峰值。若利润均值回归到FY2024水平（66亿），当前PE≈16倍，不贵但也不算特别便宜。你需要自己判断的是：FY2025到底是新稳态的第一年，还是周期顶。</td></tr>
+        <tr><td>2</td><td>这是不是一桩好生意？</td><td style="color:var(--pass);font-weight:800">✓ 页面内</td><td><b>最强证据：</b>①毛利率结构性上行（30%→44%），享受的是"独家版权禁令"这一制度性变革的一次性红利+订阅占比提升的持续性红利；②ROIC从6.8%升至16.1%，回报改善是真实的不靠杠杆；③7年净现比均值1.49倍，利润是真钱。④轻资产、负capex——经营现金流几乎等于自由现金流。<br><b>最弱证据：</b>①营收增长平庸（CAGR仅4.4%），说明好利润≠好增长；②社交娱乐板块（直播）仍在结构性萎缩，一直在拖后腿；③FY2025净现比跌破1，盈利质量出现裂痕标签。</td></tr>
+        <tr><td>3</td><td>管理层是否值得信任？<br>（须基于外部验证）</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td><b>页面线索：</b>加分项——持续回购减股本（33.3→30.7亿股）、启动并逐年增加派息、不搞增发圈钱。减分项——分红率仅24%，大部分利润"留在体内"但未明确说明用途（继续回购or投资or防御性囤积？）；CEO梁柱2021年上任后推动的战略转型（订阅优先）方向正确，但四年了社交娱乐还没有稳住。<br><b>该查什么：</b>腾讯母公司对TME的战略定位（是"利润中心"还是"生态棋子"？）、历年股东信/业绩会中管理层对利润率的指引与实际兑现的对照、高管薪酬与回购节奏的关系、有无关联交易侵蚀小股东利益。</td></tr>
+        <tr><td>4</td><td>我还遗漏了什么？</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td><b>这家公司特有的盲区：</b>①VIE结构+中美双重上市的法律风险（虽审计问题已解决，但地缘政治尾部风险仍在）；②版权成本的未来走向——当前利润率改善很大程度受益于2021年独家版权禁令后行业版权费下降，如果版权方（唱片公司）重新获得议价权呢？③AI对音乐行业的冲击：AI生成音乐会不会削弱"版权曲库"的护城河？④腾讯生态依赖：TME的流量和支付基础设施深度绑定微信/QQ，脱离腾讯生态它值多少钱？⑤付费率天花板：中国用户音乐付费率能否追上Spotify的45%+，还是受消费习惯制约长期停留在20%左右？</td></tr>
+        <tr><td>5</td><td>为什么这个机会被我发现？</td><td style="color:var(--skip);font-weight:800">✋ 页面外</td><td><b>全市场分歧型，并非"无人知晓"。</b>TME是热门中概股，华尔街和内地分析师全覆盖——股价从103跌到37不是因为没人看，是因为看的人对FY2025利润的保质期有截然不同的判断。多头说："订阅飞轮才刚启动，40%+毛利率是新常态，10倍PE太便宜"。空头说："直播还在失血，版权成本迟早反弹，66%利润增速是基数和一次性因素叠加，均值回归后PE要翻倍"。<br><b>你的优势必须来自：</b>对"中国音乐付费的长周期斜率"有比市场更准确的判断——而这个判断不来自财务报表，来自对产品体验、用户行为、竞品格局的深度观察。</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>交接棒规则：</b>前两问结论——价格在历史低位但绑在顶利润假设上（△）、生意质地正在变好且证据充分（✓）→ 进入第二轮。第二轮的核心任务只有一个：<b>判断FY2025的利润率有多少是可持续的。</b>具体路径：①拆分部收入与利润（在线音乐 vs 社交娱乐），看各自的增长与利润率趋势；②研究全球音乐流媒体对标（Spotify的毛利率长期在25-31%，TME的44%为什么更高、能维持吗？）；③中国音乐付费率的长期空间研究；④跟踪季度数据看社交娱乐是否已触底。准确的信息、完整的信息——逆势重仓的底气只能来自这里。</div>
+  </div>
+
+  <div class="foot">
+    本页为按"企业快照"框架重排的极简筛选版，保留：价格、商业模式、快照（每股数据+经营数据）、资本结构与流动性、年均变化率；评级、预测、机构动向、季度数据、分析师观点等模块未采用。财报数据为人民币（来自东方财富港股F10公开接口，2019–2025年报），股价与股息为港元，汇率按1人民币=1.09港元折算；心算与增长率均为实际披露数据的直接运算，无估算与预测。TME于2018年12月美股上市、2022年9月港股介绍上市，F10数据覆盖美股上市后全部年份，无上市前优先股会计失真。EBIT以税前利润作近似替代（公司几乎无有息负债）。判词为方法论演示，不构成任何投资建议。
+  </div>
+
+</div>
+</body>
+</html>
